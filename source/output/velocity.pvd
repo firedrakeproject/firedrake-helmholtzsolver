@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<VTKFile byte_order="LittleEndian" version="0.1" type="Collection">
-<Collection>
-<DataSet timestep="0" part="0" group="" file="velocity_0.vtu"/>
-</Collection>
-</VTKFile>
