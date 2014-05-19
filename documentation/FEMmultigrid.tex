@@ -1,0 +1,239 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage[cm]{fullpage}
+\renewcommand{\vec}[1]{\boldsymbol{#1}}
+\newcommand{\grad}{\operatorname{grad}}
+\newcommand{\divergence}{\operatorname{div}}
+\newcommand{\intOmega}[1]{\langle#1\rangle_{\Omega}}
+\newcommand{\Vpressure}{\mathbb{V}_2}
+\newcommand{\Vvelocity}{\mathbb{V}_1}
+\newcommand{\VvelocityTr}{\mathbb{V}^*_1}
+\newcommand{\indexSet}{\mathcal{I}}
+\newcommand{\grid}{\mathcal{T}}
+\usepackage{algorithm,algorithmic}
+\title{Ideas for a matrix free mixed-finite element multigrid solver}
+\author{Eike M\"{u}ller, University of Bath}
+\begin{document}
+\maketitle
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Elliptic operator}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Pressure / velocity system arising from implicit time stepping
+\begin{equation}
+ \begin{aligned}
+  \phi + \omega \divergence\left(\phi^* \vec{u}\right) &= r_{\phi} \\
+  \vec{u} + \omega \grad\phi &= \vec{r}_{\vec{u}}
+ \end{aligned}
+  \label{eqn:MixedSystem}
+\qquad 
+\phi,r_\phi \in \Vpressure,\;\;
+\vec{u},\vec{r}_{\vec{u}}\in\Vvelocity,\;\;
+\phi^* \in\VvelocityTr
+\end{equation}
+with $\omega = \kappa \Delta t$. The system is solved on the surface of a sphere $\Omega$, so there are no boundary conditions. Choose $P_0$ (or $Q_0$ on quads) elements for the discontinuous pressure space $\Vpressure$ and $RT_0$ elements for the velocity space $\Vvelocity$. $\phi^*$ is a mapping $\Vvelocity\rightarrow\Vvelocity$ and lives in the space $\VvelocityTr$ (that's probably not the correct mathematical notation. Is this (equivalent to) the trace space?). Explicitly
+\begin{xalignat}{3}
+  \phi &= \sum_{\operatorname{cells}\;i} \Phi_i \beta_i(x) \in P_0\;\text{or}\;Q_0\equiv \Vpressure, &
+  \vec{u} &= \sum_{\operatorname{edges}\;e} U_e \vec{v}_e(x) \in RT_0 \equiv\Vvelocity, &
+  \phi^* &= \sum_{\operatorname{edges}\;e} \Phi^*_{ee}\gamma_e(x) \in \VvelocityTr.
+\end{xalignat}
+\paragraph{Basis functions.}
+\begin{itemize}
+  \item $\beta_i(x)$ is 1 in the cell $i$ and zero everywhere else
+	\item $\gamma_e(x)$ is 1 on the edge $e$ and 0 everywhere else
+  \item $\vec{v}_e(x)$ are the $RT_0$ basis functions with unit flux through edge $e$.
+\end{itemize}
+$\Phi^*$ is a diagonal matrix. In the following I always use indices $e,e'$ for edges and $i,j,k$ for cells.
+Multiply (\ref{eqn:MixedSystem}) by test functions $\psi\in \Vpressure$, $\vec{w}\in\Vvelocity$ and integrate over the domain $\Omega$ to obtain 
+\begin{equation}
+ \begin{aligned}
+  \intOmega{\psi \phi} + \omega \intOmega{\psi \divergence(\phi^* \vec{u})} &= 
+  \intOmega{\psi r_{\phi}} \\
+  \intOmega{\vec{w}\cdot\vec{u}} - \omega \intOmega{\divergence \vec{w} \phi} &= \intOmega{\vec{w}\cdot \vec{r}_{\vec{u}}}
+ \end{aligned}
+ \qquad\forall{\psi\in\Vpressure, \vec{w}\in\Vvelocity}
+\end{equation}
+where $\intOmega{\cdot}$ denotes integration over the entire domain $\Omega$.
+This leads to the matrix system
+\begin{equation}
+ \begin{aligned}
+  M_{\phi} \vec{\Phi} + \omega B (\Phi^* \vec{U}) &= M_{\phi}\vec{R}_\phi \\
+  M_{u} \vec{U} - \omega B^T \vec{\Phi} &= M_u \vec{R}_{\vec{u}}
+ \end{aligned}
+\label{eqn:MatrixSystem}
+\end{equation}
+with the mass matrices
+\begin{equation}
+ \begin{aligned}
+  \left(M_{\phi}\right)_{ij} &\equiv \int_{\Omega} \beta_{i}(x)\beta_j(x)\;dx = \delta_{ij} \int_{E_i} dx = \delta_{ij} |E_i| \\
+  \left(M_{u}\right)_{ee'} &\equiv \int_{\Omega} \vec{v}_e(x)\cdot \vec{v}_{e'}(x)\; dx
+ \end{aligned}
+\end{equation}
+We write $|E_i|$ for the volume of cell $i$. The discrete derivative matrix is given by
+\begin{equation}
+  B_{ie} \equiv \int_{\Omega} \divergence \vec{v}_e(x) \beta_i(x)\; dx = \int_{E_i} \divergence \vec{v}_e(x) \;dx = \int_{\partial E_i} \vec{v}_e(x)\cdot \hat{\vec{n}} \; dx = \pm 1,
+\end{equation}
+the sign depends on whether the the flux basis function $\vec{v}_e(x)$ on edge $e$ points into cell $i$ ($B_{ie} = -1$) or out of it ($B_{ie}=+1$).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Incremental iterative solver}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Solve the pressure/velocity system in (\ref{eqn:MatrixSystem}) iteratively as follows (the scheme is the same as the nested iteration in \cite{Wilson2010}):
+The solution at iteration $k$ is given by $\vec{\Phi}^{(k)}$, $\vec{U}^{(k)}$.
+ Use this pressure and velocity to calculate residuals
+\begin{equation}
+ \begin{aligned}
+  M_{\phi} \vec{\Phi}^{(k)} + \omega B (\Phi^* \vec{U}^{(k)}) &= M_{\phi}\vec{R}^{(k)}_\phi \\
+  M_{u} \vec{U}^{(k)} - \omega B^T \vec{\Phi}^{(k)} &= M_u \vec{R}^{(k)}_{\vec{u}}
+ \end{aligned}
+\end{equation}
+To obtain the next iterate $\vec{\Phi}^{(k+1)} = \vec{\Phi}^{(k)}+\vec{\Phi}'$, $\vec{U}^{(k+1)} = \vec{U}^{(k)}+\vec{U}'$, find the increments $\vec{\Phi}'$, $\vec{U}'$ which solve the residual correction equation
+\begin{equation}
+ \begin{aligned}
+  M_{\phi} \vec{\Phi}' + \omega B (\Phi^* \vec{U}') &= M_{\phi}\vec{R}'_\phi
+= M_\phi\left(\vec{R}_\phi-\vec{R}^{(k)}_\phi\right)\\
+  M^*_{u} \vec{U}' - \omega B^T \vec{\Phi}' &= M^*_u \vec{R}'_{\vec{u}}
+= {M_u^*} \left(\vec{R}_{\vec{u}}-\vec{R}^{(k)}_{\vec{u}}\right)
+ \end{aligned}
+\label{eqn:MatrixSystemCorrection}
+\end{equation}
+where we replaced $M_u$ by the lumped mass-matrix $M_u^*$ (see appendix \ref{sec:MassLumping}). By solving the second equation in (\ref{eqn:MatrixSystemCorrection}) for $\vec{U}'$ and inserting it into the first, one obtains the following elliptic equation for the pressure correction $\vec{\Phi}'$:
+\begin{equation}
+  M_{\phi}\vec{\Phi}' + \omega^2 B \alpha^{(u)} B^T \vec{\Phi}'
+  \equiv A\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}_{\phi}-\omega B \Phi^* \vec{R}_{\vec{u}}
+\label{eqn:EllipticEquation}
+\end{equation}
+where we defined the diagonal matrix
+\begin{equation}
+  \alpha^{(u)} \equiv \Phi^* \left(M_u^*\right)^{-1}.
+\end{equation}
+which we assume to be positive definite. We use a multigrid algorithm to solve 
+(\ref{eqn:EllipticEquation}) approximately for $\vec{\Phi}'$ and then calculate the velocity correction as 
+\begin{equation}
+  \vec{U}' = \vec{R}'_{\vec{u}}+\left(M_u^*\right)^{-1} \omega B \vec{\Phi}'.
+\end{equation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Multigrid solver}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Solve the elliptic equation in (\ref{eqn:EllipticEquation}) with a multigrid iteration, either as a standalone solver or as a preconditioner for CG.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Smoother}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+For the smoother we use the following Richardson iteration
+\begin{equation}
+  \vec{\Phi} \mapsto \vec{\Phi} + 2\mu D^{-1} \left(\vec{F}-A\vec{\Phi}\right)
+  \label{eqn:Richardson}
+\end{equation}
+where $D$ is a diagonal matrix which fulfils the following conditions:
+\begin{enumerate}
+  \item $D$ is positive definite 
+  \item $\mu A < D$ (i.e. $\mu \vec{\Psi}^T A \vec{\Psi} < \vec{\Psi}^T D \vec{\Psi}$ for all $\vec{\Psi}$)
+  \item The iteration in (\ref{eqn:Richardson}) should be efficient at reducing high-frequency error components.
+\end{enumerate}
+The first two conditions guarantee that the spectrum of the iteration matrix 
+\begin{equation}
+  S \equiv \mathbb{I} - 2 \mu D^{-1} A,
+\end{equation}
+which describes the reduction of the error $\vec{\Psi}-\vec{\Psi}_{\operatorname{exact}}$, is contained in $[-1,1]$ and the iteration does not diverge.
+
+To bound $A$, first consider the term $B\alpha^{(u)} B^T$. We can write
+\begin{equation}
+ \begin{aligned}
+  \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} &= \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \Psi_i B_{ie} \alpha^{(u)}_{ee} B_{je} \Psi_j 
+\\
+  &= \sum_{e} \alpha_e^{(u)} \left(\Psi_{i_+(e)}-\Psi_{i_-(e)}\right)^2
+  & \le 2\sum_e\left(\alpha_e^{(u)} \Psi_{i_+(e)}^2+\alpha_e^{(u)} \Psi_{i_-(e)}^2\right)\\
+  &= 2 \sigma \sum_i \alpha_{ii}^{(\phi)} \Psi_i ^2 = 2\sigma \vec{\Psi}^T \alpha^{(\phi)}\vec{\Psi}
+ \end{aligned}\label{eqn:MatrixBound}
+\end{equation}
+In this expression $i_{\pm}(e)$ denotes the two cells adjacent to the edge $e$. The inequality follows from $(a-b)^2 \le 2(a^2+b^2)$. The integer $\sigma$ denotes the number of edges adjacent to a cell, i.e. $\sigma=3$ for triangles and $\sigma=4$ for quadrilaterals. We define the projection of $\alpha^{(u)}$ onto the  cells as 
+\begin{equation}
+  \alpha^{(\phi)}_{ii} \equiv \frac{1}{\sigma} \sum_{e'\in e(i)} \alpha_{e'e'}^{(u)}
+\end{equation}
+where $e(i)$ are all edges touching cell $i$ and $\alpha^{(\phi)}$ is a diagonal matrix.
+
+The bound in (\ref{eqn:MatrixBound}) is sharp for a regular triangulation/tiling of a flat domain. To see this, consider the high-frequency field which is given by $\Psi_i = \pm 1$ and changes sign whenever an edge is crossed. On a regular flat grid this field exists and $(\Psi_{i_+(e)-\Psi_{i_-(e)}})^2 = 2 (\Psi_{i_+(e)}^2+\Psi_{i_-(e)}^2) = 4$ for all edges $e$. For the semi-structured grids on the sphere the bound will still be reasonably sharp, at least for the fine grids where we can choose such an oscillating field on each of the panels - it will only be violated where the panels meet, i.e. on a 1d subdomain.
+
+We therefore use the following diagonal matrix $D$ in the smoother:
+\begin{equation}
+  D = M_{\phi} + 2\sigma \alpha^{(\phi)}
+\end{equation}
+The spectrum of the error reduction matrix $S$ is contained in
+\begin{equation}
+  \lambda \in [1-2\mu,1]
+\end{equation}
+where the high-frequency modes (for which $A\Psi^{(hf)}\approx D\Psi^{(hf)}$) have eigenvalues of $\lambda \approx 1-2\mu$. A possible choice would be $\mu=2/3$.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+\paragraph{Implementation.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+To apply the matrix $D^{-1}$ to a field $\vec{\Phi}$, i.e. $\vec{\Psi}=D^{-1}\vec{\Phi}$, loop over all cells and in each cell
+\begin{enumerate}
+  \item calculate
+\begin{equation}
+  D_{ii} = |E_i| + 2 \sum_{e'\in e(i)} \frac{\alpha^{(u)}_{e'e'}}{\left(M_u^{*}\right)_{e'e'}}
+\end{equation}
+  \item calculate $\Psi_i = \Phi_i/D_{ii}$.
+\end{enumerate}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+\subsection{Intergrid operators}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Residual and coarse grid correction}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+In the multigrid algorithm, the residual needs to be restricted to the coarse grid (and becomes the RHS there). The coarse grid correction has to be prolongated to the fine grid and added to the fine grid solution. We need the following operations:
+\begin{xalignat}{2}
+  \phi^{(H)} &= I_{h}^H \phi^{(h)} &
+  \phi^{(h)} &= I_{H}^h \phi^{(H)} \qquad \text{with}\;\;
+  \phi^{(h)} \in \Vpressure^{(h)}, \phi^{(H)} \in \Vpressure^{(H)}\subset\Vpressure^{(h)}
+\end{xalignat}
+For the restriction, average the values over all four children cells to obtain the value in the father cell:
+\begin{eqnarray}
+  \Phi_i^{(H)} = \frac{1}{4} \sum_{i'\in c(i)} \Phi_{i'}^{(h)}\qquad \text{with}\;\;c(i) \equiv \{i'\in \indexSet_E^{(h)} :E_{i'}\subset E_{i}\}
+\label{eqn:restriction}
+\end{eqnarray}
+Denote by $\indexSet_E^{(h)}$ the set of cell indices on the grid $\grid^{(h)}$. For each fine grid cell $i$ we can also define a map to the father cell $f(i) \equiv i'\in \indexSet_E^{(H)} : E_i \subset E_{i'}$.
+
+The simplest choice for the prolongation is injection, i.e. $\phi^{(h)} = I_H^h \phi^{(H)} = \phi^{(H)}$. Explicitly this choice corresponds to
+\begin{equation}
+  \Phi^{(h)}_i = \Phi^{(H)}_{f(i)}
+\end{equation}
+
+Then prolongation and restriction are transpose of each other
+\begin{equation}
+  \intOmega{\psi^{(h)}I_H^h \phi^{(H)}} = \intOmega{\psi^{(h)}\phi^{(H)}} = \intOmega{I_h^H \psi^{(h)}\phi^{(H)}} \qquad\text{for all}\;\; \psi^{(h)}\in \Vpressure^{(h)}, \phi^{(H)} \in\Vpressure^{(H)}.
+\end{equation}
+It might be necessary to use a higher order prolongation, for example linear interpolation, see the discussion in \cite{Hemker1990}.
+
+To implement this prolongation and restriction we need to store:
+\begin{itemize}
+  \item For each fine grid cell $i$ the map $f(i)$ to its father cell
+  \item For each coarse grid cell the set $c(i)$ of its children
+\end{itemize}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Coarse grid matrix}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+We also need to construct the elliptic operator (\ref{eqn:EllipticEquation}) on the coarse grid. For this we use the normal $\Vpressure$ mass matrix and finite difference operator $B$. We also need $\alpha^{(u)}$ on the coarse grid. For this we could just average the field over the edge, i.e. set
+\begin{equation}
+  \left(\alpha^{(u)}\right)_{ee} = \frac{1}{2} \sum_{e'\in c(e)}\alpha^{(u)}_{e'e'} \qquad\text{with}\;\;c(e) \equiv \{e'\in \indexSet_S^{(h)}:S_{e'}\subset S_{e}\}
+\end{equation}
+Here $\indexSet_S^{(h)}$ is the set of edge indices and $c(e)$ are the children of edge $e$.
+\appendix
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Mass lumping}\label{sec:MassLumping}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Use John's mass lumping \cite{Thuburn2013}, i.e for a particular edge $e$ require that the diagonal mass matrix gives the same result as the full mass matrix when acting on a solid body rotation flow field passing through this edge. Let $\vec{u}_{(1)}$, $\vec{u}_{(2)}$ and $\vec{u}_{(3)}$ be the solid body rotation flow fields for rotations around the $x-$, $y-$ and $z-$ axis\footnote{The corresponding stream functions are $\psi_{(1)} = x$, $\psi_{(2)}= y$ and $\psi_{(3)}=z$.} and project $\vec{u}_{(k)}$ onto $\Vvelocity$, i.e. $\vec{u}_{(k)} = \sum_e \left(U_{(k)}\right)_e \vec{u}_e(x)$. 
+Then the entries of the lumped mass matrix are given by
+\begin{equation}
+  \left(M^*_{u}\right)_{ee} = \frac{\sum_{k=1}^3 \left(U_{(k)}\right)_e\left(V_{(k)}\right)_e}{\sum_{k=1}^3 \left(U_{(k)}\right)^2_e} \qquad
+  \text{where}\quad \vec{V}_{(k)} \equiv M_{u} \vec{U}_{(k)}.
+\end{equation}
+This needs to be calculated once and a scalar stored for each edge.
+
+\nocite{Verfurth1984}
+\nocite{Ewing1990}
+\nocite{Braess1997}
+\nocite{Beckie1993}
+\nocite{Brenner1992}
+\nocite{Wagner95}
+
+\bibliographystyle{unsrt}
+\bibliography{FEMmultigrid}
+\end{document}
