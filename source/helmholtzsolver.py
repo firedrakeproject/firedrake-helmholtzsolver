@@ -28,6 +28,8 @@ class HelmholtzSolver:
     n = 2**self.ref_count
     if (self.spherical):
       self.mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count)
+      global_normal = Expression(("x[0]","x[1]","x[2]"))
+      self.mesh.init_cell_orientations(global_normal)
     else:
       self.mesh = UnitSquareMesh(n,n)
     # Set up function spaces
