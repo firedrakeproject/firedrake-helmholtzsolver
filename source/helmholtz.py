@@ -16,11 +16,16 @@ class Solver:
 ##########################################################
 # Constructor
 ##########################################################
-    def __init__(self,V_pressure,V_velocity,pressure_solver,omega,maxiter=100):
+    def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
+                 maxiter=100,
+                 tolerance=1.E-6,
+                 verbose=2):
         self.omega = omega
         self.maxiter = maxiter
+        self.tolerance = tolerance
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
+        self.verbose = verbose
         self.pressure_solver = pressure_solver
         # Set up test- and trial function spaces
         self.u = TrialFunction(self.V_velocity)
@@ -33,7 +38,9 @@ class Solver:
 ##########################################################
 # Solve for a particular RHS
 ##########################################################
-    def solve(self,r_phi,r_u,tolerance=1.E-5):
+    def solve(self,r_phi,r_u):
+        if (self.verbose > 0):
+            print ' === Helmholtz solver ==='
         # Fields for solution
         u = Function(self.V_velocity)
         phi = Function(self.V_pressure)
@@ -43,7 +50,8 @@ class Solver:
         d_phi = Function(self.V_pressure)
         # Calculate initial residual
         res_norm_0 = sqrt(assemble((dot(r_u,r_u)+r_phi*r_phi)*dx))
-        print ' initial residual : '+('%e' % res_norm_0)
+        if (self.verbose > 0):
+            print ' initial outer residual : '+('%e' % res_norm_0)
         # Residual correction
         dR_phi = r_phi
         dR_u = r_u
@@ -67,12 +75,17 @@ class Solver:
             dR_u   = r_u - r_u_cur
             # Check for convergence and print out residual norm
             res_norm = sqrt(assemble((dot(dR_u,dR_u)+dR_phi*dR_phi)*dx))
-            print ' i = '+('%4d' % i) +  \
-                  ' : '+('%8.4e' % res_norm) + \
-                  ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
-            if (res_norm/res_norm_0 < tolerance):
-                print 'Outer loop converged after '+str(i)+' iterations.'
+            if (self.verbose > 1):
+                print ' i = '+('%4d' % i) +  \
+                      ' : '+('%8.4e' % res_norm) + \
+                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
+            if (res_norm/res_norm_0 < self.tolerance):
                 break
+        if (self.verbose > 0):
+            if (res_norm/res_norm_0 < self.olerance):
+                print ' Outer loop converged after '+str(i)+' iterations.'
+            else:
+                print ' Outer loop failed to converge after '+str(maxiter)+' iterations.'
 
 ##########################################################
 # Solver using firedrake's built-in PETSc solvers

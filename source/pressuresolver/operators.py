@@ -65,12 +65,12 @@ class InverseOperator(object):
 ##########################################################
 # Solve
 ##########################################################
-    def solve(self,b):
+    def solve(self,b,phi):
         raise NotImplementedError
 
 ##########################################################
 # Solve approximately
 ##########################################################
-    def solveApprox(self,b):
+    def solveApprox(self,b,phi):
         raise NotImplementedError
 

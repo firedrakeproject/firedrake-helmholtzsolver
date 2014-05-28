@@ -31,8 +31,9 @@ V_pressure = FunctionSpace(mesh,'DG',0,name='P0')
 V_velocity = FunctionSpace(mesh,'RT',1,name='RT1')
 
 operator = pressuresolver.operators.Operator(V_pressure,V_velocity,omega)
-pressure_solver = pressuresolver.smoothers.Jacobi(operator)
-helmholtz_solver = helmholtz.Solver(V_pressure,V_velocity,pressure_solver,omega)
+preconditioner = pressuresolver.smoothers.Jacobi(operator)
+pressure_solver = pressuresolver.solvers.ConjugateGradient(operator,preconditioner,tolerance=1.E-3)
+helmholtz_solver = helmholtz.Solver(V_pressure,V_velocity,pressure_solver,omega,tolerance=1.E-3)
 r_phi = Function(V_pressure).interpolate(Expression('(x[0]-0.4)*(x[0]-0.4)+(x[1]-0.3)*(x[1]-0.3)<0.2*0.2?1.0:0.0'))
 r_u = Function(V_velocity)
 

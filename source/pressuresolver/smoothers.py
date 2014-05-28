@@ -9,9 +9,9 @@ class Jacobi(InverseOperator):
 # Constructor
 ##########################################################
     def __init__(self,operator,maxiter=100,
-                               tolerance=1.E-9,
-                               mu_relax=2./3.,
-                               n_smooth=1):
+                 tolerance=1.E-9,
+                 mu_relax=2./3.,
+                 n_smooth=1):
         super(Jacobi,self).__init__(operator)
         self.maxiter = maxiter
         self.tolerance = tolerance
