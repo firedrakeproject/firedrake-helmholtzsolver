@@ -1,8 +1,11 @@
 import os
 from firedrake import *
+op2.init(log_level="WARNING")
+from ffc import log
+log.set_level(log.ERROR)
 import helmholtz
 import pressuresolver
-from pressuresolver import operators, smoothers
+from pressuresolver import operators, smoothers, solvers
 
 ##########################################################
 # M A I N
