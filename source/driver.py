@@ -12,8 +12,8 @@ from pressuresolver import operators, smoothers, solvers
 ##########################################################
 
 # Parameters
-omega = 0.1
-ref_count = 3
+ref_count = 4
+omega = 0.5**ref_count
 spherical = True
 outputDir = 'output'
         

@@ -57,9 +57,9 @@ class Solver:
         dR_u = r_u
         for i in range(1,self.maxiter+1):
             # Construct RHS for linear (pressure) solve
-            F_pressure = assemble(self.psi*dR_phi*dx) \
-                       - self.omega*assemble(self.psi*div(dR_u)*dx)
+            F_pressure = assemble(self.psi*(dR_phi - self.omega*div(dR_u))*dx)
             # Solve for pressure correction
+            d_phi.assign(0.0)
             self.pressure_solver.solve(F_pressure,d_phi)
             # Update solution with correction
             # phi -> phi + d_phi

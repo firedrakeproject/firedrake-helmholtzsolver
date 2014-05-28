@@ -36,7 +36,7 @@ class Operator(object):
         BT_B_phi = assemble(self.psi*div(B_phi)*dx)
         # Calculate action of pressure mass matrix
         M_phi = assemble(self.psi*phi*dx)
-        return M_phi + self.omega**2*BT_B_phi
+        return assemble(M_phi + self.omega**2*BT_B_phi)
 
 ##########################################################
 #
