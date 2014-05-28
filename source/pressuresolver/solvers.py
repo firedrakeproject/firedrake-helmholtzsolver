@@ -49,14 +49,14 @@ class ConjugateGradient(InverseOperator):
                       ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
             if (res_norm/res_norm_0 < self.tolerance):
                 break
-            self.preconditioner.solve(r,z)
+            self.preconditioner.solveApprox(r,z)
             rz_old = rz
             rz = assemble(r*z*dx)
             beta = rz/rz_old
-            p = z + beta*p
+            p = assemble(z + beta*p)
         if (self.verbose > 0):
             if (res_norm/res_norm_0 < self.tolerance):
                 print '  CG converged after '+str(i)+' iterations.'
             else:
                 print '  CG failed to converge after '+str(maxiter)+' iterations.'
-
+    
