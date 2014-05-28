@@ -6,3 +6,5 @@
 *.aux
 *.blg
 *.gz
+*.vtu
+*.pvd
