@@ -38,8 +38,7 @@ r_phi = Function(V_pressure).interpolate(Expression('(x[0]-0.4)*(x[0]-0.4)+(x[1]
 r_u = Function(V_velocity)
 
 # Solve
-v = helmholtz_solver.solve(r_phi,r_u)
-w, phi = v.split() 
+w, phi = helmholtz_solver.solve(r_phi,r_u)
 
 # Write output to disk
 DFile_w = File(os.path.join(outputDir,'velocity.pvd'))

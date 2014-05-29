@@ -82,10 +82,11 @@ class Solver:
             if (res_norm/res_norm_0 < self.tolerance):
                 break
         if (self.verbose > 0):
-            if (res_norm/res_norm_0 < self.olerance):
+            if (res_norm/res_norm_0 < self.tolerance):
                 print ' Outer loop converged after '+str(i)+' iterations.'
             else:
-                print ' Outer loop failed to converge after '+str(maxiter)+' iterations.'
+                print ' Outer loop failed to converge after '+str(self.maxiter)+' iterations.'
+        return u, phi    
 
 ##########################################################
 # Solver using firedrake's built-in PETSc solvers
