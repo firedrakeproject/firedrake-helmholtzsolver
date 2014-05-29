@@ -36,10 +36,12 @@ class ConjugateGradient(InverseOperator):
         rz = assemble(r*z*dx)
         if (self.verbose > 0):
             print '      Initial residual = ' + ('%8.4e' % res_norm_0)
+        alpha = Constant(0)
+        beta = Constant(0)
         for i in range(self.maxiter):
             Ap = self.operator.apply(p)
             pAp = assemble(p*Ap*dx)
-            alpha = rz/pAp
+            alpha.assign(rz/pAp)
             phi += alpha*p
             r -= alpha*Ap
             res_norm = sqrt(assemble(r*r*dx))
@@ -52,8 +54,8 @@ class ConjugateGradient(InverseOperator):
             self.preconditioner.solveApprox(r,z)
             rz_old = rz
             rz = assemble(r*z*dx)
-            beta = rz/rz_old
-            p = assemble(z + beta*p)
+            beta.assign(rz/rz_old)
+            p.assign(z + beta*p)
         if (self.verbose > 0):
             if (res_norm/res_norm_0 < self.tolerance):
                 print '  CG converged after '+str(i)+' iterations.'
