@@ -60,5 +60,5 @@ class ConjugateGradient(InverseOperator):
             if (res_norm/res_norm_0 < self.tolerance):
                 print '  CG converged after '+str(i)+' iterations.'
             else:
-                print '  CG failed to converge after '+str(maxiter)+' iterations.'
+                print '  CG failed to converge after '+str(self.maxiter)+' iterations.'
     
