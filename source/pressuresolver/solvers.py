@@ -34,7 +34,7 @@ class ConjugateGradient(InverseOperator):
         p = Function(self.V_pressure,val=z_val)
         res_norm_0 = sqrt(assemble(r*r*dx))
         rz = assemble(r*z*dx)
-        if (self.verbose > 0):
+        if (self.verbose > 1):
             print '      Initial residual = ' + ('%8.4e' % res_norm_0)
         alpha = Constant(0)
         beta = Constant(0)
