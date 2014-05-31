@@ -43,40 +43,51 @@ class Solver:
             print ' === Helmholtz solver ==='
         # Fields for solution
         u = Function(self.V_velocity)
+        du = Function(self.V_velocity)
         phi = Function(self.V_pressure)
+        F_pressure = Function(self.V_pressure)
         u.assign(0.0)
         phi.assign(0.0)
         # Pressure correction
         d_phi = Function(self.V_pressure)
+        # Residual correction
+        Mr_phi = assemble(self.psi*r_phi*dx)
+        Mr_u = assemble(dot(self.w,r_u)*dx)
+        dMr_phi = Function(self.V_pressure)
+        dMr_u = Function(self.V_velocity)
+        dMinvMr_u = Function(self.V_velocity)
+        dMr_phi.assign(Mr_phi)
+        dMr_u.assign(Mr_u)
         # Calculate initial residual
-        res_norm = sqrt(assemble((dot(r_u,r_u)+r_phi*r_phi)*dx))
+        res_norm = self.residual_norm(dMr_phi,dMr_u) 
         res_norm_0 = res_norm 
         if (self.verbose > 0):
             print ' initial outer residual : '+('%e' % res_norm_0)
-        # Residual correction
-        dR_phi = r_phi
-        dR_u = r_u
         for i in range(1,self.maxiter+1):
             # Construct RHS for linear (pressure) solve
-            F_pressure = assemble(self.psi*(dR_phi - self.omega*div(dR_u))*dx)
+            dMinvMr_u.assign(dMr_u)
+            self.lumped_mass.divide(dMinvMr_u)
+            F_pressure.assign(dMr_phi - self.omega*assemble(self.psi*div(dMinvMr_u)*dx))
             # Solve for pressure correction
             d_phi.assign(0.0)
             self.pressure_solver.solve(F_pressure,d_phi)
             # Update solution with correction
             # phi -> phi + d_phi
             phi += d_phi
-            # u -> u + omega*(M_u^{lumped})^{-1}*grad(d_phi)
+            # u -> u + (M_u^{lumped})^{-1}*(R_u + omega*grad(d_phi))
             grad_dphi = assemble(div(self.w)*d_phi*dx)
-            self.lumped_mass.divide(grad_dphi)
-            u += dR_u + self.omega * grad_dphi
+            du.assign(dMr_u + self.omega * grad_dphi)
+            self.lumped_mass.divide(du)
+            u += du
             # Calculate current residual
-            r_phi_cur, r_u_cur = self.residual(phi,u)
+            Mr_phi_cur = assemble((self.psi*phi + self.omega*self.psi*div(u))*dx)
+            Mr_u_cur = assemble(( inner(self.w,u) - self.omega*div(self.w)*phi)*dx)
             # Update residual correction
-            dR_phi.assign(r_phi - r_phi_cur)
-            dR_u.assign(r_u - r_u_cur)
+            dMr_phi.assign(Mr_phi - Mr_phi_cur)
+            dMr_u.assign(Mr_u - Mr_u_cur)
             # Check for convergence and print out residual norm
             res_norm_old = res_norm
-            res_norm = sqrt(assemble((dot(dR_u,dR_u)+dR_phi*dR_phi)*dx))
+            res_norm = self.residual_norm(dMr_phi,dMr_u) 
             if (self.verbose > 1):
                 print ' i = '+('%4d' % i) +  \
                       ' : '+('%8.4e' % res_norm) + \
@@ -90,6 +101,22 @@ class Solver:
             else:
                 print ' Outer loop failed to converge after '+str(self.maxiter)+' iterations.'
         return u, phi    
+
+##########################################################
+# Residual norm
+##########################################################
+    def residual_norm(self,Mr_phi,Mr_u):
+        # Rescale by (lumped) mass matrices
+        # Calculate r_u = (M_u^{lumped})^{-1}*Mr_u
+        r_u = Function(self.V_velocity)
+        r_u.assign(Mr_u)
+        self.lumped_mass.divide(r_u)
+        # Calculate r_phi = (M_{phi})^{-1}*Mr_phi
+        a_phi_mass = self.psi*self.phi*dx
+        L_phi = self.psi*Mr_phi*dx
+        r_phi = Function(self.V_pressure)
+        solve(a_phi_mass == L_phi, r_phi, solver_parameters={'ksp_type':'cg'})
+        return sqrt(assemble((r_phi*r_phi+dot(r_u,r_u))*dx))
 
 ##########################################################
 # Solver using firedrake's built-in PETSc solvers
@@ -114,19 +141,3 @@ class Solver:
                                  'fieldsplit_P0_ksp_type':'cg',
                                  'fieldsplit_RT1_ksp_type':'cg'})
         return v_mixed.split()
-
-##########################################################
-# Calculate residual for full equation
-##########################################################
-    def residual(self,phi,u):
-        a_phi_rhs = ( inner(self.psi,phi) \
-                    + self.omega*self.psi*div(u) )*dx
-        a_u_rhs = ( inner(self.w,u) \
-                  - self.omega*div(self.w)*phi )*dx
-        a_phi_mass = self.phi*self.psi*dx
-        a_u_mass = inner(self.w,self.u)*dx
-        r_phi = Function(self.V_pressure)
-        r_u = Function(self.V_velocity)
-        solve(a_phi_mass == a_phi_rhs,r_phi,solver_parameters={'ksp_type':'cg'})
-        solve(a_u_mass == a_u_rhs,r_u,solver_parameters={'ksp_type':'cg'})
-        return (r_phi,r_u)
