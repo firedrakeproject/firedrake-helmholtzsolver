@@ -49,7 +49,8 @@ class Solver:
         # Pressure correction
         d_phi = Function(self.V_pressure)
         # Calculate initial residual
-        res_norm_0 = sqrt(assemble((dot(r_u,r_u)+r_phi*r_phi)*dx))
+        res_norm = sqrt(assemble((dot(r_u,r_u)+r_phi*r_phi)*dx))
+        res_norm_0 = res_norm 
         if (self.verbose > 0):
             print ' initial outer residual : '+('%e' % res_norm_0)
         # Residual correction
@@ -71,14 +72,16 @@ class Solver:
             # Calculate current residual
             r_phi_cur, r_u_cur = self.residual(phi,u)
             # Update residual correction
-            dR_phi = r_phi - r_phi_cur
-            dR_u   = r_u - r_u_cur
+            dR_phi.assign(r_phi - r_phi_cur)
+            dR_u.assign(r_u - r_u_cur)
             # Check for convergence and print out residual norm
+            res_norm_old = res_norm
             res_norm = sqrt(assemble((dot(dR_u,dR_u)+dR_phi*dR_phi)*dx))
             if (self.verbose > 1):
                 print ' i = '+('%4d' % i) +  \
                       ' : '+('%8.4e' % res_norm) + \
-                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
+                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ' + \
+                      ' rho = '+('%6.3f' % (res_norm/res_norm_old))+' ] '
             if (res_norm/res_norm_0 < self.tolerance):
                 break
         if (self.verbose > 0):
