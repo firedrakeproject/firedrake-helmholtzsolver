@@ -91,14 +91,14 @@ To obtain the next iterate $\vec{\Phi}^{(k+1)} = \vec{\Phi}^{(k)}+\vec{\Phi}'$, 
   M_{\phi} \vec{\Phi}' + \omega B (\Phi^* \vec{U}') &= M_{\phi}\vec{R}'_\phi
 = M_\phi\left(\vec{R}_\phi-\vec{R}^{(k)}_\phi\right)\\
   M^*_{u} \vec{U}' - \omega B^T \vec{\Phi}' &= M^*_u \vec{R}'_{\vec{u}}
-= {M_u^*} \left(\vec{R}_{\vec{u}}-\vec{R}^{(k)}_{\vec{u}}\right)
+= {M_u} \left(\vec{R}_{\vec{u}}-\vec{R}^{(k)}_{\vec{u}}\right)
  \end{aligned}
 \label{eqn:MatrixSystemCorrection}
 \end{equation}
 where we replaced $M_u$ by the lumped mass-matrix $M_u^*$ (see appendix \ref{sec:MassLumping}). By solving the second equation in (\ref{eqn:MatrixSystemCorrection}) for $\vec{U}'$ and inserting it into the first, one obtains the following elliptic equation for the pressure correction $\vec{\Phi}'$:
 \begin{equation}
   M_{\phi}\vec{\Phi}' + \omega^2 B \alpha^{(u)} B^T \vec{\Phi}'
-  \equiv A\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}'_{\phi}-\omega B \Phi^* \vec{R}'_{\vec{u}}
+  \equiv A\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}'_{\phi}-\omega B \Phi^* \left(M_u^*\right)^{-1}M_u\vec{R}'_{\vec{u}}
 \label{eqn:EllipticEquation}
 \end{equation}
 where we defined the diagonal matrix
@@ -108,7 +108,7 @@ where we defined the diagonal matrix
 which we assume to be positive definite. We use a multigrid algorithm to solve 
 (\ref{eqn:EllipticEquation}) approximately for $\vec{\Phi}'$ and then calculate the velocity correction as 
 \begin{equation}
-  \vec{U}' = \vec{R}'_{\vec{u}}+\left(M_u^*\right)^{-1} \omega B \vec{\Phi}'.
+  \vec{U}' = \left(M_u^*\right)^{-1}\left(M_u\vec{R}'_{\vec{u}}+ \omega B^T \vec{\Phi}'\right).
 \end{equation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Multigrid solver}
