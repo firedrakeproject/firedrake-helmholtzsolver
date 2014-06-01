@@ -30,8 +30,8 @@ class ConjugateGradient(InverseOperator):
         r = self.operator.residual(b,phi)
         z = Function(self.V_pressure)
         self.preconditioner.solveApprox(r,z)
-        z_val = z.vector().array()
-        p = Function(self.V_pressure,val=z_val)
+        p = Function(self.V_pressure)
+        p.assign(z)
         res_norm_0 = sqrt(assemble(r*r*dx))
         rz = assemble(r*z*dx)
         if (self.verbose > 1):
