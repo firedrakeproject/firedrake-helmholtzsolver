@@ -8,13 +8,15 @@ class Operator(object):
 ##########################################################
 # Constructor
 ##########################################################
-    def __init__(self,V_pressure,V_velocity,omega):
+    def __init__(self,V_pressure,V_velocity,omega,
+                 ignore_mass_lumping=False):
         self.omega = omega
+        self.ignore_mass_lumping = ignore_mass_lumping
         self.V_velocity = V_velocity
         self.V_pressure = V_pressure
         self.w = TestFunction(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
-        self.lumped_mass = LumpedMass(self.V_velocity)
+        self.lumped_mass = LumpedMass(self.V_velocity,self.ignore_mass_lumping)
 
 ##########################################################
 # Apply matrix
