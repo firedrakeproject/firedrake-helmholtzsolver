@@ -24,33 +24,45 @@ class LumpedMass(object):
             M_SBR_x = assemble(dot(w,SBR_x)*dx)
             M_SBR_y = assemble(dot(w,SBR_y)*dx)
             M_SBR_z = assemble(dot(w,SBR_z)*dx)
-            kernel = '''{
-                for (int i=0;i<data.dofs;++i) {
-                  data[i][0] = (  SBR_x[i][0]*M_SBR_x[i][0]
-                                + SBR_y[i][0]*M_SBR_y[i][0] 
-                                + SBR_z[i][0]*M_SBR_z[i][0]) / 
-                               (  SBR_x[i][0]*SBR_x[i][0]
-                                + SBR_y[i][0]*SBR_y[i][0] 
-                                + SBR_z[i][0]*SBR_z[i][0]);
-                }
-            }'''
-            for facet in (dS,ds):
-                par_loop(kernel,facet,{'data':(self.data,WRITE),
-                                       'SBR_x':(SBR_x,READ),
-                                       'SBR_y':(SBR_y,READ),
-                                       'SBR_z':(SBR_z,READ),
-                                       'M_SBR_x':(M_SBR_x,READ),
-                                       'M_SBR_y':(M_SBR_y,READ),
-                                       'M_SBR_z':(M_SBR_z,READ)})
+            kernel_code = '''void lump_SBR(double *data,
+                                           double *SBR_x,
+                                           double *SBR_y,
+                                           double *SBR_z,
+                                           double *M_SBR_x,
+                                           double *M_SBR_y,
+                                           double *M_SBR_z) {
+                              *data = (  (*SBR_x)*(*M_SBR_x) 
+                                       + (*SBR_y)*(*M_SBR_y)
+                                       + (*SBR_z)*(*M_SBR_z) ) / 
+                                      (  (*SBR_x)*(*SBR_x) 
+                                       + (*SBR_y)*(*SBR_y)
+                                       + (*SBR_z)*(*SBR_z) );
+                            }
+            '''
+            kernel = op2.Kernel(kernel_code,"lump_SBR")
+            op2.par_loop(kernel,
+                         self.data.dof_dset.set,
+                         self.data.dat(op2.WRITE),
+                         SBR_x.dat(op2.READ),
+                         SBR_y.dat(op2.READ),
+                         SBR_z.dat(op2.READ),
+                         M_SBR_x.dat(op2.READ),
+                         M_SBR_y.dat(op2.READ),
+                         M_SBR_z.dat(op2.READ))
         else: 
             one_velocity = Function(self.V_velocity)
             one_velocity.assign(1.0)
             self.data = assemble(inner(TestFunction(self.V_velocity),one_velocity)*dx)
         self.data_inv = Function(self.V_velocity)
-        kernel_inv = '{ data_inv[0][0] = 1./data[0][0]; }'
-        for facet in (dS,ds):
-            par_loop(kernel_inv,facet,{'data_inv':(self.data_inv,WRITE),
-                                       'data':(self.data,READ)})
+        kernel_inv_code = '''void invert(double *data_inv, double *data) {
+                               *data_inv = 1./(*data); 
+                             }
+        '''
+        kernel_inv = op2.Kernel(kernel_inv_code,'invert')
+        op2.par_loop(kernel_inv,
+                     self.data_inv.dof_dset.set,
+                     self.data_inv.dat(op2.WRITE),
+                     self.data.dat(op2.READ))
 
 ##########################################################
 # Extract field vector
@@ -67,10 +79,15 @@ class LumpedMass(object):
             w = assemble(dot(self.w,u)*dx)
             u.assign(w)
         else:
-            kernel_inv = '{ for (int i=0;i<u.dofs;++i) { u[i][0] *= data[i][0]; } }'
-            for facet in (dS,ds):
-                par_loop(kernel,facet,{'u':(u,RW),
-                                       'data':(self.data,READ)})
+            kernel_code = '''void multiply(double *u, double *data) {
+                               (*u) *= (*data);
+                             }
+            '''
+            kernel = op2.Kernel(kernel_code,'multiply')
+            op2.par_loop(kernel,
+                         u.dof_dset.set,
+                         u.dat(op2.RW),
+                         self.data.dat(op2.READ))
 
 ##########################################################
 # Divide a field by the lumped mass matrix
@@ -84,7 +101,12 @@ class LumpedMass(object):
             solve(a_mass, w, u)
             u.assign(w)
         else:
-            kernel_inv = '{ for (int i=0;i<u.dofs;++i) { u[i][0] *= data_inv[i][0]; } }'
-            for facet in (dS,ds):
-                par_loop(kernel_inv,facet,{'u':(u,RW),
-                                           'data_inv':(self.data_inv,READ)}) 
+            kernel_code = '''void divide(double *u, double *data_inv) {
+                               (*u) *= (*data_inv);
+                             }
+            '''
+            kernel = op2.Kernel(kernel_code,'divide')
+            op2.par_loop(kernel,
+                         u.dof_dset.set,
+                         u.dat(op2.RW),
+                         self.data_inv.dat(op2.READ))
