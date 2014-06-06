@@ -1,2 +1,2 @@
 from firedrake import *
-__all__ = ['operators','lumpedmass','smoothers','solvers']
+__all__ = ['operators','lumpedmass','smoothers','solvers','preconditioners']

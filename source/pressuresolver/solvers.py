@@ -1,19 +1,74 @@
 from operators import *
 
 ##########################################################
+# Richardson iteration solver
+##########################################################
+
+class LoopSolver(object):
+
+##########################################################
+# Constructor
+##########################################################
+    def __init__(self,operator,
+                 preconditioner,
+                 maxiter=100,
+                 tolerance=1.E-6,
+                 verbose=2):
+        self.operator = operator
+        self.V_pressure = self.operator.V_pressure
+        self.preconditioner = preconditioner
+        self.maxiter = maxiter
+        self.tolerance = tolerance
+        self.dx = self.V_pressure.mesh()._dx
+        self.verbose = verbose
+
+##########################################################
+# Solve
+##########################################################
+    def solve(self,b,phi):
+        if (self.verbose > 0):
+            print '    -- Loop solver --'
+        residual = Function(self.V_pressure)
+        error = Function(self.V_pressure)
+        error.assign(0.0)
+        residual.assign(self.operator.residual(b,phi))
+        res_norm_0 = sqrt(assemble(residual*residual*self.dx))
+        if (self.verbose > 1):
+            print '      Initial residual = ' + ('%8.4e' % res_norm_0)
+        for i in range(1,self.maxiter+1):
+            self.preconditioner.solveApprox(residual,error)
+            phi.assign(phi+error)
+            residual.assign(self.operator.residual(b,phi))
+            res_norm = sqrt(assemble(residual*residual*self.dx))
+            if (self.verbose > 1):
+                print '     i = '+('%4d' % i) +  \
+                      ' : '+('%8.4e' % res_norm) + \
+                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
+            if (res_norm/res_norm_0 < self.tolerance):
+                break
+        if (self.verbose > 0):
+            if (res_norm/res_norm_0 < self.tolerance):
+                print '  Multigrid converged after '+str(i)+' iterations.'
+            else:
+                print '  Multigrid failed to converge after '+str(self.maxiter)+' iterations.'
+
+
+##########################################################
 # CG solver
 ##########################################################
 
-class ConjugateGradient(InverseOperator):
+class ConjugateGradient(object):
     
 ##########################################################
 # Constructor
 ##########################################################
-    def __init__(self,operator,preconditioner,
+    def __init__(self,operator,
+                 preconditioner,
                  maxiter=100,
                  tolerance=1.E-6,
                  verbose=2):
-        super(ConjugateGradient,self).__init__(operator)
+        self.operator = operator
+        self.V_pressure = self.operator.V_pressure
         self.preconditioner = preconditioner
         self.maxiter = maxiter
         self.tolerance = tolerance
@@ -60,31 +115,3 @@ class ConjugateGradient(InverseOperator):
             else:
                 print '  CG failed to converge after '+str(self.maxiter)+' iterations.'
 
-##########################################################
-# Multigrid solver
-##########################################################
-
-class Multigrid(InverseOperator):
-    
-##########################################################
-# Constructor
-##########################################################
-    def __init__(self,operator_hierarchy,
-                 smoother_hierarchy,
-                 coarsegrid_solver,
-                 maxiter=100,
-                 tolerance=1.E-6,
-                 verbose=2):
-        super(Multigrid,self).__init__(operator)
-        self.smoother_hierarchy = smoother_hierarchy
-        self.maxiter = maxiter
-        self.tolerance = tolerance
-        self.verbose = verbose
-
-##########################################################
-# Solve
-##########################################################
-    def solve(self,b,phi):
-        if (self.verbose > 0):
-            print '    -- Multigrid solve --'
-   

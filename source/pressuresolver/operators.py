@@ -82,29 +82,3 @@ class OperatorHierarchy(object):
     def __len__(self):
         return len(self._hierarchy)
 
-##########################################################
-# Abstract inverse operator base class
-##########################################################
-class InverseOperator(object):
-
-##########################################################
-# Constructor
-##########################################################
-    def __init__(self,operator):
-        self.operator = operator
-        self.V_velocity = operator.V_velocity
-        self.V_pressure = operator.V_pressure
-        self.omega = operator.omega
-
-##########################################################
-# Solve
-##########################################################
-    def solve(self,b,phi):
-        raise NotImplementedError
-
-##########################################################
-# Solve approximately
-##########################################################
-    def solveApprox(self,b,phi):
-        raise NotImplementedError
-

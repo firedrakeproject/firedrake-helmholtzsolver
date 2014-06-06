@@ -3,24 +3,21 @@ from operators import *
 ##########################################################
 # Jacobi smoother
 ##########################################################
-class Jacobi(InverseOperator):
+class Jacobi(object):
 
 ##########################################################
 # Constructor
 ##########################################################
     def __init__(self,operator,
-                 maxiter=100,
-                 tolerance=1.E-9,
                  mu_relax=2./3.,
                  n_smooth=1):
-        super(Jacobi,self).__init__(operator)
-        self.maxiter = maxiter
-        self.tolerance = tolerance
+        self.operator = operator
+        self.V_pressure = self.operator.V_pressure
         self.mu_relax = mu_relax
         self.n_smooth = n_smooth
-        self.dx = operator.V_pressure.mesh()._dx
+        self.dx = self.operator.V_pressure.mesh()._dx
         # Construct lumped mass matrix
-        self.lumped_mass = operator.lumped_mass
+        self.lumped_mass = self.operator.lumped_mass
         self._build_D_diag()
 
 ##########################################################
@@ -38,22 +35,20 @@ class Jacobi(InverseOperator):
         self.D_diag_inv = Function(self.V_pressure)
         par_loop(kernel_inv,self.dx,{'D_diag_inv':(self.D_diag_inv,WRITE),
                                 'D_diag':(D_diag,READ)})
-
+       
 ##########################################################
-# Solve
+# Solve approximately
 ##########################################################
     def solve(self,b,phi):
         phi.assign(0.0)
-        for i in range(self.maxiter):
-            self.smooth(b,phi)
-       
+        self.smooth(b,phi)
+
 ##########################################################
 # Solve approximately
 ##########################################################
     def solveApprox(self,b,phi):
         phi.assign(0.0)
-        for i in range(self.n_smooth):
-            self.smooth(b,phi)
+        self.smooth(b,phi)
 
 ##########################################################
 # Apply smoother according to
@@ -62,12 +57,17 @@ class Jacobi(InverseOperator):
 #
 ##########################################################
     def smooth(self,b,phi):
-        r = self.operator.residual(b,phi)
-        # Apply inverse diagonal r_i -> D^{-1}_ii *r_i
-        kernel_inv_diag = '{ r[0][0] *= D_diag_inv[0][0]; }'
-        par_loop(kernel_inv_diag,self.dx,{'r':(r,RW),'D_diag_inv':(self.D_diag_inv,READ)})
-        # Update phi 
-        phi += 2.*self.mu_relax*r
+        r = Function(self.V_pressure)
+        for i in range(self.n_smooth):
+            if (i==0):
+                r.assign(b)
+            else:
+                r.assign(self.operator.residual(b,phi))
+            # Apply inverse diagonal r_i -> D^{-1}_ii *r_i
+            kernel_inv_diag = '{ r[0][0] *= D_diag_inv[0][0]; }'
+            par_loop(kernel_inv_diag,self.dx,{'r':(r,RW),'D_diag_inv':(self.D_diag_inv,READ)})
+            # Update phi 
+            phi += 2.*self.mu_relax*r
 
 ##########################################################
 # Jacobi hierarchy
@@ -78,18 +78,12 @@ class JacobiHierarchy(object):
 # Constructor
 ##########################################################
     def __init__(self,operator_hierarchy,
-                 maxiter=100,
-                 tolerance=1.E-9,
                  mu_relax=2./3.,
                  n_smooth=1):
         self.operator_hierarchy = operator_hierarchy
-        self.maxiter = maxiter
-        self.tolerance = tolerance
         self.mu_relax = mu_relax
         self.n_smooth = n_smooth
         self._hierarchy = [Jacobi(operator,
-                                  self.maxiter,
-                                  self.tolerance,
                                   self.mu_relax,
                                   self.n_smooth)
                            for operator in self.operator_hierarchy]
