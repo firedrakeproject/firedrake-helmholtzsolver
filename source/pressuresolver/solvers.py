@@ -12,13 +12,11 @@ class ConjugateGradient(InverseOperator):
     def __init__(self,operator,preconditioner,
                  maxiter=100,
                  tolerance=1.E-6,
-                 mu_relax=2./3.,
                  verbose=2):
         super(ConjugateGradient,self).__init__(operator)
         self.preconditioner = preconditioner
         self.maxiter = maxiter
         self.tolerance = tolerance
-        self.mu_relax = mu_relax
         self.verbose = verbose
 
 ##########################################################
