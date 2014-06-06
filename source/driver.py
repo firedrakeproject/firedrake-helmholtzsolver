@@ -12,31 +12,48 @@ from pressuresolver import operators, smoothers, solvers
 ##########################################################
 
 # Parameters
-ref_count = 4
-omega = 0.5**ref_count
+ref_count_coarse = 2
+nlevel = 3
+omega = 0.5**(ref_count_coarse+nlevel)
 spherical = True
 outputDir = 'output'
 ignore_mass_lumping = False
-tolerance_outer = 1.E-3
-tolerance_inner = 1.E-9
+tolerance_outer = 1.E-6
+tolerance_inner = 1.E-6
 maxiter=10
         
 # Create mesh
-n = 2**ref_count
 if (spherical):
-    mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count)
+    mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
     global_normal = Expression(("x[0]","x[1]","x[2]"))
-    mesh.init_cell_orientations(global_normal)
 else:
+    n = 2**ref_count_coarse
     mesh = UnitSquareMesh(n,n)
-    
-# Set up function spaces
-V_pressure = FunctionSpace(mesh,'DG',0,name='P0')
-V_velocity = FunctionSpace(mesh,'RT',1,name='RT1')
 
-operator = pressuresolver.operators.Operator(V_pressure,V_velocity,omega,
-                                             ignore_mass_lumping=ignore_mass_lumping)
-preconditioner = pressuresolver.smoothers.Jacobi(operator)
+mesh_hierarchy = MeshHierarchy(mesh,nlevel)
+if (spherical):
+    for level_mesh in mesh_hierarchy:
+        global_normal = Expression(("x[0]","x[1]","x[2]"))
+        level_mesh.init_cell_orientations(global_normal)
+
+
+finelevel = -1
+fine_mesh = mesh_hierarchy[finelevel]
+V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
+V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
+
+# Set up function spaces
+V_pressure = V_pressure_hierarchy[finelevel]
+V_velocity = V_velocity_hierarchy[finelevel]
+
+operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_hierarchy,
+                                                       V_velocity_hierarchy,
+                                                       omega,
+                                                       ignore_mass_lumping=ignore_mass_lumping)
+operator = operator_hierarchy[finelevel]
+preconditioner_hierarchy = pressuresolver.smoothers.JacobiHierarchy(operator_hierarchy)
+preconditioner = preconditioner_hierarchy[finelevel]
+
 pressure_solver = pressuresolver.solvers.ConjugateGradient(operator,preconditioner,
                                                            tolerance=tolerance_inner,
                                                            verbose=1)

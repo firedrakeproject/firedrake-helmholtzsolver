@@ -14,6 +14,7 @@ class LumpedMass(object):
     def __init__(self,V_velocity,ignore_lumping=False,use_SBR=True):
         self.ignore_lumping = ignore_lumping
         self.V_velocity = V_velocity
+        self.dx = self.V_velocity.mesh()._dx
         self.use_SBR = use_SBR
         if (self.use_SBR):
             w = TestFunction(self.V_velocity)
@@ -21,9 +22,9 @@ class LumpedMass(object):
             SBR_x = Function(self.V_velocity).project(Expression(('0','-x[2]','x[1]')))
             SBR_y = Function(self.V_velocity).project(Expression(('x[2]','0','-x[0]')))
             SBR_z = Function(self.V_velocity).project(Expression(('-x[1]','x[0]','0')))
-            M_SBR_x = assemble(dot(w,SBR_x)*dx)
-            M_SBR_y = assemble(dot(w,SBR_y)*dx)
-            M_SBR_z = assemble(dot(w,SBR_z)*dx)
+            M_SBR_x = assemble(dot(w,SBR_x)*self.dx)
+            M_SBR_y = assemble(dot(w,SBR_y)*self.dx)
+            M_SBR_z = assemble(dot(w,SBR_z)*self.dx)
             kernel = '''*data = (  (*SBR_x)*(*M_SBR_x) 
                                  + (*SBR_y)*(*M_SBR_y)
                                  + (*SBR_z)*(*M_SBR_z) ) / 
@@ -42,7 +43,7 @@ class LumpedMass(object):
         else: 
             one_velocity = Function(self.V_velocity)
             one_velocity.assign(1.0)
-            self.data = assemble(inner(TestFunction(self.V_velocity),one_velocity)*dx)
+            self.data = assemble(inner(TestFunction(self.V_velocity),one_velocity)*self.dx)
         self.data_inv = Function(self.V_velocity)
         kernel_inv = '*data_inv = 1./(*data);'
         par_loop(kernel_inv,direct,
@@ -61,7 +62,7 @@ class LumpedMass(object):
     def multiply(self,u):
         if (self.ignore_lumping):
             psi = TestFunction(self.V_velocity)
-            w = assemble(dot(self.w,u)*dx)
+            w = assemble(dot(self.w,u)*self.dx)
             u.assign(w)
         else:
             kernel = '(*u) *= (*data);'
@@ -76,7 +77,7 @@ class LumpedMass(object):
         if (self.ignore_lumping):
             psi = TestFunction(self.V_velocity)
             phi = TrialFunction(self.V_velocity)
-            a_mass = assemble(dot(psi,phi)*dx)
+            a_mass = assemble(dot(psi,phi)*self.dx)
             w = Function(self.V_velocity)
             solve(a_mass, w, u)
             u.assign(w)

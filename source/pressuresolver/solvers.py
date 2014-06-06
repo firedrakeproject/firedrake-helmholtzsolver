@@ -59,4 +59,32 @@ class ConjugateGradient(InverseOperator):
                 print '  CG converged after '+str(i)+' iterations.'
             else:
                 print '  CG failed to converge after '+str(self.maxiter)+' iterations.'
+
+##########################################################
+# Multigrid solver
+##########################################################
+
+class Multigrid(InverseOperator):
     
+##########################################################
+# Constructor
+##########################################################
+    def __init__(self,operator_hierarchy,
+                 smoother_hierarchy,
+                 coarsegrid_solver,
+                 maxiter=100,
+                 tolerance=1.E-6,
+                 verbose=2):
+        super(Multigrid,self).__init__(operator)
+        self.smoother_hierarchy = smoother_hierarchy
+        self.maxiter = maxiter
+        self.tolerance = tolerance
+        self.verbose = verbose
+
+##########################################################
+# Solve
+##########################################################
+    def solve(self,b,phi):
+        if (self.verbose > 0):
+            print '    -- Multigrid solve --'
+   
