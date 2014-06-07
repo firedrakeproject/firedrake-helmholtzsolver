@@ -9,3 +9,5 @@
 *.vtu
 *.pvd
 *.swp
+*.fdb_latexmk
+_build/
