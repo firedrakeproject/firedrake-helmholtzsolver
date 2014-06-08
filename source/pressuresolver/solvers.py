@@ -73,7 +73,7 @@ class LoopSolver(IterativeSolver):
         if (self.verbose > 1):
             print '      Initial residual = ' + ('%8.4e' % res_norm_0)
         for i in range(1,self.maxiter+1):
-            self.preconditioner.solveApprox(residual,error)
+            self.preconditioner.solve(residual,error)
             phi.assign(phi+error)
             residual.assign(self.operator.residual(b,phi))
             res_norm = sqrt(assemble(residual*residual*self.dx))
@@ -119,7 +119,7 @@ class CGSolver(IterativeSolver):
             print '    -- CG solve --'
         r = self.operator.residual(b,phi)
         z = Function(self.V_pressure)
-        self.preconditioner.solveApprox(r,z)
+        self.preconditioner.solve(r,z)
         p = Function(self.V_pressure)
         p.assign(z)
         res_norm_0 = sqrt(assemble(r*r*dx))
@@ -141,7 +141,7 @@ class CGSolver(IterativeSolver):
                       ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
             if (res_norm/res_norm_0 < self.tolerance):
                 break
-            self.preconditioner.solveApprox(r,z)
+            self.preconditioner.solve(r,z)
             rz_old = rz
             rz = assemble(r*z*dx)
             beta.assign(rz/rz_old)

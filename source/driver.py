@@ -67,8 +67,7 @@ if (__name__ == '__main__'):
         preconditioner = pressuresolver.preconditioners.Multigrid(operator_hierarchy,
                                                                   presmoother_hierarchy,
                                                                   postsmoother_hierarchy,
-                                                                  coarsegrid_solver,
-                                                                  tolerance=tolerance_inner)
+                                                                  coarsegrid_solver)
         V_pressure = V_pressure_hierarchy[fine_level]
         V_velocity = V_velocity_hierarchy[fine_level]
     else:
