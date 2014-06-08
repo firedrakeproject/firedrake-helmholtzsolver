@@ -1,27 +1,27 @@
 from operators import *
 
-##########################################################
-# Multigrid solver
-##########################################################
-
 class Multigrid(object):
-    
-##########################################################
-# Constructor
-##########################################################
+    '''Geometric Multigrid preconditioner for linear Schur complement system.
+
+    Solve approximately using a multigrid V-cycle. The operator, pre-, post- smoother and
+    coarse grid operator are passed as arguments, this allows tuning of the number of
+    smoothing steps etc.
+
+    :arg operator_hierarchy: Schur complement :class:`Operator` s on the different multigrid 
+        levels
+    :arg presmoother_hierarchy: Presmoother on different multigrid levels
+    :arg postsmoother_hierarchy: Postsmoother on different multigrid levels
+    :arg coarsegrid_solver: Solver object for coarse grid equation
+    ''' 
     def __init__(self,operator_hierarchy,
                  presmoother_hierarchy,
                  postsmoother_hierarchy,
-                 coarsegrid_solver,
-                 maxiter=100,
-                 tolerance=1.E-6):
+                 coarsegrid_solver):
         self.operator_hierarchy = operator_hierarchy
         self.presmoother_hierarchy = presmoother_hierarchy
         self.postsmoother_hierarchy = postsmoother_hierarchy
         self.coarsegrid_solver = coarsegrid_solver
         self.V_pressure_hierarchy = self.operator_hierarchy.V_pressure_hierarchy
-        self.maxiter = maxiter
-        self.tolerance = tolerance
         self.residual = FunctionHierarchy(self.V_pressure_hierarchy)
         self.rhs = FunctionHierarchy(self.V_pressure_hierarchy)
         self.phi = FunctionHierarchy(self.V_pressure_hierarchy)
@@ -31,10 +31,11 @@ class Multigrid(object):
                    for level in range(len(self.V_pressure_hierarchy))]
         self.operator = operator_hierarchy[self.fine_level] 
 
-##########################################################
-# VCycle
-##########################################################
     def vcycle(self,level=None):
+        '''Recursive multigrid V-cycle.
+    
+        :arg level: multigrid level, if None, start on finest level.
+        '''
         if (level == None):
             level = self.fine_level
         # Solve exactly on coarsest level
@@ -64,10 +65,15 @@ class Multigrid(object):
             self.postsmoother_hierarchy[level].smooth(self.rhs[level],
                                                       self.phi[level])
 
-##########################################################
-# Solve
-##########################################################
-    def solveApprox(self,b,phi):
+    def solve(self,b,phi):
+        '''Solve approximately.
+
+        Solve the pressure correction equation approximately for a given right hand side
+        :math:`b` with a V-cycle. Note that the state vector is updated in place.
+
+        :arg b: right hand side in pressure space
+        :arg phi: State :math:`\phi` in pressure space.
+        '''
         self.phi[self.fine_level].assign(phi)
         self.rhs[self.fine_level].assign(b)
         self.vcycle()

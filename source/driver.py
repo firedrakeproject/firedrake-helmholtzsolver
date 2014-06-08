@@ -10,7 +10,6 @@ from pressuresolver import operators, smoothers, solvers, preconditioners
 ##########################################################
 # M A I N
 ##########################################################
-
 if (__name__ == '__main__'):
     # Parameters
     ref_count_coarse = 2
@@ -83,10 +82,10 @@ if (__name__ == '__main__'):
                                                             tolerance=tolerance_inner,
                                                             verbose=2)
     elif (solver_name == 'CG'):
-        pressure_solver = pressuresolver.solvers.ConjugateGradient(operator,
-                                                                   preconditioner,
-                                                                   tolerance=tolerance_inner,
-                                                                   verbose=2)
+        pressure_solver = pressuresolver.solvers.CGSolver(operator,
+                                                          preconditioner,
+                                                          tolerance=tolerance_inner,
+                                                          verbose=2)
     else:
         print 'Unknown solver: \''+solver_name+'\'.'
         sys.exit(-1)

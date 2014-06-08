@@ -1,21 +1,28 @@
 from firedrake import *
+'''Solve Helmholtz system in mixed formulation.
 
-##########################################################
-#
-# Solve Helmholtz-like system in mixed formulation
-#
-#   \phi + \omega \div(u)      = r_\phi
-#      u + \omega \grad(\phi)  = r_u
-#
-#  in domain \Omega
-#
-##########################################################
+This module contains the :class:`.Solver` for solving a Helmholtz system 
+using finite elements.
+'''
 
 class Solver:
+    '''Solver for the Helmholtz system
 
-##########################################################
-# Constructor
-##########################################################
+        .. math::
+  
+            \phi + \omega (\\nabla\cdot\phi^*\\vec{u}) = r_\phi
+
+            \\vec{u} - \omega \\nabla{\phi} = \\vec{r}_u
+        in the mixed finite element formulation.
+
+        :arg V_pressure: Function space for pressure field :math:`\phi`
+        :arg V_velocity: Function space for velocity field :math:`\\vec{u}`
+        :arg pressure_solver: Solver for Schur complement pressure system, e.g. :class:`.LoopSolver` and :class:`.ConjugateGradient`.
+        :arg omega: Positive real number
+        :arg maxiter: Maximal number of iterations for outer iteration
+        :arg tolerance: Tolerance for outer iteration
+        :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+    '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
                  maxiter=100,
                  tolerance=1.E-6,
@@ -35,10 +42,17 @@ class Solver:
         # Extract lumped mass
         self.lumped_mass = pressure_solver.operator.lumped_mass
 
-##########################################################
-# Solve for a particular RHS
-##########################################################
     def solve(self,r_phi,r_u):
+        '''Solve Helmholtz system using nested iteration.
+
+        Solve the mixed Helmholtz system for right hand sides :math:`r_\phi` and :math:`r_u`.
+        The full velocity mass matrix is used in the outer iteration and the pressure correction
+        system is solved with the specified :class:`pressure_solver` in an inner iteration.
+        See `Notes in LaTeX <./FEMmultigrid.pdf>`_ for more details of the algorithm.
+
+            :arg r_phi: right hand side for pressure equation, function in :math:`DG` space.
+            :arg r_u: right hand side for velocity equation, function in :math:`H(div)` space.
+        '''
         if (self.verbose > 0):
             print ' === Helmholtz solver ==='
         # Fields for solution
@@ -102,10 +116,24 @@ class Solver:
                 print ' Outer loop failed to converge after '+str(self.maxiter)+' iterations.'
         return u, phi    
 
-##########################################################
-# Residual norm
-##########################################################
     def residual_norm(self,Mr_phi,Mr_u):
+        ''' Calculate outer residual norm.
+    
+        Calculates an approximation to norm of the full residual in the outer iteration:
+
+        .. math::
+
+            norm = ||\\tilde{r}_\phi||_{L_2} + ||\\tilde{r}_u||_{L_2}
+
+        where :math:`\\tilde{r}_\phi = M_\phi^{-1} (M_\phi r_{\phi})` and 
+        :math:`\\tilde{r}_u = \left(M_u^*\\right)^{-1} (M_ur_u)`. The multiplication with the
+        inverse mass matrices is necessary because the outer iteration calculates the residuals
+        :math:`M_{\phi} r_{\phi}` and :math:`M_ur_{u}`
+
+        :arg Mr_phi: Residual multiplied by pressure mass matrix :math:`M_{\phi}r_{\phi}` 
+        :arg Mr_u: Residual multiplied by velocity mass matrix :math:`M_ur_{\phi}` 
+        '''
+
         # Rescale by (lumped) mass matrices
         # Calculate r_u = (M_u^{lumped})^{-1}*Mr_u
         r_u = Function(self.V_velocity)
@@ -118,10 +146,15 @@ class Solver:
         solve(a_phi_mass == L_phi, r_phi, solver_parameters={'ksp_type':'cg'})
         return sqrt(assemble((r_phi*r_phi+dot(r_u,r_u))*dx))
 
-##########################################################
-# Solver using firedrake's built-in PETSc solvers
-##########################################################
     def solve_petsc(self,r_phi,r_u):
+        '''Solve Helmholtz system using PETSc solver.
+
+        Solve the mixed Helmholtz system for right hand sides :math:`r_\phi` and :math:`r_u`
+        by using the PETSc solvers with suitable Schur complement preconditioner.
+
+            :arg r_phi: right hand side for pressure equation, function in :math:`DG` space.
+            :arg r_u: right hand side for velocity equation, function in :math:`H(div)` space.
+        '''
         V_mixed = self.V_velocity*self.V_pressure
         psi_mixed, w_mixed = TestFunctions(V_mixed)
         phi_mixed, u_mixed = TrialFunctions(V_mixed)

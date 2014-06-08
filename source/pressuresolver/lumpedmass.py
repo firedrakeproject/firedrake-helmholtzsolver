@@ -1,16 +1,39 @@
 from firedrake import *
 
-##########################################################
-# Class for lumped mass matrix
-##########################################################
 class LumpedMass(object):
+    '''Lumped velocity mass matrix.
+    
+    This class constructs a diagonal lumped velocity mass matrix :math:`M_u^*` 
+    in the :math:`RT1` space and provides methods for multiplying and dividing 
+    :math:`RT1` functions by this lumped mass matrix. Internally the mass matrix
+    is represented as a :math:`RT1` field.
 
-##########################################################
-# Constructor
-#
-# set ignore_lumping = True to override mass lumping for 
-# testing.
-##########################################################
+    Currently, two methods for mass lumping are supported and can be chosen by 
+    the parameter :class:`use_SBR`:
+
+    * Lumped mass matrix is exact when acting on constant fields:
+
+        .. math::
+        
+            M_u^* C = M_u C
+
+        where C is constant.
+
+    * On each edge e the lumped mass matrix is exact when acting on a solid body rotation
+        field that has maximal flux through this edge. Mathematically this means that
+
+        .. math::
+
+            (M_u^*)_{ee} = \\frac{\sum_{i=1}^3 V^{(i)}_e U^{(i)}_e }{\sum_{i=1}^3 (U^{(i)}_e)^2}
+
+        where :math:`U^{(i)}` is a solid body rotation field around coordinate axis :math:`i`
+        and :math:`V^{(i)} = M_u U^{(i)}`
+
+    :arg V_velocity: Velocity space, currently only :math:`RT1` is supported.
+    :arg ignore_lumping: For debugging, this can be set to true to use the full mass
+        matrix in the :class:`multiply()` and :class:`divide()` methods.
+    :arg use_SBR: Use mass lumping based on solid body rotation fields.
+    '''
     def __init__(self,V_velocity,ignore_lumping=False,use_SBR=True):
         self.ignore_lumping = ignore_lumping
         self.V_velocity = V_velocity
@@ -50,16 +73,18 @@ class LumpedMass(object):
                  {'data_inv':(self.data_inv,WRITE),
                   'data':(self.data,READ)})
 
-##########################################################
-# Extract field vector
-##########################################################
     def get(self):
+        '''Return :math:`RT1` representation of mass matrix.'''
         return self.data
 
-##########################################################
-# Multiply a field by the lumped mass matrix
-##########################################################
     def multiply(self,u):
+        '''Multiply velocity field by lumped mass matrix.
+
+        Use a direct loop to multiply a function in velocity space by the lumped mass matrix.
+        Note that this is an in-place operation on the input data.
+
+        :arg u: Velocity field to be multiplied
+        '''
         if (self.ignore_lumping):
             psi = TestFunction(self.V_velocity)
             w = assemble(dot(self.w,u)*self.dx)
@@ -70,10 +95,15 @@ class LumpedMass(object):
                      {'u':(u,RW),
                       'data':(self.data,READ)})
 
-##########################################################
-# Divide a field by the lumped mass matrix
-##########################################################
     def divide(self,u):
+        '''Divide velocity field by lumped mass matrix.
+
+        Use a direct loop to divide a function in velocity space by the lumped mass matrix.
+        Note that this is an in-place operation on the input data.
+        If the lumping is ignored, the division is implemented by a mass matrix solve.
+
+        :arg u: Velocity field to be divided
+        '''
         if (self.ignore_lumping):
             psi = TestFunction(self.V_velocity)
             phi = TrialFunction(self.V_velocity)

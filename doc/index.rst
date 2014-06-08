@@ -27,7 +27,7 @@ in the domain :math:`\Omega` is
 
   \vec{u} - \omega \nabla{\phi} = \vec{r}_u
 
-where the pressure field :math:`\phi` is defined in a DG space and the velocity 
+where the pressure field :math:`\phi` is defined in a :math:`DG` space and the velocity 
 :math:`\vec{u}` is a :math:`H(div)` function space. :math:`omega` is a real and positive
 parameter. Currently the field :math:`\phi^*` is set to a constant value 1 and only the lowest order DG space (:math:`P0`) and lowest order Raviart Thomas elements (:math:`RT1`) are supported.
 

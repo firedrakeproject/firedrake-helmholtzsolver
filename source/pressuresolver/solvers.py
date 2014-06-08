@@ -1,14 +1,18 @@
 from operators import *
 
-##########################################################
-# Richardson iteration solver
-##########################################################
+class IterativeSolver(object):
+    '''Abstract iterative solver base class.
 
-class LoopSolver(object):
+    The solver converges if the relative residual has been reduced by at least a
+    factor tolerance.
 
-##########################################################
-# Constructor
-##########################################################
+    :arg operator: Instance :math:`H` of linear Schur complement :class:`.Operator` in 
+        pressure space
+    :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
+    :arg maxiter: Maximal number of iterations
+    :arg tolerance: Relative tolerance for solve
+    :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+    '''
     def __init__(self,operator,
                  preconditioner,
                  maxiter=100,
@@ -22,10 +26,43 @@ class LoopSolver(object):
         self.dx = self.V_pressure.mesh()._dx
         self.verbose = verbose
 
-##########################################################
-# Solve
-##########################################################
     def solve(self,b,phi):
+        '''Solve linear system :math:`H\phi = b`.
+
+        :arg b: Right hand side :math:`b` in pressure space
+        :arg phi: State vector :math:`\phi` in pressure space
+        '''
+        pass
+
+class LoopSolver(IterativeSolver):
+    '''Loop solver (preconditioned Richardson iteration) 
+    
+    :arg operator: Instance :math:`H` of linear Schur complement :class:`.Operator` in 
+        pressure space
+    :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
+    :arg maxiter: Maximal number of iterations
+    :arg tolerance: Relative tolerance for solve
+    :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+    '''
+    def __init__(self,operator,
+                 preconditioner,
+                 maxiter=100,
+                 tolerance=1.E-6,
+                 verbose=2):
+        super(LoopSolver,self).__init__(operator,preconditioner,maxiter,tolerance,verbose)
+
+    def solve(self,b,phi):
+        '''Solve linear system :math:`H\phi = b`.
+
+        Solve iteratively using the preconditioned Richardson iteration
+
+        .. math::
+            
+            \phi \mapsto \phi + P^{-1} (b-H\phi)
+        
+        :arg b: Right hand side :math:`b` in pressure space
+        :arg phi: State vector :math:`\phi` in pressure space
+        '''    
         if (self.verbose > 0):
             print '    -- Loop solver --'
         residual = Function(self.V_pressure)
@@ -53,31 +90,31 @@ class LoopSolver(object):
                 print '  Multigrid failed to converge after '+str(self.maxiter)+' iterations.'
 
 
-##########################################################
-# CG solver
-##########################################################
-
-class ConjugateGradient(object):
+class CGSolver(IterativeSolver):
+    '''Preconditioned Conjugate gradient solver.
     
-##########################################################
-# Constructor
-##########################################################
+    :arg operator: Instance :math:`H` of linear Schur complement :class:`.Operator` in 
+        pressure space
+    :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
+    :arg maxiter: Maximal number of iterations
+    :arg tolerance: Relative tolerance for solve
+    :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+    '''
     def __init__(self,operator,
                  preconditioner,
                  maxiter=100,
                  tolerance=1.E-6,
                  verbose=2):
-        self.operator = operator
-        self.V_pressure = self.operator.V_pressure
-        self.preconditioner = preconditioner
-        self.maxiter = maxiter
-        self.tolerance = tolerance
-        self.verbose = verbose
+        super(CGSolver,self).__init__(operator,preconditioner,maxiter,tolerance,verbose)
 
-##########################################################
-# Solve
-##########################################################
     def solve(self,b,phi):
+        '''Solve linear system :math:`H\phi = b`.
+
+        Solve iteratively using the preconditioned CG iteration
+        
+        :arg b: Right hand side :math:`b` in pressure space
+        :arg phi: State vector :math:`\phi` in pressure space
+        '''    
         if (self.verbose > 0):
             print '    -- CG solve --'
         r = self.operator.residual(b,phi)

@@ -1,13 +1,22 @@
 from operators import *
 
-##########################################################
-# Jacobi smoother
-##########################################################
 class Jacobi(object):
+    '''Jacobi smoother.
 
-##########################################################
-# Constructor
-##########################################################
+    Matrix-free smoother for the linear Schur complement system.
+    The diagonal matrix :math:`D` used in the :class:`smooth()` method is constructed as 
+    described in `Notes in LaTeX <./FEMmultigrid.pdf>`_:
+    
+    .. math::
+        
+        D_{ii} = (M_\phi)_{ii} + 2 \sum_{e'\in e(i)} \\frac{1}{(M_u^*)_{e'e'}}
+
+    (where :math:`e(i)` are all facets adjacent to cell :math:`i`.)
+
+    :arg operator: Schur complement operator, of type :class:`Operator`.
+    :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
+    :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    '''
     def __init__(self,operator,
                  mu_relax=2./3.,
                  n_smooth=1):
@@ -20,11 +29,11 @@ class Jacobi(object):
         self.lumped_mass = self.operator.lumped_mass
         self._build_D_diag()
 
-##########################################################
-# Build diagonal matrix for smoother
-##########################################################
     def _build_D_diag(self):
-        # Construct inverse matrix for smoother
+        '''Construct diagonal matrix or smoothing step.
+        
+        Calculate the diagonal matrix :math:`D`.
+        '''
         one_pressure = Function(self.V_pressure)
         one_pressure.assign(1.0)
         D_diag = assemble(TestFunction(self.V_pressure)*one_pressure*self.dx)
@@ -36,30 +45,36 @@ class Jacobi(object):
         par_loop(kernel_inv,self.dx,{'D_diag_inv':(self.D_diag_inv,WRITE),
                                 'D_diag':(D_diag,READ)})
        
-##########################################################
-# Solve approximately
-##########################################################
     def solve(self,b,phi):
+        '''Solve approximately with RHS :math:`b`.
+        
+        Repeatedy apply the smoother to solve the equation :math:`H\phi=b` approximately.
+        :arg b: Right hand side :math:`b` in pressure space
+        :arg phi: State vector :math:`\phi` in pressure space (out)
+        '''
         phi.assign(0.0)
         self.smooth(b,phi)
 
-##########################################################
-# Solve approximately
-##########################################################
-    def solveApprox(self,b,phi):
-        phi.assign(0.0)
-        self.smooth(b,phi)
+    def smooth(self,b,phi,initial_phi_is_zero=False):
+        '''Smooth.
+        
+        Apply the smoother 
+        
+        .. math::
 
-##########################################################
-# Apply smoother according to
-# 
-# phi -> phi + 2*mu*D^{-1}*residual(b,phi)
-#
-##########################################################
-    def smooth(self,b,phi):
+            \phi \mapsto \phi + 2\mu D^{-1} (b-H\phi)
+            
+        repeatedly to the state vector :math:`\phi`. If :class:`initial_phi_is_zero` is
+        True, then the initial :math:`\phi` is assumed to be zero and in the first iteration
+        the updated :math:`\phi` is just given by :math:`D^{-1}b`.
+
+        :arg b: Right hand side :math:`b` in pressure space
+        :arg phi: State vector :math:`\phi` in pressure space (out)
+        :arg initial_phi_is_zero: Initialise with :math:`\phi=0`.
+        '''
         r = Function(self.V_pressure)
         for i in range(self.n_smooth):
-            if (i==0):
+            if ( (i==0) and (initial_phi_is_zero)):
                 r.assign(b)
             else:
                 r.assign(self.operator.residual(b,phi))
@@ -69,14 +84,17 @@ class Jacobi(object):
             # Update phi 
             phi += 2.*self.mu_relax*r
 
-##########################################################
-# Jacobi hierarchy
-##########################################################
 class JacobiHierarchy(object):
+    '''Hierarchy of Jacobi smoothers.
+    
+    Set of Jacobi smoothers on different levels of the function space
+    hierarchy, as needed by the multigrid solver.
 
-##########################################################
-# Constructor
-##########################################################
+    :arg operator_hierarchy: An :class:`.OperatorHierarchy` of linear Schur 
+        complement operators in pressure space
+    :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
+    :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    '''
     def __init__(self,operator_hierarchy,
                  mu_relax=2./3.,
                  n_smooth=1):
@@ -88,15 +106,14 @@ class JacobiHierarchy(object):
                                   self.n_smooth)
                            for operator in self.operator_hierarchy]
 
-##########################################################
-# Get item
-##########################################################
-    def __getitem__(self,index):
-        return self._hierarchy[index]
+    def __getitem__(self,level):
+        '''Return smoother on a particular level.
+            
+        :arg level: Multigrid level
+        '''
+        return self._hierarchy[level]
 
-##########################################################
-# Number of levels
-##########################################################
     def __len__(self):
+        '''Return number of multigrid levels.'''
         return len(self._hierarchy)
 
