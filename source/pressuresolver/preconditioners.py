@@ -44,12 +44,12 @@ class Multigrid(object):
             self.coarsegrid_solver.solve(self.rhs[level],self.phi[level])
         else:
         # Recursion on all other levels
-            # Initialise solution to zero on the coarser levels
-            if (level != self.fine_level):
-                self.phi[level].assign(0.0)
+            # Only initialise solution to zero on the coarser levels
+            initial_phi_is_zero = not (level == self.fine_level)
             # Presmoother
             self.presmoother_hierarchy[level].smooth(self.rhs[level],
-                                                     self.phi[level])
+                                                     self.phi[level],
+                                                     initial_phi_is_zero=initial_phi_is_zero)
             self.residual[level].assign(self.operator_hierarchy[level].residual(self.rhs[level],
                                                                                 self.phi[level]))
             # Restrict residual to RHS on coarser level
@@ -63,7 +63,8 @@ class Multigrid(object):
             self.phi[level].assign(self.residual[level]+self.phi[level])
             # Postsmooth
             self.postsmoother_hierarchy[level].smooth(self.rhs[level],
-                                                      self.phi[level])
+                                                      self.phi[level],
+                                                      initial_phi_is_zero=False)
 
     def solve(self,b,phi):
         '''Solve approximately.
