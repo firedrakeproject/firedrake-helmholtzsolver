@@ -30,7 +30,7 @@ class Jacobi(object):
         self._build_D_diag()
 
     def _build_D_diag(self):
-        '''Construct diagonal matrix or smoothing step.
+        '''Construct diagonal matrix for smoothing step.
         
         Calculate the diagonal matrix :math:`D`.
         '''
