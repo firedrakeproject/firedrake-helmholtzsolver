@@ -79,8 +79,8 @@ class Jacobi(object):
             else:
                 r.assign(self.operator.residual(b,phi))
             # Apply inverse diagonal r_i -> D^{-1}_ii *r_i
-            kernel_inv_diag = '{ r[0][0] *= D_diag_inv[0][0]; }'
-            par_loop(kernel_inv_diag,self.dx,{'r':(r,RW),'D_diag_inv':(self.D_diag_inv,READ)})
+            kernel_inv_diag = '{ (*r) *= (*D_diag_inv); }'
+            par_loop(kernel_inv_diag,direct,{'r':(r,RW),'D_diag_inv':(self.D_diag_inv,READ)})
             # Update phi 
             phi += 2.*self.mu_relax*r
 
