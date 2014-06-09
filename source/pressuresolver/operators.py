@@ -1,3 +1,4 @@
+from firedrake import *
 from lumpedmass import *
 
 class Operator(object):
