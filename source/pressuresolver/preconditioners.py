@@ -75,7 +75,7 @@ class Multigrid(object):
         :arg b: right hand side in pressure space
         :arg phi: State :math:`\phi` in pressure space.
         '''
-        self.phi[self.fine_level].assign(phi)
+        self.phi[self.fine_level].assign(0.0)
         self.rhs[self.fine_level].assign(b)
         self.vcycle()
         phi.assign(self.phi[self.fine_level])
