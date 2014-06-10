@@ -82,8 +82,13 @@ class Jacobi(object):
             # Apply inverse diagonal r_i -> D^{-1}_ii *r_i
             kernel_inv_diag = '{ (*r) *= (*D_diag_inv); }'
             par_loop(kernel_inv_diag,direct,{'r':(r,RW),'D_diag_inv':(self.D_diag_inv,READ)})
-            # Update phi 
-            phi += 2.*self.mu_relax*r
+            # Update phi
+            if ( (i ==0) and (initial_phi_is_zero) ):
+                phi.assign(r)
+                r *= 2.*self.mu_relax
+            else:
+                phi.assign(phi+2.*self.mu_relax*r)
+
 
 class SmootherHierarchy(object):
     '''Hierarchy of smoothers.
