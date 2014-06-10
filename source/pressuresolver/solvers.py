@@ -93,9 +93,9 @@ class LoopSolver(IterativeSolver):
             res_norm_old = res_norm
         if (self.verbose > 0):
             if (res_norm/res_norm_0 < self.tolerance):
-                print '  Multigrid converged after '+str(i)+' iterations.'
+                print '  Loop solver converged after '+str(i)+' iterations.'
             else:
-                print '  Multigrid failed to converge after '+str(self.maxiter)+' iterations.'
+                print '  Loop solver failed to converge after '+str(self.maxiter)+' iterations.'
 
 
 class CGSolver(IterativeSolver):
