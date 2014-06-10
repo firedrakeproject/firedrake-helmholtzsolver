@@ -84,26 +84,28 @@ class Jacobi(object):
             # Update phi 
             phi += 2.*self.mu_relax*r
 
-class JacobiHierarchy(object):
-    '''Hierarchy of Jacobi smoothers.
+class SmootherHierarchy(object):
+    '''Hierarchy of smoothers.
     
-    Set of Jacobi smoothers on different levels of the function space
+    Set of smoothers on different levels of the function space
     hierarchy, as needed by the multigrid solver.
 
+    :arg Type: the type (class) of the smoother
     :arg operator_hierarchy: An :class:`.OperatorHierarchy` of linear Schur 
         complement operators in pressure space
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
     '''
-    def __init__(self,operator_hierarchy,
+    def __init__(self,Type,
+                 operator_hierarchy,
                  mu_relax=2./3.,
                  n_smooth=1):
         self.operator_hierarchy = operator_hierarchy
         self.mu_relax = mu_relax
         self.n_smooth = n_smooth
-        self._hierarchy = [Jacobi(operator,
-                                  self.mu_relax,
-                                  self.n_smooth)
+        self._hierarchy = [Type(operator,
+                                self.mu_relax,
+                                self.n_smooth)
                            for operator in self.operator_hierarchy]
 
     def __getitem__(self,level):
