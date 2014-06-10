@@ -52,8 +52,7 @@ class Jacobi(object):
         :arg b: Right hand side :math:`b` in pressure space
         :arg phi: State vector :math:`\phi` in pressure space (out)
         '''
-        phi.assign(0.0)
-        self.smooth(b,phi)
+        self.smooth(b,phi,initial_phi_is_zero=True)
 
     def smooth(self,b,phi,initial_phi_is_zero=False):
         '''Smooth.
