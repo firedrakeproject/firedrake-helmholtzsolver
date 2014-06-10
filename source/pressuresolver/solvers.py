@@ -25,6 +25,7 @@ class IterativeSolver(object):
         self.tolerance = tolerance
         self.dx = self.V_pressure.mesh()._dx
         self.verbose = verbose
+        self.fmt = '  {iter: >10}  {res: ^10}  {rel_res: ^16}  {rho: ^20}'
 
     def solve(self,b,phi):
         '''Solve linear system :math:`H\phi = b`.
@@ -70,19 +71,26 @@ class LoopSolver(IterativeSolver):
         error.assign(0.0)
         residual.assign(self.operator.residual(b,phi))
         res_norm_0 = sqrt(assemble(residual*residual*self.dx))
+        res_norm_old = res_norm_0
         if (self.verbose > 1):
             print '      Initial residual = ' + ('%8.4e' % res_norm_0)
+            print self.fmt.format(iter='iter i',
+                                  res='||r_i||',
+                                  rel_res='||r_i||/||r_0||',
+                                  rho='||r_i||/||r_{i-1}||')
         for i in range(1,self.maxiter+1):
             self.preconditioner.solve(residual,error)
             phi.assign(phi+error)
             residual.assign(self.operator.residual(b,phi))
             res_norm = sqrt(assemble(residual*residual*self.dx))
             if (self.verbose > 1):
-                print '     i = '+('%4d' % i) +  \
-                      ' : '+('%8.4e' % res_norm) + \
-                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
+                print self.fmt.format(iter='{0:4d}'.format(i),
+                                      res='{0:8.4e}'.format(res_norm),
+                                      rel_res='{0:8.4e}'.format(res_norm/res_norm_0),
+                                      rho='{0:6.3f}'.format(res_norm/res_norm_old))
             if (res_norm/res_norm_0 < self.tolerance):
                 break
+            res_norm_old = res_norm
         if (self.verbose > 0):
             if (res_norm/res_norm_0 < self.tolerance):
                 print '  Multigrid converged after '+str(i)+' iterations.'
@@ -123,9 +131,14 @@ class CGSolver(IterativeSolver):
         p = Function(self.V_pressure)
         p.assign(z)
         res_norm_0 = sqrt(assemble(r*r*dx))
+        res_norm_old = res_norm_0
         rz = assemble(r*z*dx)
         if (self.verbose > 1):
             print '      Initial residual = ' + ('%8.4e' % res_norm_0)
+            print self.fmt.format(iter='iter i',
+                                  res='||r_i||',
+                                  rel_res='||r_i||/||r_0||',
+                                  rho='||r_i||/||r_{i-1}||')
         alpha = Constant(0)
         beta = Constant(0)
         for i in range(self.maxiter):
@@ -136,9 +149,10 @@ class CGSolver(IterativeSolver):
             r -= alpha*Ap
             res_norm = sqrt(assemble(r*r*dx))
             if (self.verbose > 1):
-                print '     i = '+('%4d' % i) +  \
-                      ' : '+('%8.4e' % res_norm) + \
-                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ] '
+                print self.fmt.format(iter='{0:4d}'.format(i),
+                                      res='{0:8.4e}'.format(res_norm),
+                                      rel_res='{0:8.4e}'.format(res_norm/res_norm_0),
+                                      rho='{0:6.3f}'.format(res_norm/res_norm_old))
             if (res_norm/res_norm_0 < self.tolerance):
                 break
             self.preconditioner.solve(r,z)
@@ -146,6 +160,7 @@ class CGSolver(IterativeSolver):
             rz = assemble(r*z*dx)
             beta.assign(rz/rz_old)
             p.assign(z + beta*p)
+            res_norm_old = res_norm
         if (self.verbose > 0):
             if (res_norm/res_norm_0 < self.tolerance):
                 print '  CG converged after '+str(i)+' iterations.'
