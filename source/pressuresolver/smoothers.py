@@ -40,10 +40,10 @@ class Jacobi(object):
         kernel_add_vterm = 'for(int i=0; i<M_u_lumped.dofs; i++) {D_diag[0][0] += 2./M_u_lumped[i][0];}'
         M_u_lumped = self.lumped_mass.get()
         par_loop(kernel_add_vterm,self.dx,{'D_diag':(D_diag,INC),'M_u_lumped':(M_u_lumped,READ)})
-        kernel_inv = '{ D_diag_inv[0][0] = 1./D_diag[0][0]; }'
+        kernel_inv = '{ (*D_diag_inv) = 1./(*D_diag); }'
         self.D_diag_inv = Function(self.V_pressure)
-        par_loop(kernel_inv,self.dx,{'D_diag_inv':(self.D_diag_inv,WRITE),
-                                'D_diag':(D_diag,READ)})
+        par_loop(kernel_inv,direct,{'D_diag_inv':(self.D_diag_inv,WRITE),
+                                    'D_diag':(D_diag,READ)})
        
     def solve(self,b,phi):
         '''Solve approximately with RHS :math:`b`.
