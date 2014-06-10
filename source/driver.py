@@ -1,3 +1,4 @@
+import sys
 import os
 from firedrake import *
 op2.init(log_level="WARNING")
@@ -60,7 +61,9 @@ if (__name__ == '__main__'):
                                                                         ignore_mass_lumping=ignore_mass_lumping)
         operator = operator_hierarchy[fine_level]
 
-        presmoother_hierarchy = pressuresolver.smoothers.JacobiHierarchy(operator_hierarchy)
+        presmoother_hierarchy = \
+            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
+                                                       operator_hierarchy)
         postsmoother_hierarchy = presmoother_hierarchy
         coarsegrid_solver = pressuresolver.smoothers.Jacobi(operator_hierarchy[0])
         coarsegrid_solver.n_smooth = 4
