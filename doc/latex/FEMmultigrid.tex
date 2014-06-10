@@ -154,7 +154,7 @@ The bound in (\ref{eqn:MatrixBound}) is sharp for a regular triangulation/tiling
 
 We therefore use the following diagonal matrix $D$ in the smoother:
 \begin{equation}
-  D = M_{\phi} + 2\sigma \alpha^{(\phi)}
+  D = M_{\phi} + 2\omega^2 \sigma \alpha^{(\phi)}
 \end{equation}
 The spectrum of the error reduction matrix $S$ is contained in
 \begin{equation}
@@ -168,7 +168,7 @@ To apply the matrix $D^{-1}$ to a field $\vec{\Phi}$, i.e. $\vec{\Psi}=D^{-1}\ve
 \begin{enumerate}
   \item calculate
 \begin{equation}
-  D_{ii} = |E_i| + 2 \sum_{e'\in e(i)} \alpha^{(u)}_{e'e'}
+  D_{ii} = |E_i| + 2\omega^2 \sum_{e'\in e(i)} \alpha^{(u)}_{e'e'}
 \end{equation}
   \item calculate $\Psi_i = \Phi_i/D_{ii}$.
 \end{enumerate}
