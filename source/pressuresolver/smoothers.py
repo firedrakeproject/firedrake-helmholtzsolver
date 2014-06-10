@@ -37,9 +37,11 @@ class Jacobi(object):
         one_pressure = Function(self.V_pressure)
         one_pressure.assign(1.0)
         D_diag = assemble(TestFunction(self.V_pressure)*one_pressure*self.dx)
+        D_diag /=self.operator.omega**2
         kernel_add_vterm = 'for(int i=0; i<M_u_lumped.dofs; i++) {D_diag[0][0] += 2./M_u_lumped[i][0];}'
         M_u_lumped = self.lumped_mass.get()
         par_loop(kernel_add_vterm,self.dx,{'D_diag':(D_diag,INC),'M_u_lumped':(M_u_lumped,READ)})
+        D_diag *= self.operator.omega**2
         kernel_inv = '{ (*D_diag_inv) = 1./(*D_diag); }'
         self.D_diag_inv = Function(self.V_pressure)
         par_loop(kernel_inv,direct,{'D_diag_inv':(self.D_diag_inv,WRITE),
