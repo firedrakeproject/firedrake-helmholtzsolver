@@ -1,6 +1,7 @@
 import sys
 import os
-from firedrake import *
+import math
+from firedrake import * 
 op2.init(log_level="WARNING")
 from ffc import log
 log.set_level(log.ERROR)
@@ -13,17 +14,18 @@ from pressuresolver import operators, smoothers, solvers, preconditioners
 ##########################################################
 if (__name__ == '__main__'):
     # Parameters
-    ref_count_coarse = 2
+    ref_count_coarse = 0
     nlevel = 4
-    omega = 0.5**(ref_count_coarse+nlevel)
     spherical = True
     outputDir = 'output'
     ignore_mass_lumping = False
     solver_name = 'Loop'
     preconditioner_name = 'Multigrid' 
     tolerance_outer = 1.E-6
-    tolerance_inner = 1.E-6
-    maxiter=10
+    tolerance_inner = 1.E-3
+    maxiter_inner=10
+    maxiter_outer=1
+    mu_relax = 2./3.
         
     # Create mesh
     if (spherical):
@@ -43,6 +45,12 @@ if (__name__ == '__main__'):
 
     fine_level = len(mesh_hierarchy)-1
     mesh = mesh_hierarchy[fine_level]
+
+    ncells = mesh.num_cells()
+    print 'Number of cells on finest grid = '+str(ncells)
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+
+    omega = 10.*0.5*dx
 
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
@@ -82,11 +90,13 @@ if (__name__ == '__main__'):
         pressure_solver = pressuresolver.solvers.LoopSolver(operator,
                                                             preconditioner,
                                                             tolerance=tolerance_inner,
+                                                            maxiter=maxiter_inner,
                                                             verbose=2)
     elif (solver_name == 'CG'):
         pressure_solver = pressuresolver.solvers.CGSolver(operator,
                                                           preconditioner,
                                                           tolerance=tolerance_inner,
+                                                          maxiter=maxiter_inner,
                                                           verbose=2)
     else:
         print 'Unknown solver: \''+solver_name+'\'.'
@@ -95,7 +105,7 @@ if (__name__ == '__main__'):
 
     helmholtz_solver = helmholtz.Solver(V_pressure,V_velocity,pressure_solver,omega,
                                         tolerance=tolerance_outer,
-                                        maxiter=maxiter)
+                                        maxiter=maxiter_outer)
 
     r_phi = Function(V_pressure).project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
     r_u = Function(V_velocity)
