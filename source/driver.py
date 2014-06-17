@@ -22,10 +22,10 @@ if (__name__ == '__main__'):
     solver_name = 'Loop'
     preconditioner_name = 'Multigrid' 
     tolerance_outer = 1.E-6
-    tolerance_inner = 1.E-3
-    maxiter_inner=10
-    maxiter_outer=1
-    mu_relax = 2./3.
+    tolerance_inner = 1.E-5
+    maxiter_inner=20
+    maxiter_outer=5
+    mu_relax = 0.95
         
     # Create mesh
     if (spherical):
@@ -50,7 +50,7 @@ if (__name__ == '__main__'):
     print 'Number of cells on finest grid = '+str(ncells)
     dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
 
-    omega = 10.*0.5*dx
+    omega = 8.*0.5*dx
 
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
@@ -71,10 +71,14 @@ if (__name__ == '__main__'):
 
         presmoother_hierarchy = \
             pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
-                                                       operator_hierarchy)
-        postsmoother_hierarchy = presmoother_hierarchy
+                                                       operator_hierarchy,n_smooth=2,
+                                                       mu_relax=mu_relax)
+        postsmoother_hierarchy = \
+            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
+                                                       operator_hierarchy,n_smooth=2,
+                                                       mu_relax=mu_relax)
         coarsegrid_solver = pressuresolver.smoothers.Jacobi(operator_hierarchy[0])
-        coarsegrid_solver.n_smooth = 4
+        coarsegrid_solver.n_smooth = 1
         preconditioner = pressuresolver.preconditioners.Multigrid(operator_hierarchy,
                                                                   presmoother_hierarchy,
                                                                   postsmoother_hierarchy,
