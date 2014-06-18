@@ -26,6 +26,7 @@ if (__name__ == '__main__'):
     maxiter_inner=20
     maxiter_outer=5
     mu_relax = 0.95
+    use_maximal_eigenvalue=False
         
     # Create mesh
     if (spherical):
@@ -59,7 +60,8 @@ if (__name__ == '__main__'):
         operator = pressuresolver.operators.Operator(V_pressure,V_velocity,
                                                      omega,
                                                      ignore_mass_lumping=ignore_mass_lumping)
-        preconditioner = pressuresolver.smoothers.Jacobi(operator)
+        preconditioner = pressuresolver.smoothers.Jacobi(operator,
+                                                         use_maximal_eigenvalue=use_maximal_eigenvalue)
     elif (preconditioner_name == 'Multigrid'):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
@@ -72,11 +74,13 @@ if (__name__ == '__main__'):
         presmoother_hierarchy = \
             pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
                                                        operator_hierarchy,n_smooth=2,
-                                                       mu_relax=mu_relax)
+                                                       mu_relax=mu_relax,
+                                                       use_maximal_eigenvalue=use_maximal_eigenvalue)
         postsmoother_hierarchy = \
             pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
                                                        operator_hierarchy,n_smooth=2,
-                                                       mu_relax=mu_relax)
+                                                       mu_relax=mu_relax,
+                                                       use_maximal_eigenvalue=use_maximal_eigenvalue)
         coarsegrid_solver = pressuresolver.smoothers.Jacobi(operator_hierarchy[0])
         coarsegrid_solver.n_smooth = 1
         preconditioner = pressuresolver.preconditioners.Multigrid(operator_hierarchy,

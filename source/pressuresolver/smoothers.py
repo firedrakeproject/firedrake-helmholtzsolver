@@ -1,3 +1,4 @@
+import numpy as np
 from operators import *
 
 class Jacobi(object):
@@ -16,14 +17,17 @@ class Jacobi(object):
     :arg operator: Schur complement operator, of type :class:`Operator`.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set to :math:`\max_i\{D_{ii}\} Id`, i.e. the unit matrix times the maximal eigenvalue. This means that the smoother is symmetric, which is not necessarily the case otherwise.
     '''
     def __init__(self,operator,
                  mu_relax=2./3.,
-                 n_smooth=1):
+                 n_smooth=1,
+                 use_maximal_eigenvalue=False):
         self.operator = operator
         self.V_pressure = self.operator.V_pressure
         self.mu_relax = mu_relax
         self.n_smooth = n_smooth
+        self.use_maximal_eigenvalue=use_maximal_eigenvalue
         self.dx = self.operator.V_pressure.mesh()._dx
         # Construct lumped mass matrix
         self.lumped_mass = self.operator.lumped_mass
@@ -42,6 +46,9 @@ class Jacobi(object):
         M_u_lumped = self.lumped_mass.get()
         par_loop(kernel_add_vterm,self.dx,{'D_diag':(D_diag,INC),'M_u_lumped':(M_u_lumped,READ)})
         D_diag *= self.operator.omega**2
+        if (self.use_maximal_eigenvalue):
+            max_D_diag = np.max(D_diag.dat.data)
+            D_diag.dat.data[:] = max_D_diag
         kernel_inv = '{ (*D_diag_inv) = 1./(*D_diag); }'
         self.D_diag_inv = Function(self.V_pressure)
         par_loop(kernel_inv,direct,{'D_diag_inv':(self.D_diag_inv,WRITE),
@@ -101,17 +108,21 @@ class SmootherHierarchy(object):
         complement operators in pressure space
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set to :math:`\max_i\{D_{ii}\} Id`, i.e. the unit matrix times the maximal eigenvalue. This means that the smoother is symmetric, which is not necessarily the case otherwise.
     '''
     def __init__(self,Type,
                  operator_hierarchy,
                  mu_relax=2./3.,
-                 n_smooth=1):
+                 n_smooth=1,
+                 use_maximal_eigenvalue=False):
         self.operator_hierarchy = operator_hierarchy
         self.mu_relax = mu_relax
         self.n_smooth = n_smooth
+        self.use_maximal_eigenvalue=use_maximal_eigenvalue
         self._hierarchy = [Type(operator,
                                 self.mu_relax,
-                                self.n_smooth)
+                                self.n_smooth,
+                                self.use_maximal_eigenvalue)
                            for operator in self.operator_hierarchy]
 
     def __getitem__(self,level):
