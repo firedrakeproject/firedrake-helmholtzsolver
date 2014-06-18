@@ -11,3 +11,4 @@
 *.swp
 *.fdb_latexmk
 _build/
+warnings.txt
