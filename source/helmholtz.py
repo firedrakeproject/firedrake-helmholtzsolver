@@ -140,10 +140,9 @@ class Solver:
         r_u.assign(Mr_u)
         self.lumped_mass.divide(r_u)
         # Calculate r_phi = (M_{phi})^{-1}*Mr_phi
-        a_phi_mass = self.psi*self.phi*dx
-        L_phi = self.psi*Mr_phi*dx
+        a_phi_mass = assemble(self.psi*self.phi*dx)
         r_phi = Function(self.V_pressure)
-        solve(a_phi_mass == L_phi, r_phi, solver_parameters={'ksp_type':'cg'})
+        solve(a_phi_mass, r_phi, Mr_phi, solver_parameters={'ksp_type':'cg'})
         return sqrt(assemble((r_phi*r_phi+dot(r_u,r_u))*dx))
 
     def solve_petsc(self,r_phi,r_u):
