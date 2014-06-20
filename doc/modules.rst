@@ -5,4 +5,5 @@ source
    :maxdepth: 4
 
    helmholtz
+   interordermapper
    pressuresolver
