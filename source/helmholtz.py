@@ -1,4 +1,5 @@
 from firedrake import *
+import interordermapper
 '''Solve Helmholtz system in mixed formulation.
 
 This module contains the :class:`.Solver` for solving a Helmholtz system 
@@ -34,13 +35,22 @@ class Solver:
         self.V_velocity = V_velocity
         self.verbose = verbose
         self.pressure_solver = pressure_solver
+        self.V_pressure_low = self.pressure_solver.V_pressure
+        self.V_velocity_low = self.pressure_solver.V_velocity 
         # Set up test- and trial function spaces
         self.u = TrialFunction(self.V_velocity)
         self.phi = TrialFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
+        self.w_low = TestFunction(self.V_velocity_low)
+        self.psi_low = TestFunction(self.V_pressure_low)
         self.psi = TestFunction(self.V_pressure)
         # Extract lumped mass
         self.lumped_mass = pressure_solver.operator.lumped_mass
+        # Interspace function mappers
+        self.interorder_pressure_mapper = interordermapper.Mapper(self.V_pressure,
+                                                                  self.V_pressure_low)
+        self.interorder_velocity_mapper = interordermapper.Mapper(self.V_velocity,
+                                                                  self.V_velocity_low)
 
     def solve(self,r_phi,r_u):
         '''Solve Helmholtz system using nested iteration.
@@ -57,42 +67,47 @@ class Solver:
             print ' === Helmholtz solver ==='
         # Fields for solution
         u = Function(self.V_velocity)
-        du = Function(self.V_velocity)
+        du = Function(self.V_velocity_low)
         phi = Function(self.V_pressure)
-        F_pressure = Function(self.V_pressure)
+        F_pressure = Function(self.V_pressure_low)
         u.assign(0.0)
         phi.assign(0.0)
         # Pressure correction
-        d_phi = Function(self.V_pressure)
+        d_phi = Function(self.V_pressure_low)
         # Residual correction
         Mr_phi = assemble(self.psi*r_phi*dx)
         Mr_u = assemble(dot(self.w,r_u)*dx)
         dMr_phi = Function(self.V_pressure)
         dMr_u = Function(self.V_velocity)
-        dMinvMr_u = Function(self.V_velocity)
+        dMr_u_low = Function(self.V_velocity_low)
+        dMinvMr_u = Function(self.V_velocity_low)
         dMr_phi.assign(Mr_phi)
         dMr_u.assign(Mr_u)
         # Calculate initial residual
         res_norm = self.residual_norm(dMr_phi,dMr_u) 
         res_norm_0 = res_norm 
+        DFile = File('output/Fpressure.pvd')
+        DFile << dMr_phi
         if (self.verbose > 0):
             print ' initial outer residual : '+('%e' % res_norm_0)
         for i in range(1,self.maxiter+1):
             # Construct RHS for linear (pressure) solve
-            dMinvMr_u.assign(dMr_u)
+            dMr_u_low.assign(self.interorder_velocity_mapper.restrict(dMr_u))
+            dMinvMr_u.assign(dMr_u_low)
             self.lumped_mass.divide(dMinvMr_u)
-            F_pressure.assign(dMr_phi - self.omega*assemble(self.psi*div(dMinvMr_u)*dx))
+            F_pressure.assign(self.interorder_pressure_mapper.restrict(dMr_phi) - \
+                              self.omega*assemble(self.psi_low*div(dMinvMr_u)*dx))
             # Solve for pressure correction
             d_phi.assign(0.0)
             self.pressure_solver.solve(F_pressure,d_phi)
             # Update solution with correction
             # phi -> phi + d_phi
-            phi += d_phi
+            phi.assign(phi + self.interorder_pressure_mapper.prolong(d_phi))
             # u -> u + (M_u^{lumped})^{-1}*(R_u + omega*grad(d_phi))
-            grad_dphi = assemble(div(self.w)*d_phi*dx)
-            du.assign(dMr_u + self.omega * grad_dphi)
+            grad_dphi = assemble(div(self.w_low)*d_phi*dx)
+            du.assign(dMr_u_low + self.omega * grad_dphi)
             self.lumped_mass.divide(du)
-            u += du
+            u.assign(u + self.interorder_velocity_mapper.prolong(du))
             # Calculate current residual
             Mr_phi_cur = assemble((self.psi*phi + self.omega*self.psi*div(u))*dx)
             Mr_u_cur = assemble(( inner(self.w,u) - self.omega*div(self.w)*phi)*dx)
@@ -119,14 +134,14 @@ class Solver:
     def residual_norm(self,Mr_phi,Mr_u):
         ''' Calculate outer residual norm.
     
-        Calculates an approximation to norm of the full residual in the outer iteration:
+        Calculates the norm of the full residual in the outer iteration:
 
         .. math::
 
             norm = ||\\tilde{r}_\phi||_{L_2} + ||\\tilde{r}_u||_{L_2}
 
         where :math:`\\tilde{r}_\phi = M_\phi^{-1} (M_\phi r_{\phi})` and 
-        :math:`\\tilde{r}_u = \left(M_u^*\\right)^{-1} (M_ur_u)`. The multiplication with the
+        :math:`\\tilde{r}_u = \left(M_u\\right)^{-1} (M_ur_u)`. The multiplication with the
         inverse mass matrices is necessary because the outer iteration calculates the residuals
         :math:`M_{\phi} r_{\phi}` and :math:`M_ur_{u}`
 
@@ -134,16 +149,17 @@ class Solver:
         :arg Mr_u: Residual multiplied by velocity mass matrix :math:`M_ur_{\phi}` 
         '''
 
-        # Rescale by (lumped) mass matrices
-        # Calculate r_u = (M_u^{lumped})^{-1}*Mr_u
+        # Rescale by mass matrices
+
+        # (1) Calculate r_u = (M_u^{-1})*Mr_u
+        a_u_mass = assemble(dot(self.w,self.u)*dx)
         r_u = Function(self.V_velocity)
-        r_u.assign(Mr_u)
-        self.lumped_mass.divide(r_u)
-        # Calculate r_phi = (M_{phi})^{-1}*Mr_phi
-        a_phi_mass = self.psi*self.phi*dx
-        L_phi = self.psi*Mr_phi*dx
+        solve(a_u_mass, r_u, Mr_u, solver_parameters={'ksp_type':'cg'})
+
+        # (2) Calculate r_phi = (M_{phi})^{-1}*Mr_phi
+        a_phi_mass = assemble(self.psi*self.phi*dx)
         r_phi = Function(self.V_pressure)
-        solve(a_phi_mass == L_phi, r_phi, solver_parameters={'ksp_type':'cg'})
+        solve(a_phi_mass, r_phi, Mr_phi, solver_parameters={'ksp_type':'cg'})
         return sqrt(assemble((r_phi*r_phi+dot(r_u,r_u))*dx))
 
     def solve_petsc(self,r_phi,r_u):

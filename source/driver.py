@@ -53,20 +53,25 @@ if (__name__ == '__main__'):
 
     omega = 8.*0.5*dx
 
+
+    V_pressure = FunctionSpace(mesh,'DG',1)
+    V_velocity = FunctionSpace(mesh,'BDFM',2)
+
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
-        V_pressure = FunctionSpace(mesh,'DG',0)
-        V_velocity = FunctionSpace(mesh,'RT',1)
-        operator = pressuresolver.operators.Operator(V_pressure,V_velocity,
+        V_pressure_low = FunctionSpace(mesh,'DG',0)
+        V_velocity_low = FunctionSpace(mesh,'RT',1)
+        operator = pressuresolver.operators.Operator(V_pressure_low,
+                                                     V_velocity_low,
                                                      omega,
                                                      ignore_mass_lumping=ignore_mass_lumping)
         preconditioner = pressuresolver.smoothers.Jacobi(operator,
                                                          use_maximal_eigenvalue=use_maximal_eigenvalue)
     elif (preconditioner_name == 'Multigrid'):
-        V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
-        V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
-        operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_hierarchy,
-                                                                        V_velocity_hierarchy,
+        V_pressure_low_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
+        V_velocity_low_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
+        operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_low_hierarchy,
+                                                                        V_velocity_low_hierarchy,
                                                                         omega,
                                                                         ignore_mass_lumping=ignore_mass_lumping)
         operator = operator_hierarchy[fine_level]
@@ -87,8 +92,6 @@ if (__name__ == '__main__'):
                                                                   presmoother_hierarchy,
                                                                   postsmoother_hierarchy,
                                                                   coarsegrid_solver)
-        V_pressure = V_pressure_hierarchy[fine_level]
-        V_velocity = V_velocity_hierarchy[fine_level]
     else:
         print 'Unknown preconditioner: \''+prec_name+'\'.'
         sys.exit(-1)
@@ -111,7 +114,10 @@ if (__name__ == '__main__'):
         sys.exit(-1)
         
 
-    helmholtz_solver = helmholtz.Solver(V_pressure,V_velocity,pressure_solver,omega,
+    helmholtz_solver = helmholtz.Solver(V_pressure,
+                                        V_velocity,
+                                        pressure_solver,
+                                        omega,
                                         tolerance=tolerance_outer,
                                         maxiter=maxiter_outer)
 

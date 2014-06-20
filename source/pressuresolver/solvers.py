@@ -20,6 +20,7 @@ class IterativeSolver(object):
                  verbose=2):
         self.operator = operator
         self.V_pressure = self.operator.V_pressure
+        self.V_velocity = self.operator.V_velocity
         self.preconditioner = preconditioner
         self.maxiter = maxiter
         self.tolerance = tolerance
