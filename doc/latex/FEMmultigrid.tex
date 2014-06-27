@@ -219,6 +219,10 @@ Here $\indexSet_S^{(h)}$ is the set of edge indices and $c(e)$ are the children 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Mass lumping}\label{sec:MassLumping}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Lowest order ($RT0$)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Use John's mass lumping \cite{Thuburn2013}, i.e for a particular edge $e$ require that the diagonal mass matrix gives the same result as the full mass matrix when acting on a solid body rotation flow field passing through this edge. Let $\vec{u}_{(1)}$, $\vec{u}_{(2)}$ and $\vec{u}_{(3)}$ be the solid body rotation flow fields for rotations around the $x-$, $y-$ and $z-$ axis\footnote{The corresponding stream functions are $\psi_{(1)} = x$, $\psi_{(2)}= y$ and $\psi_{(3)}=z$.} and project $\vec{u}_{(k)}$ onto $\Vvelocity$, i.e. $\vec{u}_{(k)} = \sum_e \left(U_{(k)}\right)_e \vec{u}_e(x)$. 
 Then the entries of the lumped mass matrix are given by
 \begin{equation}
@@ -227,6 +231,77 @@ Then the entries of the lumped mass matrix are given by
 \end{equation}
 This needs to be calculated once and a scalar stored for each edge.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Higher order ($BDFM1$)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+For higher order finite element velocity spaces we proceed similarly. For the $BDFM1$ space four degrees of freedom are associated with each triangle facet. Two of these correspond to continuous normal fluxes which are shared between neighbouring cells whereas the other two are the discontinuous tangential fluxes which are associated to each cell.
+The lumped mass matrix is block-diagonal, with each $4\times4$ block associated to a particular facet. We construct the block matrix on a facet $e$ by demanding that when it is applied to certain solid body rotation fields it gives similar results as the full mass matrix. Note that since we also require the lumped mass matrix to be symmetric and positiv definite, it is not possible to achieve exact agreement on a particular edge.
+
+For the following construction we use the following solid body rotation fields in Tab. \ref{tab:SBR}, which represent rotations around the different coordinate axes. For the fields $\vec{u}_{(i)}$ both hemispheres rotate in the same directions, whereas they rotation in opposite directions for $\tilde{\vec{u}}_{(i)}$.
+\begin{table}
+ \begin{center}
+  \begin{tabular}{|l|lll|}
+    \hline
+    Type A &
+    $\vec{u}_{(1)}=(0,-z,y)$ & 
+	 $\vec{u}_{(2)}=(z,0,-x)$ & 
+	 $\vec{u}_{(3)}=(-y,x,0)$ \\
+    \hline
+	 Type B &
+    $\tilde{\vec{u}}_{(1)}=(0,-zx,yx)$ & 
+	 $\tilde{\vec{u}}_{(2)}=(zy,0,-xy)$ & 
+	 $\tilde{\vec{u}}_{(3)}=(-yz,xz,0)$ \\
+	 \hline
+  \end{tabular}
+  \caption{Solid body rotation fields used for the $BDFM1$ mass lumping construction}
+  \label{tab:SBR}
+ \end{center}
+\end{table}
+Further let $\vec{n}^{(e)}$ and $\vec{t}^{(e)}$ denote the normalised normal and tangent vectors on edge $e$. We then use the fields in Tab. \ref{tab:SBR} to construct the following three velocity fields:
+\begin{enumerate}
+  \item Solid body rotation of type A with maximal flow through the facet $e$: $\vec{u}^{(1)} = \sum_{i=1}^3 t^{(e)}_i \vec{u}_{(i)}$
+  \item Solid body rotation of type A with maximal flow parallel to the facet $e$: $\vec{u}^{(2)} = \sum_{i=1}^3 n^{(e)}_i \vec{u}_{(i)}$
+  \item Solid body rotation of type B with maximal flow through the facet $e$: $\vec{u}^{(3)} = \sum_{i=1}^3 t^{(e)}_i \tilde{\vec{u}}_{(i)}$
+\end{enumerate}
+It might also be possible to use further solid body rotation fields to constrain the lumped mass matrix, and for generality we denote the number of solid body fields used in this construction by $\nu$, i.e. $\nu=3$ in our case.
+Denote with $\vec{U}^{(k)}$ the dof vectors of these fields, and $\vec{V}^{(k)}=M_u\vec{U}^{(k)}$.
+Then we demand that the following matrix function is minimised by $(M_u^*)_{ee}$ the lumped mass matrix on facet $e$:
+\begin{equation}
+  f(A) = \sum_{k=1,\nu}||\left(A\vec{U}^{(k)}-\vec{V}^{(k)}\right)_e||_2^2
+\label{eqn:minimiserFunction}
+\end{equation}
+where $A$ is symmetric positive definite. We might make additional assumptions on $A$, more restrictive choices could for example be:
+\begin{itemize}
+  \item $A$ is proportional to the $4\times 4$ identity matrix
+  \item $A$ is diagonal
+\end{itemize}
+To minimise the function in (\ref{eqn:minimiserFunction}) under these constraints, write
+\begin{equation}
+  A \equiv \sum_\mu a_\mu E_\mu
+\end{equation}
+where $E_\mu$ are $4\times 4$ basis matrices which fulfill the constraints. For example, if $A$ is assumed to be diagonal, a possible choice would be the matrices with $(E_\mu)_{ij} = \delta_{\mu i}\delta{ij}$, i.e. the matrices which have a 1 on the $\mu$-th diagonal entry. For a general symmetric matrix there are 10 basis matrices, for a diagonal one there are 4 and if we require the lumped mass matrix to be proportional to the identity matrix there is only 1 (the $4\times 4$ identity matrix itself).
+
+In the most general case the coefficients $a_\mu$, and hence the lumped mass matrix, can be found by solving the system
+\begin{equation}
+  b_{\rho\sigma} a_{\sigma} = r_{\rho}
+  \label{eqn:massMatrixSystem}
+\end{equation}
+where
+\begin{xalignat}{2}
+  b_{\rho\sigma} &\equiv \sum_{k=1}^\nu \left(\vec{U}^{(k)}\right)^T
+  E_{\rho}E_{\sigma}\vec{U}^{(k)} &
+  r_{\rho} &\equiv \left(\vec{U}^{(k)}\right)^T
+  E_{\rho}\vec{V}^{(k)}
+\end{xalignat}
+For special cases this can obviously be simplified significantly since most of the entries of the matrix $b$ can be zero.
+
+In firedrake this is implemented as follows:
+\begin{itemize}
+  \item Project the fields $\vec{u}_{(i)}$ and $\tilde{\vec{u}}_{(i)}$ onto the $BDFM1$ space
+  \item Calculate the fields $\vec{V}_{(i)} = M_u \vec{U}_{(i)}$ and $\tilde{\vec{V}}_{(i)} = M_u \tilde{\vec{U}}_{(i)}$ by multiplying $\vec{u}_{(i)}$ and $\tilde{\vec{u}}_{(i)}$ with a test function and integrating over space.
+  \item Loop over the facets, and using the normal and tangential vectors there, calculate the local fields $\vec{U}^{(k)}$, $\vec{V}^{(k)}$ as linear combinations of these fields.
+  \item On each facet solve the system in Eqn. (\ref{eqn:massMatrixSystem}) to calculate the local lumped mass matrix block.
+\end{itemize}
 \nocite{Verfurth1984}
 \nocite{Ewing1990}
 \nocite{Braess1997}
