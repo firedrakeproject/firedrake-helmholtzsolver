@@ -22,11 +22,11 @@ class LumpedMassBDFM1(object):
         # Coordinate space
         self.V_coords = self.coords.function_space()
         # Set up map from facets to coordinate dofs
-        self._build_interiorfacet2dofmap_coords()
+        self.facet2dof_map_coords = self._build_interiorfacet2dofmap_coords()
         # Space with one dof per facet (hijack RT0 space)
         self.V_facets = FunctionSpace(mesh,'RT',1)
-        self._build_interiorfacet2dofmap_facets()
-        self._build_interiorfacet2dofmap_BDFM1()
+        self.facet2dof_map_facets = self._build_interiorfacet2dofmap_facets()
+        self.facet2dof_map_BDFM1 = self._build_interiorfacet2dofmap_BDFM1()
         self._build_lumped_massmatrix()
         
     def _build_interiorfacet2dofmap_coords(self):
@@ -46,9 +46,8 @@ class LumpedMassBDFM1(object):
             dofs = [vertex_idx[0],vertex_idx[1]]
             facet2dof_map_val.append(dofs)
         toset = cell2dof_map.toset
-        self.facet2dof_map_coords = op2.Map(self.mesh.interior_facets.set,
-                                            toset,
-                                            2,values=facet2dof_map_val)
+        return op2.Map(self.mesh.interior_facets.set,toset,2,
+                       values=facet2dof_map_val)
 
     def _build_interiorfacet2dofmap_facets(self):
         '''Build a map from the interior facet's to the facet (i.e. RT0 dofs).
@@ -63,9 +62,8 @@ class LumpedMassBDFM1(object):
                 if c[k] == 2:
                     facet2dof_map_val.append(k)
         toset = cell2dof_map.toset
-        self.facet2dof_map_facets = op2.Map(self.mesh.interior_facets.set,
-                                            toset,
-                                            1,values=facet2dof_map_val)
+        return op2.Map(self.mesh.interior_facets.set,toset,1,
+                       values=facet2dof_map_val)
 
     def _build_interiorfacet2dofmap_BDFM1(self):
         '''Build a map from the interior facet's to the BDFM1 dofs
@@ -88,9 +86,8 @@ class LumpedMassBDFM1(object):
                     x[9+6+facet2_idx]]
             facet2dof_map_val.append(dofs)
         toset = cell2dof_map.toset
-        self.facet2dof_map_BDFM1 = op2.Map(self.mesh.interior_facets.set,
-                                           toset,
-                                           4,values=facet2dof_map_val)
+        return op2.Map(self.mesh.interior_facets.set,toset,4,
+                       values=facet2dof_map_val)
 
     def _construct_MU_U(self):
         '''Construct and return the matrices U and MU.
