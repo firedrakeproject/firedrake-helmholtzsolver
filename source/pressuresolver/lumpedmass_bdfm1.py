@@ -1,18 +1,22 @@
-import sys
 from collections import Counter
 from firedrake import *
 import numpy as np
-from matplotlib import pyplot as plt
-
-
-#########################################################
-# E X P E R I M E N T A L
-# This code is currently tested and not part of the 
-# solver yet.
-#########################################################
 
 class LumpedMassBDFM1(object):
-    '''BDFM1 lumped mass
+    '''BDFM1 lumped mass matrix.
+
+    Represents a lumped approximation of the BDFM1 mass matrix. The matrix
+    is block-diagonal with each 4x4 block corresponding to the couplings
+    between the dofs on one facet (2 continuous normal dofs, 2 discontinuous
+    tangential dofs). It is ocnstructed by requiring that on each facet the
+    lumped mass matrix gives the same result as the full BDFM1 mass matrix 
+    when applied to a set of solid body rotation fields.
+
+    Internally each block of the lumped mass matrix is represented as a
+    Dat of suitable shape located on the facets, i.e. the same dof-map as
+    for the RT0 space can be used.
+
+    :arg V_velocity: Velocity function space, has to be BDFM1
     '''
     def __init__(self,V_velocity):
         self.V_BDFM1 = V_velocity
@@ -24,13 +28,19 @@ class LumpedMassBDFM1(object):
         # Set up map from facets to coordinate dofs
         self.facet2dof_map_coords = self._build_interiorfacet2dofmap_coords()
         # Space with one dof per facet (hijack RT0 space)
-        self.V_facets = FunctionSpace(mesh,'RT',1)
+        self.V_facets = FunctionSpace(self.mesh,'RT',1)
         self.facet2dof_map_facets = self._build_interiorfacet2dofmap_facets()
         self.facet2dof_map_BDFM1 = self._build_interiorfacet2dofmap_BDFM1()
         self._build_lumped_massmatrix()
         
     def _build_interiorfacet2dofmap_coords(self):
-        '''Build a map from the interior facets to the dofs for the coordinates
+        '''Map to facet coordinates
+
+        Build a map from the interior facets to the dofs of the 
+        two coordinates on the adjacents vertices.
+        The map is constructed by looping over the
+        L1 dofs in the cells adjacent to the facet and looking for the two
+        duplicated dofs.
         '''
         cell2dof_map = self.V_coords.cell_node_map()
         facet2celldof_map = self.V_coords.interior_facet_node_map()
@@ -50,7 +60,13 @@ class LumpedMassBDFM1(object):
                        values=facet2dof_map_val)
 
     def _build_interiorfacet2dofmap_facets(self):
-        '''Build a map from the interior facet's to the facet (i.e. RT0 dofs).
+        '''Map to facet dofs
+
+        Build a map from the interior facets to the facet, i.e. the RT0
+        dofs. The map is constructed by looping over all facets, finding the
+        RT0 dofs of the adjacent cells and using the dofs which appear twice.
+
+        This map is used to access the lumped 4x4 mass matrix.
         '''
         cell2dof_map = self.V_facets.cell_node_map()
         facet2celldof_map = self.V_facets.interior_facet_node_map()
@@ -66,7 +82,18 @@ class LumpedMassBDFM1(object):
                        values=facet2dof_map_val)
 
     def _build_interiorfacet2dofmap_BDFM1(self):
-        '''Build a map from the interior facet's to the BDFM1 dofs
+        '''Map to BDFM1 dofs on a facet
+
+        Build a map from the interior facets to the four BDFM1 dofs 
+        associated with this facet. For this, loop over the BDFM1 dofs in the
+        cells associated with this facet and look for the duplicated ones.
+        On each cells are always ordered like this
+        :math:`(a_1,a_2,b_1,b_2,c_1,c_2,a_3,b_3,c_3)`, where :math:`a_1` and
+        :math:`a_2` are the normal dofs on edge 1 and :math:`a_3` is the
+        tangential dof.
+        We can hence look for duplicates in the 18-arity map to find the
+        shared normal dofs and then uniquely indentify the discontinuous
+        tangential dofs.
         '''
         cell2dof_map = self.V_BDFM1.cell_node_map()
         facet2celldof_map = self.V_BDFM1.interior_facet_node_map()
@@ -90,9 +117,14 @@ class LumpedMassBDFM1(object):
                        values=facet2dof_map_val)
 
     def _construct_MU_U(self):
-        '''Construct and return the matrices U and MU.
-        '''
+        '''Construct the solid body rotation fields.
 
+        Construct BDFM1 fields from the projection of
+        :math:`u_x=(0,-z,y)`, :math:`u_y=(z,0,-x)`, :math:`u_z=(-y,x,0)`,  
+        :math:`\\tilde{u_x}=(0,-zx,yx)`, :math:`\\tilde{u_y}=(zy,0,-xy)`,  
+        :math:`\\tilde{u_z}=(-yz,xz,0)` and the corresponding six fields
+        which are obtained by applying the BDFM1 mass matrix to these.
+        '''
         # Set columns of matrix to values of the vector functions
         kernel_file = file('kernel_bdfm1_lumpedmass.c','r')
         kernel_code = ''
@@ -151,6 +183,23 @@ class LumpedMassBDFM1(object):
         return (m_U,m_MU)
 
     def _build_lumped_massmatrix(self):
+        '''Build the lumped mass matrix.
+
+        Construct the lumped mass matrix by looping over all facts and
+        calculating the suilably rotated solid rotation fields :math:`u^{(i)}` 
+        which are tangential/normal to that facet and the fields
+        :math:`v^{(i)}` which are obtained from these by a mass matrix 
+        application. Store the results in a 4x4 matrix
+        on that facet. The lumped mass matrix is obtained by requiring that
+        the result of the full mass matrix application is close to the
+        result of a lumped mass matrix application, i.e. minimise
+
+        :math: \sum_{k=1}^{\\nu} ||(M_u^*)_{ee}u^{(i)}-v^{(i)}||_2^2
+    
+        on each edge with constraints on the local 4x4 lumped mass matrix
+        :math:`(M_u^*)_{ee}`. It should be symmetric and positive definite.
+        Currently we also enforce it to be diagonal.
+        '''
         m_U, m_MU = self._construct_MU_U()
         # Build matrix basis for local lumped mass matrix
         a_basis = []
@@ -194,87 +243,46 @@ class LumpedMassBDFM1(object):
             d_Mu_lumped_inv[i] = np.linalg.inv(d_Mu_lumped[i])
 
     def _matmul(self,m,u):
+        '''Multiply by block-diagonal matrix
+
+        In-place multiply a BDFM1 field by a block-diagonal matrix, which 
+        is either the lumped mass matrix or its inverse.
+
+        :arg m: block-diagonal matrix to multiply with
+        :arg u: BDFM1 field to multiply (will be modified in-place)
+        '''
         kernel_code = '''void matmul(double **m,
-                                     double **U, 
-                                     double **mU) {
+                                     double **U) {
+                           double tmp[4];
+                           for (int i=0; i<4; ++i) tmp[i] = U[i][0];
                            for (int i=0; i<4; ++i) {
-                             mU[i][0] = 0.0;
+                             U[i][0] = 0.0;
                              for (int j=0; j<4; ++j) {
-                               mU[i][0] += m[0][4*i+j]*U[j][0];
+                               U[i][0] += m[0][4*i+j]*tmp[j];
                              }
                            }
                          }'''
-        v = Function(self.V_BDFM1)
         kernel = op2.Kernel(kernel_code,"matmul")
         op2.par_loop(kernel,self.mesh.interior_facets.set,
                      m.dat(op2.READ,self.facet2dof_map_facets),
-                     u.dat(op2.READ,self.facet2dof_map_BDFM1),
-                     v.dat(op2.WRITE,self.facet2dof_map_BDFM1))
-        return v
+                     u.dat(op2.RW,self.facet2dof_map_BDFM1))
 
     def multiply(self,u):
-        '''Multiply a BDFM1 field with the lumped mass matrix.
+        '''Multiply by lumped mass matrix
+
+        In-place multiply a BDFM1 field by the lumped mass matrix
+
+        :arg u: BDFM1 field to multiply (will be modified in-place)
         '''
-        return self._matmul(self.Mu_lumped,u)
+        self._matmul(self.Mu_lumped,u)
             
 
     def divide(self,u):
-        '''Divide a BDFM1 field with the lumped mass matrix.
+        '''Divide by lumped mass matrix
+
+        In-place divide a BDFM1 field by the lumped mass matrix
+
+        :arg u: BDFM1 field to divide (will be modified in-place)
         '''
-        return self._matmul(self.Mu_lumped_inv,u)    
-
-# TESTING
-
-if (__name__ == '__main__'):
-    ref_count = 1
-    mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count)
-    global_normal = Expression(("x[0]","x[1]","x[2]"))
-    mesh.init_cell_orientations(global_normal)
-
-    V_BDFM1 = FunctionSpace(mesh,'BDFM',2)
-    Mu = LumpedMassBDFM1(V_BDFM1)
-
-    U_z = Function(V_BDFM1).project(Expression(('-x[1]','x[0]','0')))
-
-    E_kin = assemble(dot(U_z,U_z)*dx)
-
-    MU_z = Mu.multiply(U_z)
-
-    E_kin_lumped = 0.0
-    for (u,v) in zip(U_z.dat.data,MU_z.dat.data):
-        E_kin_lumped += u*v
-
-    print '(Twice) kinetic energy: '
-    print '   full   mass : '+ ('%8.4e' % E_kin)
-    print '   lumped mass : '+ ('%8.4e' % E_kin_lumped)
-
-    # Calculate eigenvalues
-    f = Function(V_BDFM1)
-    g = Function(V_BDFM1)
-    ndofs = len(f.dat.data)
-    m_eigen_full = np.zeros((ndofs,ndofs))
-    m_eigen_lumped = np.zeros((ndofs,ndofs))
-    w = TestFunction(V_BDFM1)
-    for i in range(ndofs):
-        f.dat.data[:] = 0 
-        f.dat.data[i] = 1
-        g = assemble(dot(w,f)*dx)
-        m_eigen_full[i,:] = g.dat.data[:]
-        g = Mu.multiply(f)
-        m_eigen_lumped[i,:] = g.dat.data[:]
-    evals_full = np.linalg.eigvalsh(m_eigen_full)
-    evals_lumped = np.linalg.eigvalsh(m_eigen_lumped)
-
-    max_eval = max(np.max(evals_full),max(evals_lumped))
-    min_eval = min(np.min(evals_full),min(evals_lumped))
-    y = np.zeros(ndofs)
-    plt.clf()
-    ax = plt.gca()
-    ax.set_ylim(-0.3,0.3)
-    ax.set_xlim(min_eval,max_eval)
-    p1 = plt.plot(evals_full,y-0.2,color='red',markeredgecolor='red',linewidth=0,markersize=6,marker='o')[0]
-    p2 = plt.plot(evals_lumped,y+0.2,color='blue',markeredgecolor='blue',linewidth=0,markersize=6,marker='o')[0]
-    plt.legend((p1,p2),('full','lumped'),'upper left')
-    plt.savefig('eigenvalues.pdf',bbox_inches='tight')
-
-
+        self._matmul(self.Mu_lumped_inv,u)
+ 
