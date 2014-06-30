@@ -4,6 +4,7 @@ from firedrake import *
 '''
 __all__ = ['operators',
            'lumpedmass',
+           'lumpedmass_bdfm1',
            'smoothers',
            'solvers',
            'preconditioners']

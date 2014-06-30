@@ -12,6 +12,14 @@ pressuresolver.lumpedmass module
     :undoc-members:
     :show-inheritance:
 
+pressuresolver.lumpedmass_bdfm1 module
+--------------------------------------
+
+.. automodule:: pressuresolver.lumpedmass_bdfm1
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pressuresolver.operators module
 -------------------------------
 
