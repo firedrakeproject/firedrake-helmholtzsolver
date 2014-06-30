@@ -17,12 +17,15 @@ class LumpedMassBDFM1(object):
     for the RT0 space can be used.
 
     :arg V_velocity: Velocity function space, has to be BDFM1
+    :arg diagonal_matrix: Assume local blocks are diagonal. This allows for 
+    some further optimisations.
     '''
-    def __init__(self,V_velocity):
+    def __init__(self,V_velocity,diagonal_matrix=True):
         self.V_BDFM1 = V_velocity
         self.mesh = self.V_BDFM1.mesh()
         self.coords = self.mesh.coordinates
         self.n_SBR=4
+        self.diagonal_matrix = diagonal_matrix
         # Coordinate space
         self.V_coords = self.coords.function_space()
         # Set up map from facets to coordinate dofs
@@ -201,46 +204,71 @@ class LumpedMassBDFM1(object):
         Currently we also enforce it to be diagonal.
         '''
         m_U, m_MU = self._construct_MU_U()
-        # Build matrix basis for local lumped mass matrix
-        a_basis = []
-        for i in range(0,4):
-            a = np.matrix(np.zeros((4,4)))
-            a[i,i] = 1
-            a_basis.append(a)
-        n_basis = len(a_basis)
-
-        toset = self.V_facets.cell_node_map().toset
-        self.Mu_lumped = Function(self.V_facets,
-                                  val=op2.Dat(toset**(4,4),
-                                  dtype=float))
-        self.Mu_lumped_inv = Function(self.V_facets,
-                                      val=op2.Dat(toset**(4,4),
-                                      dtype=float))
-
         d_U = m_U.dat.data
         d_MU = m_MU.dat.data
+
+        toset = self.V_facets.cell_node_map().toset
+        if (self.diagonal_matrix):
+            self.mat_toset = toset**(4,1)
+        else:
+            self.mat_toset = toset**(4,4)
+        self.Mu_lumped = Function(self.V_facets,
+                                  val=op2.Dat(self.mat_toset,
+                                  dtype=float))
+        self.Mu_lumped_inv = Function(self.V_facets,
+                                  val=op2.Dat(self.mat_toset,
+                                  dtype=float))
+
         d_Mu_lumped = self.Mu_lumped.dat.data
         d_Mu_lumped_inv = self.Mu_lumped_inv.dat.data
 
-        # Loop over all edges and construct the lumped matrix
-        for (U,V,i) in zip(d_U,d_MU,range(len(d_Mu_lumped))):
-            B = np.matrix(np.zeros((n_basis,n_basis),dtype=float))
-            R = np.matrix(np.zeros((n_basis,1),dtype=float))
-            for k in range(self.n_SBR):
-                u = np.matrix(U[k])
-                v = np.matrix(V[k])
-                for mu in range(n_basis):
-                    for nu in range(n_basis):
-                        m = u*a_basis[mu]*a_basis[nu]*u.transpose()
-                        B[mu,nu] += m[0,0]
-                    r = u*a_basis[mu]*v.transpose()
-                    R[mu] += r[0,0]
+        if (self.diagonal_matrix):
+            # Loop over all edges and construct the lumped matrix
+            for (U,V,i) in zip(d_U,d_MU,range(len(d_Mu_lumped))):
+                B = np.matrix(np.zeros((4,1),dtype=float))
+                R = np.matrix(np.zeros((4,1),dtype=float))
+                for k in range(self.n_SBR):
+                    u = np.matrix(U[k])
+                    v = np.matrix(V[k])
+                    for mu in range(4):
+                        B[mu,0] += u[0,mu]**2
+                        R[mu,0] += u[0,mu]*v[0,mu]
+                d_Mu_lumped[i] = np.matrix(np.zeros((4,1),dtype=float))
+                d_Mu_lumped_inv[i] = np.matrix(np.zeros((4,1),dtype=float))
+                for mu in range(4):
+                    m = R[mu,0]/B[mu,0]
+                    d_Mu_lumped[i][mu,0] = m
+                    d_Mu_lumped_inv[i][mu,0] = 1./m
+        else:
+            # Build matrix basis for local lumped mass matrix
+            # NB: Currently basis is the diagonal basis, so will
+            # give same results as with diagonal_matrix
+            a_basis = []
+            for i in range(0,4):
+                a = np.matrix(np.zeros((4,4)))
+                a[i,i] = 1
+                a_basis.append(a)
+            n_basis = len(a_basis)
+
+            # Loop over all edges and construct the lumped matrix
+            for (U,V,i) in zip(d_U,d_MU,range(len(d_Mu_lumped))):
+                B = np.matrix(np.zeros((n_basis,n_basis),dtype=float))
+                R = np.matrix(np.zeros((n_basis,1),dtype=float))
+                for k in range(self.n_SBR):
+                    u = np.matrix(U[k])
+                    v = np.matrix(V[k])
+                    for mu in range(n_basis):
+                        for nu in range(n_basis):
+                            m = u*a_basis[mu]*a_basis[nu]*u.transpose()
+                            B[mu,nu] += m[0,0]
+                        r = u*a_basis[mu]*v.transpose()
+                        R[mu] += r[0,0]
                 
-            coeff = np.linalg.solve(B,R)
-            d_Mu_lumped[i] = np.zeros((4,4))
-            for j in range(n_basis):
-                d_Mu_lumped[i] += coeff[j,0]*a_basis[j]
-            d_Mu_lumped_inv[i] = np.linalg.inv(d_Mu_lumped[i])
+                coeff = np.linalg.solve(B,R)
+                d_Mu_lumped[i] = np.zeros((4,4))
+                for j in range(n_basis):
+                    d_Mu_lumped[i] += coeff[j,0]*a_basis[j]
+                d_Mu_lumped_inv[i] = np.linalg.inv(d_Mu_lumped[i])
 
     def _matmul(self,m,u):
         '''Multiply by block-diagonal matrix
@@ -251,17 +279,25 @@ class LumpedMassBDFM1(object):
         :arg m: block-diagonal matrix to multiply with
         :arg u: BDFM1 field to multiply (will be modified in-place)
         '''
-        kernel_code = '''void matmul(double **m,
-                                     double **U) {
-                           double tmp[4];
-                           for (int i=0; i<4; ++i) tmp[i] = U[i][0];
-                           for (int i=0; i<4; ++i) {
-                             U[i][0] = 0.0;
-                             for (int j=0; j<4; ++j) {
-                               U[i][0] += m[0][4*i+j]*tmp[j];
-                             }
-                           }
-                         }'''
+        if (self.diagonal_matrix):
+            kernel_code = '''void matmul(double **m,
+                                         double **U) {
+                               for (int i=0; i<4; ++i) {
+                                 U[i][0] *= m[0][i];
+                               }
+                             }'''
+        else:
+            kernel_code = '''void matmul(double **m,
+                                         double **U) {
+                               double tmp[4];
+                               for (int i=0; i<4; ++i) tmp[i] = U[i][0];
+                               for (int i=0; i<4; ++i) {
+                                 U[i][0] = 0.0;
+                                 for (int j=0; j<4; ++j) {
+                                   U[i][0] += m[0][4*i+j]*tmp[j];
+                                 }
+                               }
+                             }'''
         kernel = op2.Kernel(kernel_code,"matmul")
         op2.par_loop(kernel,self.mesh.interior_facets.set,
                      m.dat(op2.READ,self.facet2dof_map_facets),
