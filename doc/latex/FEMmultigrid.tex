@@ -133,8 +133,11 @@ The first two conditions guarantee that the spectrum of the iteration matrix
   S \equiv \mathbb{I} - 2 \mu D^{-1} A,
 \end{equation}
 which describes the reduction of the error $\vec{\Psi}-\vec{\Psi}_{\operatorname{exact}}$, is contained in $[-1,1]$ and the iteration does not diverge.
-
-To bound $A$, first consider the term $B\alpha^{(u)} B^T$. We can write
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Lowest order}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+We first treat the lowest order ($DG_0$+$RT_0$) case.
+To bound $A$, consider the term $B\alpha^{(u)} B^T$. We can write
 \begin{equation}
  \begin{aligned}
   \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} &= \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \Psi_i B_{ie} \alpha^{(u)}_{ee} B_{je} \Psi_j 
@@ -155,6 +158,7 @@ The bound in (\ref{eqn:MatrixBound}) is sharp for a regular triangulation/tiling
 We therefore use the following diagonal matrix $D$ in the smoother:
 \begin{equation}
   D = M_{\phi} + 2\omega^2 \sigma \alpha^{(\phi)}
+\label{eqn:blockSmootherLO}
 \end{equation}
 The spectrum of the error reduction matrix $S$ is contained in
 \begin{equation}
@@ -172,6 +176,51 @@ To apply the matrix $D^{-1}$ to a field $\vec{\Phi}$, i.e. $\vec{\Psi}=D^{-1}\ve
 \end{equation}
   \item calculate $\Psi_i = \Phi_i/D_{ii}$.
 \end{enumerate}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Higher order}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+The higher order case $DG_1$ + $BDFM_1$ can be treated similarly. Her we only consider the case of constant reference profiles, i.e. $\alpha^{(u)}=\left(M_u^*\right)^{-1}$.
+To bound the term $\vec{\Phi}^T B\alpha^{(u)}$ we write as in Eqn. (\ref{eqn:MatrixBound})
+\begin{equation}
+  \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} = \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \vec{\Psi}_i B_{ie} \alpha^{(u)}_{ee} B^T_{ej} \vec{\Psi}_j 
+\label{eqn:MatrixBoundBDFM1}
+\end{equation}
+with the only difference being that now $\Phi_i$ is the vector of the three degrees of freedom on cell $i$ and $\alpha^{(u)}_{ee}$ is a $4\times 4$ matrix. The $4\times 3$ matrices $B_{ie}$ arise as follows: consider finite element discretisation of the divergence operator:
+\begin{equation}
+  \int_{\Omega} \psi^{(j)}\operatorname{div}\vec{w}^{(k)}\; dx
+\end{equation}
+where $\vec{w}^{(k)}$ and $\psi^{(j)}$ are basis function of the $BDFM_1$ and $DG_1$ spaces respectively. The integral only vanishes if the $BDFM_1$ dofs with indices $j$ are associated with cell the $E_i$ on which $\psi^{(j)}$ is nonzero. In total for each cell there are 12 indices $k$ for which this is the case, four associated with each facet $e$ of the cell. For each of the four dofs associated with a facet $e$ we hence define the elements of the $4\times 3$ matrix $B_{ie}$ as
+\begin{equation}
+  (B_{ie})_{\tilde{j}\tilde{k}_e} \equiv \int_{E_i} \psi^{(k)} \operatorname{div}\vec{w}^{(j)}\; dx.
+\end{equation}
+Here $\tilde{j}$ and $\tilde{k}_e\in 1,\dots,4$ are the local indices on the edge $e$ and in cell $E_i$. We can now use the identity
+\begin{equation}
+\left(\vec{x}+\vec{y}\right)^T A \left(\vec{x}+\vec{y}\right)
+\le 2\left(\vec{x}^T A\vec{x}+\vec{y}^T A\vec{y}\right)
+\end{equation}
+which holds for any positive definite symmetric matrix $A$ to bound the expression in Eqn. (\ref{eqn:MatrixBoundBDFM1}) as follows:
+\begin{equation}
+ \begin{aligned}
+  \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi}
+  &= \sum_{e} \left(\vec{\Psi}^T_{i_+(e)}B_{i+(e),e}+\vec{\Psi}^T_{i_-(e)}B_{i-(e),e}\right)\alpha^{(u)}_{ee}
+\left(\vec{\Psi}_{i_+(e)}B^T_{e,i+(e)}+\vec{\Psi}_{i_-(e)}B_{e,i-(e)}\right)\\
+  & \le 2\sum_e
+\left(\vec{\Psi}^T_{i_+(e)}B_{i+(e),e}\alpha^{(u)}_{ee}B^T_{e,i+}\vec{\Psi}_{i_+(e)}
++\vec{\Psi}^T_{i_-(e)}B_{i-(e),e}\alpha^{(u)}_{ee}B^T_{e,i-}\vec{\Psi}_{i_-(e)}
+\right)
+\\
+  &= 2 \sigma \sum_i \vec{\Psi}^T_i\alpha^{(\phi)}_{ii}\vec{\Psi}_i = 2\sigma \vec{\Psi}^T \alpha^{(\phi)}\vec{\Psi}
+ \end{aligned}
+\end{equation}
+In this equation the local $3\times 3$ blocks of the block-diagonal matrix $\alpha^{(\phi)}$ is given as
+\begin{equation}
+  \alpha_{ii}^{(\phi)} \equiv \frac{1}{\sigma}\sum_{e'\in e(i)} B_{ie'}\alpha^{(u)}_{e'e'}B^T_{e'i}
+\end{equation}
+with $\sigma$ as defined above. 
+Together with the local $DG_1$ mass matrix we can use the following block-diagonal matrix in the smoother:
+\begin{equation}
+  D = M_{\phi} + 2\omega^2 \sigma \alpha^{(\phi)}.
+\end{equation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 \subsection{Intergrid operators}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
