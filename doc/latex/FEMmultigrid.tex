@@ -185,15 +185,31 @@ To bound the term $\vec{\Phi}^T B\alpha^{(u)}$ we write as in Eqn. (\ref{eqn:Mat
   \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} = \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \vec{\Psi}_i B_{ie} \alpha^{(u)}_{ee} B^T_{ej} \vec{\Psi}_j 
 \label{eqn:MatrixBoundBDFM1}
 \end{equation}
-with the only difference being that now $\Phi_i$ is the vector of the three degrees of freedom on cell $i$ and $\alpha^{(u)}_{ee}$ is a $4\times 4$ matrix. The $4\times 3$ matrices $B_{ie}$ arise as follows: consider finite element discretisation of the divergence operator:
+with the only difference being that now $\vec{\Psi}_i$ is the vector of the three degrees of freedom on cell $i$ and $\alpha^{(u)}_{ee}$ is a $4\times 4$ matrix. The $3\times 4$ matrices $B_{ie}$ arise as follows: consider the finite element discretisation of the divergence operator:
 \begin{equation}
   \int_{\Omega} \psi^{(j)}\operatorname{div}\vec{w}^{(k)}\; dx
 \end{equation}
-where $\vec{w}^{(k)}$ and $\psi^{(j)}$ are basis function of the $BDFM_1$ and $DG_1$ spaces respectively. The integral only vanishes if the $BDFM_1$ dofs with indices $j$ are associated with cell the $E_i$ on which $\psi^{(j)}$ is nonzero. In total for each cell there are 12 indices $k$ for which this is the case, four associated with each facet $e$ of the cell. For each of the four dofs associated with a facet $e$ we hence define the elements of the $4\times 3$ matrix $B_{ie}$ as
+where $\vec{w}^{(k)}$ and $\psi^{(j)}$ are basis function of the $BDFM_1$ and $DG_1$ spaces respectively. The integral only vanishes if the $BDFM_1$ dofs with indices $j$ are associated with cell the $E_i$ on which $\psi^{(j)}$ is nonzero. Hence define the $3\times 9$ matrix $\tilde{B}_i$ on each cell $i$ as
 \begin{equation}
-  (B_{ie})_{\tilde{j}\tilde{k}_e} \equiv \int_{E_i} \psi^{(k)} \operatorname{div}\vec{w}^{(j)}\; dx.
+  \left(\tilde{B}_i\right)_{jk} \equiv \int_{E_i} \psi^{(g_i(j))}\operatorname{div}\vec{w}^{(g_i(k))}\; dx
 \end{equation}
-Here $\tilde{j}$ and $\tilde{k}_e\in 1,\dots,4$ are the local indices on the edge $e$ and in cell $E_i$. We can now use the identity
+where for each cell the function $g_i$ maps from the local dofs $j\in1,\dots,4$ and $k\in1,\dots,9$ to the global dofs in the $DG_1$ and $BDFM_1$ spaces. This matrix can be set up in firedrake.
+In total for each cell there are 9 indices $k$ for which this is the case, three associated with each facet $e$ of the cell. For each cell $i$ and facet $e$ we hence define the elements of the $3\times 4$ matrix $B_{ie}$ as
+\begin{equation}
+  (B_{ie})_{jk} \equiv \int_{E_i} \psi^{(g_i(j))} \operatorname{div}\vec{w}^{(h_e(k))}\; dx.
+\end{equation}
+Here $j\in1,2,3$ are the local indices of the $DG_1$ dofs in cell $i$ and $k\in1,2,3,4$ the local indices of the $BDFM_1$ dofs associated with edge $e$; the functions $g_i$ and $h_e$ map these to the corresponding global indices of the dofs in the $DG_1$ and $BDFM_1$ spaces. Note that for each cell one column of the matrix $B_{ie}$ is zero since the integral vanishes for the tangential dofs which is not associated with  this cell.
+
+For a given edge $e$ and cell $i$ the matrices $B_{ie}$ and $\tilde{B}_i$ are related as follows:
+\begin{equation}
+  \left(B_{ie}\right)_{jk} = \begin{cases}
+  0 & \text{if dof $h_e(k)$ is not associated with cell $i$} \\
+  \left(\tilde{B}_i\right)_{j\omega_{ie}(k)} & \text{otherwise}
+\end{cases}
+\end{equation}
+The function $\omega_{ie}$ maps the local index on a facet $e$ (in range $1,\dots,4$) to the corresponding local index (in range $1,\dots,9$) on cell $i$.
+
+We can now use the identity
 \begin{equation}
 \left(\vec{x}+\vec{y}\right)^T A \left(\vec{x}+\vec{y}\right)
 \le 2\left(\vec{x}^T A\vec{x}+\vec{y}^T A\vec{y}\right)
