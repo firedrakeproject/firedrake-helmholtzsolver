@@ -123,12 +123,12 @@ class Jacobi_HigherOrder(Jacobi):
     '''Higher order Jacobi smoother.
 
     Matrix-free smoother for the linear Schur complement system.
-    The diagonal matrix :math:`D` used in the :class:`smooth()` method is constructed as 
+    The block-diagonal matrix :math:`D` used in the :class:`smooth()` method is constructed as 
     described in `Notes in LaTeX <./FEMmultigrid.pdf>`_:
     
     .. math::
         
-        D_{ii} = (M_\phi)_{ii} + 2 \sum_{e'\in e(i)} \\frac{1}B_{ie'}{(M_u^*)_{e'e'}}B^T_{e'i}
+        D_{ii} = (M_\phi)_{ii} + 2 \sum_{e'\in e(i)} B_{ie'}{(M_u^*)^{-1}_{e'e'}}B^T_{e'i}
 
     (where :math:`e(i)` are all facets adjacent to cell :math:`i`.)
 
