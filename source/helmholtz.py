@@ -13,7 +13,8 @@ class Solver:
   
             \phi + \omega (\\nabla\cdot\phi^*\\vec{u}) = r_\phi
 
-            \\vec{u} - \omega \\nabla{\phi} = \\vec{r}_u
+            \\vec{u} + \omega \\nabla{\phi} = \\vec{r}_u
+
         in the mixed finite element formulation.
 
         :arg V_pressure: Function space for pressure field :math:`\phi`
@@ -35,22 +36,13 @@ class Solver:
         self.V_velocity = V_velocity
         self.verbose = verbose
         self.pressure_solver = pressure_solver
-        self.V_pressure_low = self.pressure_solver.V_pressure
-        self.V_velocity_low = self.pressure_solver.V_velocity 
         # Set up test- and trial function spaces
         self.u = TrialFunction(self.V_velocity)
         self.phi = TrialFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
-        self.w_low = TestFunction(self.V_velocity_low)
-        self.psi_low = TestFunction(self.V_pressure_low)
         self.psi = TestFunction(self.V_pressure)
         # Extract lumped mass
         self.lumped_mass = pressure_solver.operator.lumped_mass
-        # Interspace function mappers
-        self.interorder_pressure_mapper = interordermapper.Mapper(self.V_pressure,
-                                                                  self.V_pressure_low)
-        self.interorder_velocity_mapper = interordermapper.Mapper(self.V_velocity,
-                                                                  self.V_velocity_low)
 
     def solve(self,r_phi,r_u):
         '''Solve Helmholtz system using nested iteration.
@@ -67,20 +59,19 @@ class Solver:
             print ' === Helmholtz solver ==='
         # Fields for solution
         u = Function(self.V_velocity)
-        du = Function(self.V_velocity_low)
+        du = Function(self.V_velocity)
         phi = Function(self.V_pressure)
-        F_pressure = Function(self.V_pressure_low)
+        self.F_pressure = Function(self.V_pressure)
+        self.dMinvMr_u = Function(self.V_velocity)
         u.assign(0.0)
         phi.assign(0.0)
         # Pressure correction
-        d_phi = Function(self.V_pressure_low)
+        d_phi = Function(self.V_pressure)
         # Residual correction
         Mr_phi = assemble(self.psi*r_phi*dx)
         Mr_u = assemble(dot(self.w,r_u)*dx)
         dMr_phi = Function(self.V_pressure)
         dMr_u = Function(self.V_velocity)
-        dMr_u_low = Function(self.V_velocity_low)
-        dMinvMr_u = Function(self.V_velocity_low)
         dMr_phi.assign(Mr_phi)
         dMr_u.assign(Mr_u)
         # Calculate initial residual
@@ -91,23 +82,12 @@ class Solver:
         if (self.verbose > 0):
             print ' initial outer residual : '+('%e' % res_norm_0)
         for i in range(1,self.maxiter+1):
-            # Construct RHS for linear (pressure) solve
-            dMr_u_low.assign(self.interorder_velocity_mapper.restrict(dMr_u))
-            dMinvMr_u.assign(dMr_u_low)
-            self.lumped_mass.divide(dMinvMr_u)
-            F_pressure.assign(self.interorder_pressure_mapper.restrict(dMr_phi) - \
-                              self.omega*assemble(self.psi_low*div(dMinvMr_u)*dx))
-            # Solve for pressure correction
-            d_phi.assign(0.0)
-            self.pressure_solver.solve(F_pressure,d_phi)
-            # Update solution with correction
-            # phi -> phi + d_phi
-            phi.assign(phi + self.interorder_pressure_mapper.prolong(d_phi))
-            # u -> u + (M_u^{lumped})^{-1}*(R_u + omega*grad(d_phi))
-            grad_dphi = assemble(div(self.w_low)*d_phi*dx)
-            du.assign(dMr_u_low + self.omega * grad_dphi)
-            self.lumped_mass.divide(du)
-            u.assign(u + self.interorder_velocity_mapper.prolong(du))
+            # Calculate correction to pressure and velocity by
+            # calling Schur-complement preconditioner
+            self.schur_complement_preconditioner(dMr_phi,dMr_u,d_phi,du)
+            # Add correction phi -> phi + d_phi, u -> u + du
+            phi.assign(phi + d_phi)
+            u.assign(u + du)
             # Calculate current residual
             Mr_phi_cur = assemble((self.psi*phi + self.omega*self.psi*div(u))*dx)
             Mr_u_cur = assemble(( inner(self.w,u) - self.omega*div(self.w)*phi)*dx)
@@ -130,6 +110,65 @@ class Solver:
             else:
                 print ' Outer loop failed to converge after '+str(self.maxiter)+' iterations.'
         return u, phi    
+
+    def schur_complement_preconditioner(self,R_phi,R_u,phi,u):
+        '''Schur complement proconditioner for mixed system.
+
+        Use the Schur complement in pressure space to precondition
+        the mixed system. More specifically, calculate:
+
+        .. math::
+
+            F = R_{\phi} - \omega \\nabla (M_u^*)^{-1} R_{u}
+
+            \phi = A^{-1}
+
+            u = (M_u^*)^{-1} ( R_u + omega \\nabla \phi)
+
+        This is equivalent to using the following Schur complement decomposition of the mixed system with lumped velocity mass matrix
+
+        .. math::
+
+            \\begin{pmatrix}
+                M_\phi & \omega B \\
+                -\omega B^T & M_u^* 
+            \\end{pmatrix}^{-1}
+            = 
+            \\begin{pmatrix}
+                1 & 0 \\
+                (M_u^*)^{-1}\omega B^T & 1
+            \\end{pmatrix}
+            \\begin{pmatrix}
+                H^{-1} & 0 \\
+                0 & (M_u^*)^{-1}
+            \\end{pmatrix}
+            \\begin{pmatrix}
+                1 & -\omega B (M_u^*)^{-1} \\
+                0 &  1
+            \\end{pmatrix}
+
+        where :math:`H = M_{\phi} + \omega^2 B (M_u^*)^{-1} B^T` is the
+        Helmholtz operator in pressure space.
+       
+        :arg R_phi: = :math:`R_{\phi}` RHS in pressure space
+        :arg R_u: = :math:`R_u` RHS in velocity space
+        :arg phi: = :math:`\phi` Resulting pressure correction
+        :arg u: Resulting velocity correction
+        '''
+        # Construct RHS for linear (pressure) solve
+        self.dMinvMr_u.assign(R_u)
+        self.lumped_mass.divide(self.dMinvMr_u)
+        self.F_pressure.assign(R_phi - \
+                               self.omega*assemble(self.psi*div(self.dMinvMr_u)*dx))
+        # Solve for pressure correction
+        phi.assign(0.0)
+        self.pressure_solver.solve(self.F_pressure,phi)
+        # Calculate for corresponding velocity
+        # u = (M_u^{lumped})^{-1}*(R_u + omega*grad(phi))
+        grad_dphi = assemble(div(self.w)*phi*dx)
+        u.assign(R_u + self.omega * grad_dphi)
+        self.lumped_mass.divide(u)
+
 
     def residual_norm(self,Mr_phi,Mr_u):
         ''' Calculate outer residual norm.
