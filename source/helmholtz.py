@@ -119,31 +119,31 @@ class Solver:
 
         .. math::
 
-            F = R_{\phi} - \omega \\nabla (M_u^*)^{-1} R_{u}
+            F = R_{\phi} - \omega B (M_u^*)^{-1} R_{u}
 
             \phi = A^{-1}
 
-            u = (M_u^*)^{-1} ( R_u + omega \\nabla \phi)
+            u = (M_u^*)^{-1} ( R_u + \omega B^T \phi)
 
         This is equivalent to using the following Schur complement decomposition of the mixed system with lumped velocity mass matrix
 
         .. math::
 
             \\begin{pmatrix}
-                M_\phi & \omega B \\
+                M_\phi & \omega B \\\\
                 -\omega B^T & M_u^* 
             \\end{pmatrix}^{-1}
             = 
             \\begin{pmatrix}
-                1 & 0 \\
+                1 & 0 \\\\
                 (M_u^*)^{-1}\omega B^T & 1
             \\end{pmatrix}
             \\begin{pmatrix}
-                H^{-1} & 0 \\
+                H^{-1} & 0 \\\\
                 0 & (M_u^*)^{-1}
             \\end{pmatrix}
             \\begin{pmatrix}
-                1 & -\omega B (M_u^*)^{-1} \\
+                1 & -\omega B (M_u^*)^{-1} \\\\
                 0 &  1
             \\end{pmatrix}
 
