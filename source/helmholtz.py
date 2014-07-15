@@ -1,5 +1,4 @@
 from firedrake import *
-import interordermapper
 '''Solve Helmholtz system in mixed formulation.
 
 This module contains the :class:`.Solver` for solving a Helmholtz system 

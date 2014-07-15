@@ -1,7 +1,7 @@
 from operators import *
 
-class Multigrid(object):
-    '''Geometric Multigrid preconditioner for linear Schur complement system.
+class hMultigrid(object):
+    '''Geometric Multigrid preconditioner with h-coarsening only.
 
     Solve approximately using a multigrid V-cycle. The operator, pre-, post- smoother and
     coarse grid operator are passed as arguments, this allows tuning of the number of
@@ -79,4 +79,85 @@ class Multigrid(object):
         self.rhs[self.fine_level].assign(b)
         self.vcycle()
         phi.assign(self.phi[self.fine_level])
+
+class hpMultigrid(object):
+    '''Geometric Multigrid preconditioner with hp- coarsening.
+
+    Solve approximately using a multigrid V-cycle. The first coarsening
+    step is p-coarsening, i.e. coarsen from the higher order finite
+    element space to the lowest order space. An instance of :class:`hMultigrid`
+    is passed as an argument.
+
+    :arg hmultigrid: Instance of :class:`hMultigrid`, which is used on the
+        lowest order pressure space hierarchy. 
+    :arg operator: Helmholtz operator on higher order space
+    :arg presmoother: Presmoother on higher order space
+    :arg postsmoother: Postsmoother on higher order space
+    ''' 
+    def __init__(self,
+                 hmultigrid,
+                 operator,
+                 presmoother,
+                 postsmoother):
+        self.hmultigrid = hmultigrid
+        self.operator = operator
+        self.presmoother = presmoother
+        self.postsmoother = postsmoother
+        self.V_pressure = self.operator.V_pressure
+        self.V_pressure_low = self.hmultigrid.V_pressure_hierarchy[-1]
+        self.rhs_low = Function(self.V_pressure_low)
+        self.dphi = Function(self.V_pressure)
+        self.dphi_low = Function(self.V_pressure_low)
+        self.dx = self.V_pressure.mesh()._dx
+        self.psi = TestFunction(self.V_pressure)
+        self.psi_low = TestFunction(self.V_pressure_low)
+        self.a_mass = TrialFunction(self.V_pressure)*self.psi*self.dx
+        self.a_mass_low = TrialFunction(self.V_pressure_low)*self.psi_low*self.dx
+
+    def solve(self,b,phi):
+        '''Solve approximately.
+
+        Solve the pressure correction equation approximately for a given right hand side
+        :math:`b` with a V-cycle. Note that the state vector is updated in place.
+
+        :arg b: right hand side in pressure space
+        :arg phi: State :math:`\phi` in pressure space.
+        '''
+        phi.assign(0.0)
+        # Presmooth
+        self.presmoother.smooth(b,phi,initial_phi_is_zero=True)
+        # Calculuate residual...
+        self.residual = self.operator.residual(b,phi)
+        # ... and restrict to RHS in lowest order space
+        self.restrict(self.residual,self.rhs_low)
+        # h-multigrid in lower order space
+        self.hmultigrid.solve(self.rhs_low,self.dphi_low)
+        # Prolongate correction back to higher order space...
+        self.prolong(self.dphi_low,self.dphi)
+        # ... and add to solution in higher order space
+        phi.assign(phi+self.dphi)
+        # Postsmooth
+        self.postsmoother.smooth(b,phi,initial_phi_is_zero=False)
+
+    def restrict(self,phi_high, phi_low):
+        '''Restrict to lower order space.
+    
+        Project a function in the higher order space onto the lower order space
+    
+        :arg phi_high: Function in higher order space
+        :arg phi_low: Resulting function in lower order space
+        '''
+        L = self.psi_low*phi_high*self.dx
+        solve(self.a_mass_low == L,phi_low)
+
+    def prolong(self,phi_low, phi_high):
+        '''Prolongate to higher order space.
+    
+        Project a function in the lower order space onto the higher order space
+    
+        :arg phi_low: Function in lower order space
+        :arg phi_hight: Resulting function in lower order space
+        '''
+        L = self.psi*phi_low*self.dx
+        solve(self.a_mass == L,phi_high)
 

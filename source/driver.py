@@ -26,6 +26,7 @@ if (__name__ == '__main__'):
     maxiter_outer=5
     mu_relax = 0.95
     use_maximal_eigenvalue=False
+    higher_order=True
         
     # Create mesh
     if (spherical):
@@ -52,28 +53,28 @@ if (__name__ == '__main__'):
 
     omega = 8.*0.5*dx
 
-#    V_pressure = FunctionSpace(mesh,'DG',1)
-#    V_velocity = FunctionSpace(mesh,'BDFM',2)
-    V_pressure = FunctionSpace(mesh,'DG',0)
-    V_velocity = FunctionSpace(mesh,'RT',1)
+    if (higher_order):
+        V_pressure = FunctionSpace(mesh,'DG',1)
+        V_velocity = FunctionSpace(mesh,'BDFM',2)
+    else:
+        V_pressure = FunctionSpace(mesh,'DG',0)
+        V_velocity = FunctionSpace(mesh,'RT',1)
     
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
-        V_pressure_low = FunctionSpace(mesh,'DG',0)
-        V_velocity_low = FunctionSpace(mesh,'RT',1)
-        operator = pressuresolver.operators.Operator(V_pressure_low,
-                                                     V_velocity_low,
+        operator = pressuresolver.operators.Operator(V_pressure,
+                                                     V_velocity,
                                                      omega)
-        preconditioner = pressuresolver.smoothers.Jacobi_LowestOrder(operator,
-                                                         use_maximal_eigenvalue=use_maximal_eigenvalue)
+        if (higher_order):
+            preconditioner = pressuresolver.smoothers.Jacobi_HigherOrder(operator)
+        else:
+            preconditioner = pressuresolver.smoothers.Jacobi_LowestOrder(operator,use_maximal_eigenvalue=use_maximal_eigenvalue)
     elif (preconditioner_name == 'Multigrid'):
-        V_pressure_low_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
-        V_velocity_low_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
-        operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_low_hierarchy,
-                                                                        V_velocity_low_hierarchy,
+        V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
+        V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
+        operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_hierarchy,
+                                                                        V_velocity_hierarchy,
                                                                         omega)
-        operator = operator_hierarchy[fine_level]
-
         presmoother_hierarchy = \
             pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi_LowestOrder,
                                                        operator_hierarchy,n_smooth=2,
@@ -86,10 +87,19 @@ if (__name__ == '__main__'):
                                                        use_maximal_eigenvalue=use_maximal_eigenvalue)
         coarsegrid_solver = pressuresolver.smoothers.Jacobi_LowestOrder(operator_hierarchy[0])
         coarsegrid_solver.n_smooth = 1
-        preconditioner = pressuresolver.preconditioners.Multigrid(operator_hierarchy,
+        hmultigrid = pressuresolver.preconditioners.hMultigrid(operator_hierarchy,
                                                                   presmoother_hierarchy,
                                                                   postsmoother_hierarchy,
                                                                   coarsegrid_solver)
+        if (higher_order):
+            operator = pressuresolver.operators.Operator(V_pressure,V_velocity,omega)
+            higherorder_presmoother = pressuresolver.smoothers.Jacobi_HigherOrder(operator,mu_relax=mu_relax,n_smooth=2)
+            higherorder_postsmoother = higherorder_presmoother
+            hpmultigrid = pressuresolver.preconditioners.hpMultigrid(hmultigrid,operator,higherorder_presmoother,higherorder_postsmoother)
+            preconditioner = hpmultigrid
+        else:
+            operator = operator_hierarchy[fine_level]
+            preconditioner = hmultigrid
     else:
         print 'Unknown preconditioner: \''+prec_name+'\'.'
         sys.exit(-1)
