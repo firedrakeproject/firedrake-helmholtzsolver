@@ -6,8 +6,8 @@ class IterativeSolver(object):
     The solver converges if the relative residual has been reduced by at least a
     factor tolerance.
 
-    :arg operator: Instance :math:`H` of linear Schur complement :class:`.Operator` in 
-        pressure space
+    :arg operator: Instance :math:`H` of linear Schur complement
+    :class:`.Operator` in pressure space
     :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
