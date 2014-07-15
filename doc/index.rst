@@ -27,7 +27,7 @@ in the domain :math:`\Omega` is
   
   \phi + \omega (\nabla\cdot\phi^*\vec{u}) = r_\phi
 
-  \vec{u} - \omega \nabla{\phi} = \vec{r}_u
+  \vec{u} + \omega \nabla{\phi} = \vec{r}_u
 
 where the pressure field :math:`\phi` is defined in a :math:`DG` space and the velocity 
 :math:`\vec{u}` is a :math:`H(div)` function space. :math:`omega` is a real and positive
