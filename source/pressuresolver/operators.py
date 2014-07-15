@@ -19,20 +19,28 @@ class Operator(object):
     :arg V_pressure: Function space for pressure fields
     :arg V_velocity: Function space for velocity fields
     :arg omega: Positive real constant
-    :arg ignore_mass_lumping: For debugging this can be set to true to use the
-        full mass matrix
     '''
-    def __init__(self,V_pressure,V_velocity,omega,
-                 ignore_mass_lumping=False):
-        self.omega = omega
-        self.ignore_mass_lumping = ignore_mass_lumping
+    def __init__(self,V_pressure,V_velocity,omega):
         self.V_velocity = V_velocity
         self.V_pressure = V_pressure
         self.w = TestFunction(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
         self.dx = self.V_pressure.mesh()._dx
-        self.lumped_mass = LumpedMass(self.V_velocity,self.ignore_mass_lumping)
+        self.omega = omega
+        if (self.is_lowest_order()):
+            self.lumped_mass = LumpedMassRT1(self.V_velocity)
+        else:
+            self.lumped_mass = LumpedMassBDFM1(self.V_velocity)
     
+    def is_lowest_order(self):
+        '''Check order of velocity space.
+
+        Return True if velocity function space is lowester order,
+        i.e. RT0.
+        '''
+        elementName = self.V_velocity.ufl_element().shortstr()
+        return (elementName[0:3] == 'RT1')
+
     def apply(self,phi):
         '''Apply operator.
 
@@ -70,17 +78,12 @@ class OperatorHierarchy(object):
     :arg V_pressure_hierarchy: Hierarchical function space for pressure fields
     :arg V_velocity_hierarchy: Hierarchical function space for velocity fields
     :arg omega: Positive real constant
-    :arg ignore_mass_lumping: For debugging this can be set to true to use the
-        full mass matrix
     '''
-    def __init__(self,V_pressure_hierarchy,V_velocity_hierarchy,omega,
-                 ignore_mass_lumping=False):
-        self.ignore_mass_lumping = ignore_mass_lumping
+    def __init__(self,V_pressure_hierarchy,V_velocity_hierarchy,omega):
         self.omega = omega
         self.V_pressure_hierarchy = V_pressure_hierarchy
         self.V_velocity_hierarchy = V_velocity_hierarchy
-        self._hierarchy = [Operator(V_pressure,V_velocity,
-                           self.omega,self.ignore_mass_lumping)
+        self._hierarchy = [Operator(V_pressure,V_velocity,self.omega)
                            for (V_pressure,V_velocity) in zip(self.V_pressure_hierarchy,
                                                               self.V_velocity_hierarchy)]
 

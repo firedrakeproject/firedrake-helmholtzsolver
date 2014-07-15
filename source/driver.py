@@ -18,7 +18,6 @@ if (__name__ == '__main__'):
     nlevel = 4
     spherical = True
     outputDir = 'output'
-    ignore_mass_lumping = False
     solver_name = 'Loop'
     preconditioner_name = 'Multigrid' 
     tolerance_outer = 1.E-6
@@ -53,40 +52,39 @@ if (__name__ == '__main__'):
 
     omega = 8.*0.5*dx
 
-
-    V_pressure = FunctionSpace(mesh,'DG',1)
-    V_velocity = FunctionSpace(mesh,'BDFM',2)
-
+#    V_pressure = FunctionSpace(mesh,'DG',1)
+#    V_velocity = FunctionSpace(mesh,'BDFM',2)
+    V_pressure = FunctionSpace(mesh,'DG',0)
+    V_velocity = FunctionSpace(mesh,'RT',1)
+    
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
         V_pressure_low = FunctionSpace(mesh,'DG',0)
         V_velocity_low = FunctionSpace(mesh,'RT',1)
         operator = pressuresolver.operators.Operator(V_pressure_low,
                                                      V_velocity_low,
-                                                     omega,
-                                                     ignore_mass_lumping=ignore_mass_lumping)
-        preconditioner = pressuresolver.smoothers.Jacobi(operator,
+                                                     omega)
+        preconditioner = pressuresolver.smoothers.Jacobi_LowestOrder(operator,
                                                          use_maximal_eigenvalue=use_maximal_eigenvalue)
     elif (preconditioner_name == 'Multigrid'):
         V_pressure_low_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_low_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
         operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_low_hierarchy,
                                                                         V_velocity_low_hierarchy,
-                                                                        omega,
-                                                                        ignore_mass_lumping=ignore_mass_lumping)
+                                                                        omega)
         operator = operator_hierarchy[fine_level]
 
         presmoother_hierarchy = \
-            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
+            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi_LowestOrder,
                                                        operator_hierarchy,n_smooth=2,
                                                        mu_relax=mu_relax,
                                                        use_maximal_eigenvalue=use_maximal_eigenvalue)
         postsmoother_hierarchy = \
-            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi,
+            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi_LowestOrder,
                                                        operator_hierarchy,n_smooth=2,
                                                        mu_relax=mu_relax,
                                                        use_maximal_eigenvalue=use_maximal_eigenvalue)
-        coarsegrid_solver = pressuresolver.smoothers.Jacobi(operator_hierarchy[0])
+        coarsegrid_solver = pressuresolver.smoothers.Jacobi_LowestOrder(operator_hierarchy[0])
         coarsegrid_solver.n_smooth = 1
         preconditioner = pressuresolver.preconditioners.Multigrid(operator_hierarchy,
                                                                   presmoother_hierarchy,
