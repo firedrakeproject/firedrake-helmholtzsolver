@@ -126,7 +126,7 @@ class LumpedMassBDFM1(object):
     Represents a lumped approximation of the BDFM1 mass matrix. The matrix
     is block-diagonal with each 4x4 block corresponding to the couplings
     between the dofs on one facet (2 continuous normal dofs, 2 discontinuous
-    tangential dofs). It is ocnstructed by requiring that on each facet the
+    tangential dofs). It is constructed by requiring that on each facet the
     lumped mass matrix gives the same result as the full BDFM1 mass matrix 
     when applied to a set of solid body rotation fields.
 
