@@ -1,0 +1,177 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage[cm]{fullpage}
+\renewcommand{\vec}[1]{\boldsymbol{#1}}
+\newcommand{\grad}{\operatorname{grad}}
+\newcommand{\divergence}{\operatorname{div}}
+\newcommand{\intOmega}[1]{\langle#1\rangle_{\Omega}}
+\newcommand{\Vpressure}{\mathbb{V}_2}
+\newcommand{\Vvelocity}{\mathbb{V}_1}
+\newcommand{\VvelocityTr}{\mathbb{V}^*_1}
+\newcommand{\indexSet}{\mathcal{I}}
+\newcommand{\grid}{\mathcal{T}}
+\newcommand{\Id}{\operatorname{Id}}
+\usepackage{algorithm,algorithmic}
+\title{One dimensional mixed system}
+\author{Eike M\"{u}ller, University of Bath}
+\begin{document}
+\maketitle
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Basis functions}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Consider the mixed system arising from
+\begin{equation}
+  \begin{aligned}
+    \phi + \omega \operatorname{div}(u) &= r_\phi \\
+    u + \omega \operatorname{grad}\phi &= r_u
+  \end{aligned}
+\end{equation}
+in 1d, discretised with $DG(n)$ for pressure and $P2$  for velocity\footnote{$P2$ are the 2nd order polynomials which are continuous across cells}.
+Consider the following basis functions on the reference element $[0,1]$:
+\begin{itemize}
+  \item Pressure:\begin{equation}\phi_j(x) = \begin{cases} 1 & \text{for $j=0$}\\p_j(x) & \text{for $j=1,\dots,n$}\end{cases}\end{equation} where $p_j$ is a polynomial such that $\int_{0}^1p_j(x)\;dx = 0$
+  \item Velocity: $u_+(x) = x$, $u_-(x) = 1-x$, $\tilde{u} = 4x(1-x)$
+\end{itemize}
+Denote the dof- vectors of functions spanned by the basis functions by $\vec{\Phi}_0$, $\tilde{\vec{\Phi}}$, $\vec{U}_0$ and $\tilde{\vec{U}}$ respectively.
+By ordering the dofs such that the cell-index runs fastest, the mass matrices look like this:
+\begin{xalignat}{2}
+  M_\phi &= \Id
+\begin{pmatrix}
+  h^2\Id_{N\times N} & 0 \\
+  0 & \tilde{M}_{\phi}
+\end{pmatrix}
+&
+  M_u &= 
+\begin{pmatrix}
+  M_u^{(0)} & M_u' \\
+  M_u' & \tilde{M}_u
+\end{pmatrix}
+\end{xalignat}
+Here $N$ is the number of cells, $h$ the cell size, and I assume periodic BCs. Then $\tilde{M_\phi}$ is $(nN)\times (nN)$ and $M_u^{\pm}$, $M_u'$, $M_u'$ and $\tilde{M}_u$ are all $N\times N$.
+It can also be shown very easily that the divergence matrix $\int_E \operatorname{div}(u)\phi\;dx$ only couples $\vec{\Phi}_0 \leftrightarrow \vec{U}_0$ and $\tilde{\vec{\Phi}} \leftrightarrow \tilde{\vec{U}}$.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Mixed system}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+In terms of the dofs-vectors, the mixed system looks like this (note the ordering of the full dof-vector):
+\begin{equation}
+\begin{pmatrix}
+  h^2\Id_{N\times N} & B_0 & 0 & 0 \\
+  B_0^T & M_u^{(0)} & 0 & M_u' \\
+   0 & 0 & \tilde{M}_\phi & \tilde{B} \\
+   0 & M_u' & \tilde{B}^T & \tilde{M}_u
+\end{pmatrix}
+\begin{pmatrix}
+  \vec{\Phi}_0 \\
+  \vec{U}_0 \\
+  \tilde{\vec{\Phi}} \\
+  \tilde{\vec{U}}
+\end{pmatrix}
+\label{eqn:System}
+\end{equation}
+The $(\vec{\Phi}_0,\vec{U}_0)\equiv \vec{X}_0$ dofs only couple to the $(\tilde{\vec{\Phi}},\tilde{\vec{U}})\equiv \tilde{\vec{X}}$ dofs through the matrix $M_u'$. Also, the lower right of the full system matrix in Eqn. (\ref{eqn:System}), which describes the self-coupling of the $(\tilde{\vec{\Phi}},\tilde{\vec{U}})$ dofs, can be brought into block-diagonal form since the $\tilde{u}$ basis function is not shared between cells. So, after a suitable redordering of the $\tilde{\vec{X}}$ dofs, the system becomes
+\begin{equation}
+\begin{pmatrix}
+A & C \\
+C^T & D  
+\end{pmatrix}
+\begin{pmatrix}
+\vec{X}_0 \\
+\tilde{\vec{X}}
+\end{pmatrix}
+=
+\begin{pmatrix}
+\vec{R}_0 \\
+\tilde{\vec{R}}
+\end{pmatrix}
+\label{eqn:finalSystem}
+\end{equation}
+where $D$ is block-diagonal, so can be inverted very easily cell-by cell. The matrix $A$ describes the lowest order $DG(0)$ - $L1$ mixed system which we would solve with the help of the $DG(0)$ multigrid preconditioner (possible with velocity mass-lumping in the velocity, but in principle it can be solved with the full velocity mass matrix). So in summary, I assume that we can solve the systems $A\vec{X}_0 = \vec{B}_0$ and $D\tilde{\vec{X}} = \tilde{\vec{B}}$ for $\vec{X}_0$ and $\tilde{\vec{X}}$.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Schur complement}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+With the help of the Schur complement $A-CD^{-1}C^T$ the inverse of the matrix in Eqn. (\ref{eqn:finalSystem}) can be written explicitly as
+\begin{equation}
+  \begin{pmatrix}
+A & C \\
+C^T & D  
+\end{pmatrix}^{-1}
+=
+\begin{pmatrix}
+  \Id & 0 \\ -D^{-1}C^T \Id 
+\end{pmatrix}
+\begin{pmatrix}
+\left(A-CD^{-1}C^T\right)^{-1}  & 0 \\
+0 & D^{-1}  
+\end{pmatrix}
+\begin{pmatrix}
+\Id & -CD^{-1}\\ 0 & \Id 
+\end{pmatrix}
+\end{equation}
+Also note that due to the particular structure of $C$ and because $D$ is block-diagonal, the matrix $CD^{-1}C^T$ looks like this:
+\begin{equation}
+CD^{-1}C^T =
+\begin{pmatrix}
+  0 & 0 \\
+  0 & M_u' D_u M_u'
+\end{pmatrix},
+\end{equation}
+where $D_u$ is a diagonal matrix. It follows that the matrix in the lower-order space is
+\begin{equation}
+A-CD^{-1}C^T
+=
+\begin{pmatrix}
+h^2\Id_{N\times N} & B_0  \\
+  B_0^T & M_u^{(0)} - M_u' D_u M_u'
+\end{pmatrix}
+\end{equation}
+i.e. all we have to do is add a correction to the velocity mass matrix.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Iteration}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+This suggests that a possible preconditioner is
+\begin{equation}
+P=
+\begin{pmatrix}
+\left(A-CD^{-1}C^T\right)^{-1}  & 0 \\
+0 & D^{-1}  
+\end{pmatrix}
+\end{equation}
+which could be used for a Richardson iteration or in a Krylov-subspace method.
+
+For example, it leads to the following preconditioned Richardson iteration:
+\begin{equation}
+\begin{pmatrix}
+  \vec{X}^{(k+1)}_0\\ \tilde{\vec{X}}^{(k+1)}
+\end{pmatrix}
+= 
+\begin{pmatrix}
+\vec{X}^{(k)}_0\\ \tilde{\vec{X}}^{(k)}
+\end{pmatrix}
++
+\mu
+\begin{pmatrix}
+\left(A-CD^{-1}C^T\right)^{-1} & 0 \\ 0 & D^{-1}
+\end{pmatrix}
+\left[
+\begin{pmatrix}
+  \vec{R}_0 \\ \tilde{\vec{R}}
+\end{pmatrix}
+-
+\begin{pmatrix}
+A & C \\ C^T & D
+\end{pmatrix}
+\begin{pmatrix}
+\vec{X}^{(k)}_0 \\ \tilde{\vec{X}}^{(k)}
+\end{pmatrix}
+\right]
+\end{equation}
+Maybe it is also sufficient to use
+\begin{equation}
+P=
+\begin{pmatrix}
+A^{-1}  & 0 \\
+0 & D^{-1}  
+\end{pmatrix}
+\end{equation}
+
+\end{document}
