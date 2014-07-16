@@ -62,40 +62,44 @@ if (__name__ == '__main__'):
     
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
-        operator = pressuresolver.operators.Operator(V_pressure,
-                                                     V_velocity,
-                                                     omega)
+        operator = operators.Operator(V_pressure,V_velocity,omega)
         if (higher_order):
-            preconditioner = pressuresolver.smoothers.Jacobi_HigherOrder(operator)
+            preconditioner = smoothers.Jacobi_HigherOrder(operator)
         else:
-            preconditioner = pressuresolver.smoothers.Jacobi_LowestOrder(operator,use_maximal_eigenvalue=use_maximal_eigenvalue)
+            preconditioner = smoothers.Jacobi_LowestOrder(operator,
+              use_maximal_eigenvalue=use_maximal_eigenvalue)
     elif (preconditioner_name == 'Multigrid'):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
-        operator_hierarchy = pressuresolver.operators.OperatorHierarchy(V_pressure_hierarchy,
-                                                                        V_velocity_hierarchy,
-                                                                        omega)
+        operator_hierarchy = operators.OperatorHierarchy(V_pressure_hierarchy,
+                                                         V_velocity_hierarchy,
+                                                         omega)
         presmoother_hierarchy = \
-            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi_LowestOrder,
-                                                       operator_hierarchy,n_smooth=2,
-                                                       mu_relax=mu_relax,
-                                                       use_maximal_eigenvalue=use_maximal_eigenvalue)
+          smoothers.SmootherHierarchy(smoothers.Jacobi_LowestOrder,
+            operator_hierarchy,n_smooth=2,
+            mu_relax=mu_relax,
+            use_maximal_eigenvalue=use_maximal_eigenvalue)
         postsmoother_hierarchy = \
-            pressuresolver.smoothers.SmootherHierarchy(pressuresolver.smoothers.Jacobi_LowestOrder,
-                                                       operator_hierarchy,n_smooth=2,
-                                                       mu_relax=mu_relax,
-                                                       use_maximal_eigenvalue=use_maximal_eigenvalue)
-        coarsegrid_solver = pressuresolver.smoothers.Jacobi_LowestOrder(operator_hierarchy[0])
+          smoothers.SmootherHierarchy(smoothers.Jacobi_LowestOrder,
+            operator_hierarchy,n_smooth=2,
+            mu_relax=mu_relax,
+            use_maximal_eigenvalue=use_maximal_eigenvalue)
+        coarsegrid_solver = smoothers.Jacobi_LowestOrder(operator_hierarchy[0])
         coarsegrid_solver.n_smooth = 1
-        hmultigrid = pressuresolver.preconditioners.hMultigrid(operator_hierarchy,
-                                                                  presmoother_hierarchy,
-                                                                  postsmoother_hierarchy,
-                                                                  coarsegrid_solver)
+        hmultigrid = preconditioners.hMultigrid(operator_hierarchy,
+                                                presmoother_hierarchy,
+                                                postsmoother_hierarchy,
+                                                coarsegrid_solver)
         if (higher_order):
-            operator = pressuresolver.operators.Operator(V_pressure,V_velocity,omega)
-            higherorder_presmoother = pressuresolver.smoothers.Jacobi_HigherOrder(operator,mu_relax=mu_relax,n_smooth=2)
+            operator = operators.Operator(V_pressure,V_velocity,omega)
+            higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator,
+              mu_relax=mu_relax,
+              n_smooth=2)
             higherorder_postsmoother = higherorder_presmoother
-            hpmultigrid = pressuresolver.preconditioners.hpMultigrid(hmultigrid,operator,higherorder_presmoother,higherorder_postsmoother)
+            hpmultigrid = preconditioners.hpMultigrid(hmultigrid,
+                                                      operator,
+                                                      higherorder_presmoother,
+                                                      higherorder_postsmoother)
             preconditioner = hpmultigrid
         else:
             operator = operator_hierarchy[fine_level]
@@ -106,17 +110,17 @@ if (__name__ == '__main__'):
 
     # Construct solver
     if (solver_name == 'Loop'):
-        pressure_solver = pressuresolver.solvers.LoopSolver(operator,
-                                                            preconditioner,
-                                                            tolerance=tolerance_inner,
-                                                            maxiter=maxiter_inner,
-                                                            verbose=2)
+        pressure_solver = solvers.LoopSolver(operator,
+                                             preconditioner,
+                                             tolerance=tolerance_inner,
+                                             maxiter=maxiter_inner,
+                                             verbose=2)
     elif (solver_name == 'CG'):
-        pressure_solver = pressuresolver.solvers.CGSolver(operator,
-                                                          preconditioner,
-                                                          tolerance=tolerance_inner,
-                                                          maxiter=maxiter_inner,
-                                                          verbose=2)
+        pressure_solver = solvers.CGSolver(operator,
+                                           preconditioner,
+                                           tolerance=tolerance_inner,
+                                           maxiter=maxiter_inner,
+                                           verbose=2)
     else:
         print 'Unknown solver: \''+solver_name+'\'.'
         sys.exit(-1)
