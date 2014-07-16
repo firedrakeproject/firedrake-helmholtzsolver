@@ -185,19 +185,17 @@ class LumpedMassBDFM1(object):
 
         Build a map from the interior facets to the facet, i.e. the RT0
         dofs. The map is constructed by looping over all facets, finding the
-        RT0 dofs of the adjacent cells and using the dofs which appear twice.
+        RT0 dofs of the adjacent cells and identifying the local index of the
+        facet in the adjacent cells via interor_facets.local_facet_dat.
 
         This map is used to access the lumped 4x4 mass matrix.
         '''
         cell2dof_map = self.V_facets.cell_node_map()
         facet2celldof_map = self.V_facets.interior_facet_node_map()
         facet2dof_map_val = []
-        for x in facet2celldof_map.values:
-            # find duplicates
-            c = Counter(x)
-            for k in c.keys():
-                if c[k] == 2:
-                    facet2dof_map_val.append(k)
+        for (x,idx) in zip(facet2celldof_map.values,
+                           self.mesh.interior_facets.local_facet_dat.data):
+            facet2dof_map_val.append(x[idx[0]])
         toset = cell2dof_map.toset
         return op2.Map(self.mesh.interior_facets.set,toset,1,
                        values=facet2dof_map_val)
