@@ -1,6 +1,7 @@
 \documentclass[12pt]{article}
 \usepackage{amsmath,amssymb}
 \usepackage[cm]{fullpage}
+\usepackage{bbm}
 \renewcommand{\vec}[1]{\boldsymbol{#1}}
 \newcommand{\grad}{\operatorname{grad}}
 \newcommand{\divergence}{\operatorname{div}}
@@ -98,7 +99,7 @@ To obtain the next iterate $\vec{\Phi}^{(k+1)} = \vec{\Phi}^{(k)}+\vec{\Phi}'$, 
 where we replaced $M_u$ by the lumped mass-matrix $M_u^*$ (see appendix \ref{sec:MassLumping}). By solving the second equation in (\ref{eqn:MatrixSystemCorrection}) for $\vec{U}'$ and inserting it into the first, one obtains the following elliptic equation for the pressure correction $\vec{\Phi}'$:
 \begin{equation}
   M_{\phi}\vec{\Phi}' + \omega^2 B \alpha^{(u)} B^T \vec{\Phi}'
-  \equiv A\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}'_{\phi}-\omega B \Phi^* \left(M_u^*\right)^{-1}M_u\vec{R}'_{\vec{u}}
+  \equiv H\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}'_{\phi}-\omega B \Phi^* \left(M_u^*\right)^{-1}M_u\vec{R}'_{\vec{u}}
 \label{eqn:EllipticEquation}
 \end{equation}
 where we defined the diagonal matrix
@@ -111,6 +112,52 @@ which we assume to be positive definite. We use a multigrid algorithm to solve
   \vec{U}' = \left(M_u^*\right)^{-1}\left(M_u\vec{R}'_{\vec{u}}+ \omega B^T \vec{\Phi}'\right).
 \end{equation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Schur complement preconditioner}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+More abstractly, we can write the original mixed system in (\ref{eqn:MatrixSystem}) as
+\begin{equation}
+  S\vec{X} = \vec{R}
+\end{equation}
+where $\vec{X}=(\vec{\Phi},\vec{U})^T$ is the state vector and 
+$\vec{R}=(M_{\phi}\vec{R}_{\phi},M_u\vec{R}_{\vec{u}})^T$ is the right hand side; the matrix $A$ is given by
+\begin{equation}
+  A \equiv
+\begin{pmatrix}
+  M_\phi & \omega B\Phi^* \\
+  -\omega B^T & M_u
+\end{pmatrix}
+\label{eqn:MixedMatrixA}
+\end{equation}
+The incremental solver is then a preconditioned Richardson iteration
+\begin{equation}
+  \vec{X}^{(k+1)} = \vec{X}^{(k)} + P^{-1}\left(\vec{R}-A\vec{X}^{(k)}\right)
+\end{equation}
+and the preconditioner is the original matrix in (\ref{eqn:MixedMatrixA}) with the velocity mass matrix $M_u$ replaced by its lumped version $M_u^*$:
+\begin{equation}
+    P \equiv
+\begin{pmatrix}
+  M_\phi & \omega B\Phi^* \\
+  -\omega B^T & M^*_u
+\end{pmatrix}
+\end{equation}
+The inverse of $P$ can be written as
+\begin{equation}
+    P^{-1} =
+\begin{pmatrix}
+  \mathbbm{1} & 0 \\
+ (M_u^*)^{-1}\omega B^T  & \mathbbm{1}
+\end{pmatrix}
+\begin{pmatrix}
+  H^{-1} & 0 \\
+  0 & (M_u^*)^{-1}
+\end{pmatrix}
+\begin{pmatrix}
+  \mathbbm{1} & -\omega B\Phi^* (M_u^*)^{-1} \\
+  0 & \mathbbm{1}
+\end{pmatrix}
+\end{equation}
+with the Schur complement pressure operator $H$ as defined in (\ref{eqn:EllipticEquation}).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Multigrid solver}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Solve the elliptic equation in (\ref{eqn:EllipticEquation}) with a multigrid iteration, either as a standalone solver or as a preconditioner for CG.
@@ -119,25 +166,25 @@ Solve the elliptic equation in (\ref{eqn:EllipticEquation}) with a multigrid ite
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 For the smoother we use the following Richardson iteration
 \begin{equation}
-  \vec{\Phi} \mapsto \vec{\Phi} + 2\mu D^{-1} \left(\vec{F}-A\vec{\Phi}\right)
+  \vec{\Phi} \mapsto \vec{\Phi} + 2\mu D^{-1} \left(\vec{F}-H\vec{\Phi}\right)
   \label{eqn:Richardson}
 \end{equation}
 where $D$ is a diagonal matrix which fulfils the following conditions:
 \begin{enumerate}
   \item $D$ is positive definite 
-  \item $\mu A < D$ (i.e. $\mu \vec{\Psi}^T A \vec{\Psi} < \vec{\Psi}^T D \vec{\Psi}$ for all $\vec{\Psi}$)
+  \item $\mu H < D$ (i.e. $\mu \vec{\Psi}^T H \vec{\Psi} < \vec{\Psi}^T D \vec{\Psi}$ for all $\vec{\Psi}$)
   \item The iteration in (\ref{eqn:Richardson}) should be efficient at reducing high-frequency error components.
 \end{enumerate}
 The first two conditions guarantee that the spectrum of the iteration matrix 
 \begin{equation}
-  S \equiv \mathbb{I} - 2 \mu D^{-1} A,
+  S \equiv \mathbb{I} - 2 \mu D^{-1} H,
 \end{equation}
 which describes the reduction of the error $\vec{\Psi}-\vec{\Psi}_{\operatorname{exact}}$, is contained in $[-1,1]$ and the iteration does not diverge.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Lowest order}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 We first treat the lowest order ($DG_0$+$RT_0$) case.
-To bound $A$, consider the term $B\alpha^{(u)} B^T$. We can write
+To bound $H$, consider the term $B\alpha^{(u)} B^T$. We can write
 \begin{equation}
  \begin{aligned}
   \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} &= \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \Psi_i B_{ie} \alpha^{(u)}_{ee} B_{je} \Psi_j 
@@ -164,7 +211,7 @@ The spectrum of the error reduction matrix $S$ is contained in
 \begin{equation}
   \lambda \in [1-2\mu,1]
 \end{equation}
-where the high-frequency modes (for which $A\Psi^{(hf)}\approx D\Psi^{(hf)}$) have eigenvalues of $\lambda \approx 1-2\mu$. A possible choice would be $\mu=2/3$.
+where the high-frequency modes (for which $H\Psi^{(hf)}\approx D\Psi^{(hf)}$) have eigenvalues of $\lambda \approx 1-2\mu$. A possible choice would be $\mu=2/3$.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 \paragraph{Implementation.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
