@@ -207,31 +207,19 @@ class LumpedMassBDFM1(object):
 
         Build a map from the interior facets to the four BDFM1 dofs 
         associated with this facet. For this, loop over the BDFM1 dofs in the
-        cells associated with this facet and look for the duplicated ones.
+        cells associated with this facet and use local_facet_dat to identify
+        the local index of the facet in each of the two cells.
         On each cells are always ordered like this
         :math:`(a_1,a_2,b_1,b_2,c_1,c_2,a_3,b_3,c_3)`, where :math:`a_1` and
         :math:`a_2` are the normal dofs on edge 1 and :math:`a_3` is the
         tangential dof.
-        We can hence look for duplicates in the 18-arity map to find the
-        shared normal dofs and then uniquely indentify the discontinuous
-        tangential dofs.
         '''
         cell2dof_map = self.V_BDFM1.cell_node_map()
         facet2celldof_map = self.V_BDFM1.interior_facet_node_map()
         facet2dof_map_val = []
-        for x in facet2celldof_map.values:
-            # find duplicated dofs
-            c = Counter(x)
-            for k in c.keys():
-                if c[k] == 2:
-                    duplicated_dof = k
-                    break
-            facet1_idx = np.argwhere(x==duplicated_dof)[0][0]/2
-            facet2_idx = (np.argwhere(x==duplicated_dof)[1][0]-9)/2
-            dofs = [x[2*facet1_idx],
-                    x[2*facet1_idx+1],
-                    x[6+facet1_idx],
-                    x[9+6+facet2_idx]]
+        for (x,idx) in zip(facet2celldof_map.values,
+                           self.mesh.interior_facets.local_facet_dat.data):
+            dofs = [x[2*idx[0]],x[2*idx[0]+1],x[6+idx[0]],x[9+6+idx[1]]]
             facet2dof_map_val.append(dofs)
         toset = cell2dof_map.toset
         return op2.Map(self.mesh.interior_facets.set,toset,4,
