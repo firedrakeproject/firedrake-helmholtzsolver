@@ -6,7 +6,7 @@ void set_matrix(double **m,
                 double **U_tilde_x, 
                 double **U_tilde_y,
                 double **U_tilde_z) {
-    /* Calculate 3x4 matrix whose column vectors
+    /* Calculate 4x4 matrix whose row vectors
      * are given by the dofs of four solid body rotation
      * fields, constructed from the flow fields 
      * U_x, U_y, U_z and U_tilde_x, U_tilde_y, U_tilde_z
@@ -51,7 +51,7 @@ void set_matrix(double **m,
 
     /* Step 2: Construct solid body rotation fields 
      * perpendicular/tangential to current edge and 
-     * store their edge dofs in the columns of
+     * store their edge dofs in the rows of
      * the matrix m
      *
      *  (0): t.U       (maximal tangential flow of type A)
