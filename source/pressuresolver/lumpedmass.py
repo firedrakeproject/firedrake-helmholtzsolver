@@ -139,16 +139,22 @@ class LumpedMassBDFM1(object):
     for the RT0 space can be used.
 
     :arg V_velocity: Velocity function space, has to be of type BDFM1
+    :arg ignore_lumping: For debugging, this can be set to true to use the
+        full mass matrix in the :class:`multiply()` and :class:`divide()`
+        methods.
     :arg diagonal_matrix: Assume local blocks are diagonal. This allows for 
         some further optimisations. NB: Currently only this option is
         supported in :class:`Jacobi_HigherOrder`
     '''
-    def __init__(self,V_velocity,diagonal_matrix=True):
+    def __init__(self,V_velocity,ignore_mass_lumping=False,
+                 diagonal_matrix=True):
         self.V_BDFM1 = V_velocity
         self.mesh = self.V_BDFM1.mesh()
+        self.dx = self.mesh._dx
         self.coords = self.mesh.coordinates
         self.n_SBR=4
         self.diagonal_matrix = diagonal_matrix
+        self.ignore_mass_lumping = ignore_mass_lumping
         # Coordinate space
         self.V_coords = self.coords.function_space()
         # Set up map from facets to coordinate dofs
@@ -421,7 +427,12 @@ class LumpedMassBDFM1(object):
 
         :arg u: BDFM1 field to multiply (will be modified in-place)
         '''
-        self._matmul(self.Mu_lumped,u)
+        if (self.ignore_lumping):
+            psi = TestFunction(self.V_velocity)
+            w = assemble(dot(self.w,u)*self.dx)
+            u.assign(w)
+        else:
+            self._matmul(self.Mu_lumped,u)
             
 
     def divide(self,u):
@@ -431,6 +442,14 @@ class LumpedMassBDFM1(object):
 
         :arg u: BDFM1 field to divide (will be modified in-place)
         '''
-        self._matmul(self.Mu_lumped_inv,u)
+        if (self.ignore_mass_lumping):
+            psi = TestFunction(self.V_BDFM1)
+            phi = TrialFunction(self.V_BDFM1)
+            a_mass = assemble(dot(psi,phi)*self.dx)
+            w = Function(self.V_BDFM1)
+            solve(a_mass, w, u)
+            u.assign(w)
+        else:
+            self._matmul(self.Mu_lumped_inv,u)
  
 
