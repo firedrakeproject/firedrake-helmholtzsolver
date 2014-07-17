@@ -7,11 +7,12 @@ class IterativeSolver(object):
     factor tolerance.
 
     :arg operator: Instance :math:`H` of linear Schur complement
-    :class:`.Operator` in pressure space
+        :class:`.Operator` in pressure space
     :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
-    :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+    :arg verbose: Verbosity level (0=no output, 1=minimal output,
+        2=show convergence rates)
     '''
     def __init__(self,operator,
                  preconditioner,
@@ -39,12 +40,13 @@ class IterativeSolver(object):
 class LoopSolver(IterativeSolver):
     '''Loop solver (preconditioned Richardson iteration) 
     
-    :arg operator: Instance :math:`H` of linear Schur complement :class:`.Operator` in 
-        pressure space
+    :arg operator: Instance :math:`H` of linear Schur complemen
+        :class:`.Operator` in pressure space
     :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
-    :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+    :arg verbose: Verbosity level (0=no output, 1=minimal output,
+        2=show convergence rates)
     '''
     def __init__(self,operator,
                  preconditioner,
@@ -102,8 +104,8 @@ class LoopSolver(IterativeSolver):
 class CGSolver(IterativeSolver):
     '''Preconditioned Conjugate gradient solver.
     
-    :arg operator: Instance :math:`H` of linear Schur complement :class:`.Operator` in 
-        pressure space
+    :arg operator: Instance :math:`H` of linear Schur complement
+        :class:`.Operator` in pressure space
     :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve

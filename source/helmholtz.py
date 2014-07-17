@@ -18,11 +18,13 @@ class Solver:
 
         :arg V_pressure: Function space for pressure field :math:`\phi`
         :arg V_velocity: Function space for velocity field :math:`\\vec{u}`
-        :arg pressure_solver: Solver for Schur complement pressure system, e.g. :class:`.LoopSolver` and :class:`.ConjugateGradient`.
+        :arg pressure_solver: Solver for Schur complement pressure system,
+            e.g. :class:`.LoopSolver` and :class:`.CGSolver`.
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
-        :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
+        :arg verbose: Verbosity level (0=no output, 1=minimal output,
+            2=show convergence rates)
     '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
                  maxiter=100,
@@ -46,13 +48,21 @@ class Solver:
     def solve(self,r_phi,r_u):
         '''Solve Helmholtz system using nested iteration.
 
-        Solve the mixed Helmholtz system for right hand sides :math:`r_\phi` and :math:`r_u`.
-        The full velocity mass matrix is used in the outer iteration and the pressure correction
-        system is solved with the specified :class:`pressure_solver` in an inner iteration.
-        See `Notes in LaTeX <./FEMmultigrid.pdf>`_ for more details of the algorithm.
+        Solve the mixed Helmholtz system for right hand sides :math:`r_\phi`
+        and :math:`r_u`. The full velocity mass matrix is used in the outer
+        iteration and the pressure correction system is solved with the 
+        specified :class:`pressure_solver` in an inner iteration, i.e. a
+        preconditioned Richardson iteration for the mixed system is used, and
+        the velocity mass matrix is replaced by a lumped version in the
+        preconditioner.
 
-            :arg r_phi: right hand side for pressure equation, function in :math:`DG` space.
-            :arg r_u: right hand side for velocity equation, function in :math:`H(div)` space.
+        See `Notes in LaTeX <./FEMmultigrid.pdf>`_ for more details of the
+        algorithm.
+
+        :arg r_phi: right hand side for pressure equation, function in 
+            :math:`DG` space.
+        :arg r_u: right hand side for velocity equation, function in 
+            :math:`H(div)` space.
         '''
         if (self.verbose > 0):
             print ' === Helmholtz solver ==='
@@ -88,8 +98,10 @@ class Solver:
             phi.assign(phi + d_phi)
             u.assign(u + du)
             # Calculate current residual
-            Mr_phi_cur = assemble((self.psi*phi + self.omega*self.psi*div(u))*dx)
-            Mr_u_cur = assemble(( inner(self.w,u) - self.omega*div(self.w)*phi)*dx)
+            Mr_phi_cur = assemble((self.psi*phi \
+                                 + self.omega*self.psi*div(u))*dx)
+            Mr_u_cur = assemble(( inner(self.w,u) \
+                                 - self.omega*div(self.w)*phi)*dx)
             # Update residual correction
             dMr_phi.assign(Mr_phi - Mr_phi_cur)
             dMr_u.assign(Mr_u - Mr_u_cur)
@@ -124,7 +136,8 @@ class Solver:
 
             u = (M_u^*)^{-1} ( R_u + \omega B^T \phi)
 
-        This is equivalent to using the following Schur complement decomposition of the mixed system with lumped velocity mass matrix
+        This is equivalent to using the following Schur complement
+        decomposition of the mixed system with lumped velocity mass matrix
 
         .. math::
 
@@ -179,12 +192,15 @@ class Solver:
             norm = ||\\tilde{r}_\phi||_{L_2} + ||\\tilde{r}_u||_{L_2}
 
         where :math:`\\tilde{r}_\phi = M_\phi^{-1} (M_\phi r_{\phi})` and 
-        :math:`\\tilde{r}_u = \left(M_u\\right)^{-1} (M_ur_u)`. The multiplication with the
-        inverse mass matrices is necessary because the outer iteration calculates the residuals
+        :math:`\\tilde{r}_u = \left(M_u\\right)^{-1} (M_ur_u)`. The
+        multiplication with the inverse mass matrices is necessary because the
+        outer iteration calculates the residuals
         :math:`M_{\phi} r_{\phi}` and :math:`M_ur_{u}`
 
-        :arg Mr_phi: Residual multiplied by pressure mass matrix :math:`M_{\phi}r_{\phi}` 
-        :arg Mr_u: Residual multiplied by velocity mass matrix :math:`M_ur_{\phi}` 
+        :arg Mr_phi: Residual multiplied by pressure mass matrix
+            :math:`M_{\phi}r_{\phi}` 
+        :arg Mr_u: Residual multiplied by velocity mass matrix
+            :math:`M_ur_{\phi}` 
         '''
 
         # Rescale by mass matrices
@@ -203,11 +219,14 @@ class Solver:
     def solve_petsc(self,r_phi,r_u):
         '''Solve Helmholtz system using PETSc solver.
 
-        Solve the mixed Helmholtz system for right hand sides :math:`r_\phi` and :math:`r_u`
-        by using the PETSc solvers with suitable Schur complement preconditioner.
+        Solve the mixed Helmholtz system for right hand sides :math:`r_\phi`
+        and :math:`r_u` by using the PETSc solvers with suitable Schur
+        complement preconditioner.
 
-            :arg r_phi: right hand side for pressure equation, function in :math:`DG` space.
-            :arg r_u: right hand side for velocity equation, function in :math:`H(div)` space.
+        :arg r_phi: right hand side for pressure equation, function in
+            :math:`DG` space.
+        :arg r_u: right hand side for velocity equation, function in
+            :math:`H(div)` space.
         '''
         V_mixed = self.V_velocity*self.V_pressure
         psi_mixed, w_mixed = TestFunctions(V_mixed)

@@ -27,7 +27,9 @@ class Jacobi(object):
     def solve(self,b,phi):
         '''Solve approximately with RHS :math:`b`.
         
-        Repeatedy apply the smoother to solve the equation :math:`H\phi=b` approximately.
+        Repeatedy apply the smoother to solve the equation :math:`H\phi=b`
+        approximately.
+
         :arg b: Right hand side :math:`b` in pressure space
         :arg phi: State vector :math:`\phi` in pressure space (out)
         '''
@@ -42,9 +44,10 @@ class Jacobi(object):
 
             \phi \mapsto \phi + 2\mu D^{-1} (b-H\phi)
             
-        repeatedly to the state vector :math:`\phi`. If :class:`initial_phi_is_zero` is
-        True, then the initial :math:`\phi` is assumed to be zero and in the first iteration
-        the updated :math:`\phi` is just given by :math:`D^{-1}b`.
+        repeatedly to the state vector :math:`\phi`.
+        If :class:`initial_phi_is_zero` is True, then the initial :math:`\phi`
+        is assumed to be zero and in the first iteration the updated
+        :math:`\phi` is just given by :math:`D^{-1}b`.
 
         :arg b: Right hand side :math:`b` in pressure space
         :arg phi: State vector :math:`\phi` in pressure space (out)
@@ -69,8 +72,8 @@ class Jacobi_LowestOrder(Jacobi):
     '''Lowest order Jacobi smoother.
 
     Matrix-free smoother for the linear Schur complement system.
-    The diagonal matrix :math:`D` used in the :class:`smooth()` method is constructed as 
-    described in `Notes in LaTeX <./FEMmultigrid.pdf>`_:
+    The diagonal matrix :math:`D` used in the :class:`smooth()` method is
+    constructed as described in `Notes in LaTeX <./FEMmultigrid.pdf>`_:
     
     .. math::
         
@@ -81,7 +84,10 @@ class Jacobi_LowestOrder(Jacobi):
     :arg operator: Schur complement operator, of type :class:`Operator`.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
-    :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set to :math:`\max_i\{D_{ii}\} Id`, i.e. the unit matrix times the maximal eigenvalue. This means that the smoother is symmetric, which is not necessarily the case otherwise.
+    :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set 
+        to :math:`\max_i\{D_{ii}\} Id`, i.e. the unit matrix times the maximal
+        eigenvalue. This means that the smoother is symmetric, which is not
+        necessarily the case otherwise.
     '''
     def __init__(self,operator,
                  mu_relax=2./3.,
@@ -123,8 +129,8 @@ class Jacobi_HigherOrder(Jacobi):
     '''Higher order Jacobi smoother.
 
     Matrix-free smoother for the linear Schur complement system.
-    The block-diagonal matrix :math:`D` used in the :class:`smooth()` method is constructed as 
-    described in `Notes in LaTeX <./FEMmultigrid.pdf>`_:
+    The block-diagonal matrix :math:`D` used in the :class:`smooth()` method
+    is constructed as described in `Notes in LaTeX <./FEMmultigrid.pdf>`_:
     
     .. math::
         
@@ -134,12 +140,16 @@ class Jacobi_HigherOrder(Jacobi):
 
     :arg operator: Schur complement operator, of type :class:`Operator`.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
-    :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    :arg n_smooth: Number of smoothing steps to apply in method
+        :class:`smooth()`.
     '''
     def __init__(self,operator,
                  mu_relax=2./3.,
                  n_smooth=1):
         super(Jacobi_HigherOrder,self).__init__(operator,mu_relax,n_smooth)
+        # Only works if diagonal lumped mass matrix is used
+        if (not self.lumped_mass.diagonal_matrix):
+            raise NotImplementedError('Higher order Jacobi smoother only implemented for diagonal lumped BDFM1 mass matrices')
         self._build_D_diag()
 
     def _build_D_diag(self):
@@ -160,7 +170,8 @@ class Jacobi_HigherOrder(Jacobi):
         mass_kernel = compile_form(mass, 'mass')[0][6]
         self.D_diag_inv = Function(V_DG0, val=op2.Dat(V_DG0.node_set**(3*3)))
         op2.par_loop(mass_kernel,self.D_diag_inv.cell_set,
-                     self.D_diag_inv.dat(op2.INC,self.D_diag_inv.cell_node_map()[op2.i[0]]),
+                     self.D_diag_inv.dat(op2.INC,
+                                  self.D_diag_inv.cell_node_map()[op2.i[0]]),
                      self.mesh.coordinates.dat(op2.READ,
                        self.mesh.coordinates.cell_node_map(),
                        flatten=True),

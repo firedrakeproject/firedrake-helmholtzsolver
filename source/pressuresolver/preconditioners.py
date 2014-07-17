@@ -3,12 +3,13 @@ from operators import *
 class hMultigrid(object):
     '''Geometric Multigrid preconditioner with h-coarsening only.
 
-    Solve approximately using a multigrid V-cycle. The operator, pre-, post- smoother and
-    coarse grid operator are passed as arguments, this allows tuning of the number of
-    smoothing steps etc.
+    Solve approximately using a multigrid V-cycle. The operator, pre-, post-
+    smoother and coarse grid operator are passed as arguments, this allows
+    tuning of the number of smoothing steps etc.
 
-    :arg operator_hierarchy: Schur complement :class:`Operator` s on the different multigrid 
-        levels
+    :arg operator_hierarchy: Schur complement :class:`Operator` s on the
+        different multigrid levels.
+
     :arg presmoother_hierarchy: Presmoother on different multigrid levels
     :arg postsmoother_hierarchy: Postsmoother on different multigrid levels
     :arg coarsegrid_solver: Solver object for coarse grid equation
@@ -69,8 +70,9 @@ class hMultigrid(object):
     def solve(self,b,phi):
         '''Solve approximately.
 
-        Solve the pressure correction equation approximately for a given right hand side
-        :math:`b` with a V-cycle. Note that the state vector is updated in place.
+        Solve the pressure correction equation approximately for a given right
+        hand side :math:`b` with a V-cycle. Note that the state vector is
+        updated in place.
 
         :arg b: right hand side in pressure space
         :arg phi: State :math:`\phi` in pressure space.
@@ -117,8 +119,9 @@ class hpMultigrid(object):
     def solve(self,b,phi):
         '''Solve approximately.
 
-        Solve the pressure correction equation approximately for a given right hand side
-        :math:`b` with a V-cycle. Note that the state vector is updated in place.
+        Solve the pressure correction equation approximately for a given right
+        hand side :math:`b` with a V-cycle. Note that the state vector is
+        updated in place.
 
         :arg b: right hand side in pressure space
         :arg phi: State :math:`\phi` in pressure space.

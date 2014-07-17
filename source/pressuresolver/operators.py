@@ -4,17 +4,19 @@ from lumpedmass import *
 class Operator(object):
     '''Schur complement operator with lumped velocity mass matrix.
 
-    The class provides methods for applying the linear operator for the Schur complement
-    pressure system in a matrix-free way. Explicity the operator is given by
+    The class provides methods for applying the linear operator for the Schur
+    complement pressure system in a matrix-free way. Explicity the operator is
+    given by
 
     .. math::
         
         
         H = M_\phi + \omega^2 B^T (M_{u}^*)^{-1} B
 
-    where :math:`B` and :math:`B^T` arise from the finite element representation of the
-    divergence and gradient operator. The lumped mass matrix is represented by a 
-    :class:`.LumpedMass` object.
+    where :math:`B` and :math:`B^T` arise from the finite element
+    representation of the divergence and gradient operator. The lumped mass
+    matrix is represented by a :class:`.LumpedMassRT1` or
+    :class:`.LumpedMassBDFM1` object.
     
     :arg V_pressure: Function space for pressure fields
     :arg V_velocity: Function space for velocity fields
@@ -44,8 +46,10 @@ class Operator(object):
     def apply(self,phi):
         '''Apply operator.
 
-        Apply the operator :math:`H` to a field :math:`phi` in a matrix free way by 
-        applying the individual components in turn and return the result :math:`H\phi`.
+        Apply the operator :math:`H` to a field :math:`phi` in a matrix free
+        way by applying the individual components in turn and return the
+        result :math:`H\phi`.
+
         :arg phi: Pressure field :math:`phi` to apply the operator to
         '''
         # Calculate action of B
@@ -62,8 +66,9 @@ class Operator(object):
     def residual(self,b,phi):
         '''Calculate the residual.
 
-        Evaluate the residual :math:`r=b-H\phi` for a given RHS :math:`b` and return 
-        the result.
+        Evaluate the residual :math:`r=b-H\phi` for a given RHS :math:`b` and
+        return the result.
+
         :arg b: Right hand side pressure field
         :arg phi: Pressure field to apply the operator to.
         '''
@@ -72,8 +77,8 @@ class Operator(object):
 class OperatorHierarchy(object):
     '''Hierarchy of :class:`.Operator` s on function space hierarchy.
 
-    Collection of operators on different levels of a function space hierarchy which
-    represents fields on different multigrid levels.
+    Collection of operators on different levels of a function space hierarchy
+    which represents fields on different multigrid levels.
     
     :arg V_pressure_hierarchy: Hierarchical function space for pressure fields
     :arg V_velocity_hierarchy: Hierarchical function space for velocity fields

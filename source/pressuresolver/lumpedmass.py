@@ -22,19 +22,21 @@ class LumpedMassRT1(object):
 
         where C is constant.
 
-    * On each edge e the lumped mass matrix is exact when acting on a solid body rotation
-        field that has maximal flux through this edge. Mathematically this means that
+    * On each edge e the lumped mass matrix is exact when acting on a solid
+        body rotation field that has maximal flux through this edge.
+        Mathematically this means that
 
         .. math::
 
             (M_u^*)_{ee} = \\frac{\sum_{i=1}^3 V^{(i)}_e U^{(i)}_e }{\sum_{i=1}^3 (U^{(i)}_e)^2}
 
-        where :math:`U^{(i)}` is a solid body rotation field around coordinate axis :math:`i`
-        and :math:`V^{(i)} = M_u U^{(i)}`
+        where :math:`U^{(i)}` is a solid body rotation field around coordinate
+        axis :math:`i` and :math:`V^{(i)} = M_u U^{(i)}`
 
     :arg V_velocity: Velocity space, currently only :math:`RT1` is supported.
-    :arg ignore_lumping: For debugging, this can be set to true to use the full mass
-        matrix in the :class:`multiply()` and :class:`divide()` methods.
+    :arg ignore_lumping: For debugging, this can be set to true to use the
+        full mass matrix in the :class:`multiply()` and :class:`divide()`
+        methods.
     :arg use_SBR: Use mass lumping based on solid body rotation fields.
     '''
     def __init__(self,V_velocity,ignore_lumping=False,use_SBR=True):
@@ -83,8 +85,9 @@ class LumpedMassRT1(object):
     def multiply(self,u):
         '''Multiply velocity field by lumped mass matrix.
 
-        Use a direct loop to multiply a function in velocity space by the lumped mass matrix.
-        Note that this is an in-place operation on the input data.
+        Use a direct loop to multiply a function in velocity space by the
+        lumped mass matrix. Note that this is an in-place operation on the
+        input data.
 
         :arg u: Velocity field to be multiplied
         '''
@@ -101,9 +104,10 @@ class LumpedMassRT1(object):
     def divide(self,u):
         '''Divide velocity field by lumped mass matrix.
 
-        Use a direct loop to divide a function in velocity space by the lumped mass matrix.
-        Note that this is an in-place operation on the input data.
-        If the lumping is ignored, the division is implemented by a mass matrix solve.
+        Use a direct loop to divide a function in velocity space by the lumped
+        mass matrix. Note that this is an in-place operation on the input data.
+        If the lumping is ignored, the division is implemented by a mass
+        matrix solve.
 
         :arg u: Velocity field to be divided
         '''
@@ -134,9 +138,10 @@ class LumpedMassBDFM1(object):
     Dat of suitable shape located on the facets, i.e. the same dof-map as
     for the RT0 space can be used.
 
-    :arg V_velocity: Velocity function space, has to be BDFM1
+    :arg V_velocity: Velocity function space, has to be of type BDFM1
     :arg diagonal_matrix: Assume local blocks are diagonal. This allows for 
-    some further optimisations.
+        some further optimisations. NB: Currently only this option is
+        supported in :class:`Jacobi_HigherOrder`
     '''
     def __init__(self,V_velocity,diagonal_matrix=True):
         self.V_BDFM1 = V_velocity
@@ -150,8 +155,11 @@ class LumpedMassBDFM1(object):
         self.facet2dof_map_coords = self._build_interiorfacet2dofmap_coords()
         # Space with one dof per facet (hijack RT0 space)
         self.V_facets = FunctionSpace(self.mesh,'RT',1)
+        # Set up map from facets to dofs on facet
         self.facet2dof_map_facets = self._build_interiorfacet2dofmap_facets()
+        # Set up map from facets to BDFM1 dofs on facet
         self.facet2dof_map_BDFM1 = self._build_interiorfacet2dofmap_BDFM1()
+        # Build lumped mass matrix
         self._build_lumped_massmatrix()
         
     def _build_interiorfacet2dofmap_coords(self):
@@ -228,7 +236,8 @@ class LumpedMassBDFM1(object):
         which are obtained by applying the BDFM1 mass matrix to these.
         '''
         # Set columns of matrix to values of the vector functions
-        kernel_filename = os.path.join(os.path.dirname(__file__),'kernel_bdfm1_lumpedmass.c')
+        kernel_filename = os.path.join(os.path.dirname(__file__),
+                                       'kernel_bdfm1_lumpedmass.c')
         kernel_file = file(kernel_filename,'r')
         kernel_code = ''
         for line in kernel_file:
@@ -288,7 +297,7 @@ class LumpedMassBDFM1(object):
     def _build_lumped_massmatrix(self):
         '''Build the lumped mass matrix.
 
-        Construct the lumped mass matrix by looping over all facts and
+        Construct the lumped mass matrix by looping over all factes and
         calculating the suilably rotated solid rotation fields :math:`u^{(i)}` 
         which are tangential/normal to that facet and the fields
         :math:`v^{(i)}` which are obtained from these by a mass matrix 
