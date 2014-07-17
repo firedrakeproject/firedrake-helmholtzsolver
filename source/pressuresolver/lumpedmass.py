@@ -382,8 +382,8 @@ class LumpedMassBDFM1(LumpedMass):
                   b += u_tmp*u_tmp;
                   r += u_tmp*v_tmp;
                 }
-                data[mu] = b/r;
-                data_inv[mu] = r/b;
+                data[mu] = r/b;
+                data_inv[mu] = b/r;
               }
             }'''
             par_loop(kernel,direct,
