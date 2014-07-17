@@ -159,22 +159,17 @@ class LumpedMassBDFM1(object):
 
         Build a map from the interior facets to the dofs of the 
         two coordinates on the adjacents vertices.
-        The map is constructed by looping over the
-        L1 dofs in the cells adjacent to the facet and looking for the two
-        duplicated dofs.
+        The map is constructed by using the interior_facets.local_facet_dat
+        structure.
         '''
         cell2dof_map = self.V_coords.cell_node_map()
         facet2celldof_map = self.V_coords.interior_facet_node_map()
         facet2dof_map_val = []
         # Loop over all facets and identify shared dofs
-        for x in facet2celldof_map.values:
-            # find duplicates
-            c = Counter(x)
-            vertex_idx=[]
-            for k in c.keys():
-                if c[k] == 2:
-                    vertex_idx.append(k)
-            dofs = [vertex_idx[0],vertex_idx[1]]
+        for (x,y) in zip(facet2celldof_map.values,
+                         self.mesh.interior_facets.local_facet_dat.data):
+            local_map = {0:[1,2],1:[0,2],2:[0,1]}
+            dofs = [x[local_map[y[0]][i]] for i in range(2)]
             facet2dof_map_val.append(dofs)
         toset = cell2dof_map.toset
         return op2.Map(self.mesh.interior_facets.set,toset,2,
