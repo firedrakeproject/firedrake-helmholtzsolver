@@ -7,7 +7,8 @@ from ffc import log
 log.set_level(log.ERROR)
 import helmholtz
 import pressuresolver
-from pressuresolver import operators, smoothers, solvers, preconditioners
+from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass
+import profile_wrapper
 
 ##########################################################
 # M A I N
@@ -50,10 +51,14 @@ if (__name__ == '__main__'):
     if (higher_order):
         V_pressure = FunctionSpace(mesh,'DG',1)
         V_velocity = FunctionSpace(mesh,'BDFM',2)
+        lumped_mass = lumpedmass.LumpedMassBDFM1(V_velocity)
     else:
         V_pressure = FunctionSpace(mesh,'DG',0)
         V_velocity = FunctionSpace(mesh,'RT',1)
-    
+        lumped_mass = lumpedmass.LumpedMassRT1(V_velocity)
+
+    lumped_mass.test_kinetic_energy()
+
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
         operator = operators.Operator(V_pressure,V_velocity,omega)
