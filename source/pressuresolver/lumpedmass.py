@@ -301,12 +301,10 @@ class LumpedMassBDFM1(object):
     
         on each edge with constraints on the local 4x4 lumped mass matrix
         :math:`(M_u^*)_{ee}`. It should be symmetric and positive definite.
-        Currently we also enforce it to be diagonal.
+        Currently we also enforce it to be diagonal if the flag
+        diagonal_matrix has been set in the constructor.
         '''
         m_U, m_MU = self._construct_MU_U()
-        d_U = m_U.dat.data
-        d_MU = m_MU.dat.data
-
         toset = self.V_facets.cell_node_map().toset
         if (self.diagonal_matrix):
             self.mat_toset = toset**(4,1)
