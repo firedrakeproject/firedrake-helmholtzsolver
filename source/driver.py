@@ -16,7 +16,6 @@ if (__name__ == '__main__'):
     # Parameters
     ref_count_coarse = 0
     nlevel = 4
-    spherical = True
     outputDir = 'output'
     solver_name = 'Loop'
     preconditioner_name = 'Multigrid' 
@@ -29,19 +28,14 @@ if (__name__ == '__main__'):
     higher_order=True
         
     # Create mesh
-    if (spherical):
-        coarse_mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
-        global_normal = Expression(("x[0]","x[1]","x[2]"))
-    else:
-        n = 2**ref_count_coarse
-        coarse_mesh = UnitSquareMesh(n,n)
+    coarse_mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
+    global_normal = Expression(("x[0]","x[1]","x[2]"))
 
     mesh_hierarchy = MeshHierarchy(coarse_mesh,nlevel)
 
-    if (spherical):
-        for level_mesh in mesh_hierarchy:
-            global_normal = Expression(("x[0]","x[1]","x[2]"))
-            level_mesh.init_cell_orientations(global_normal)
+    for level_mesh in mesh_hierarchy:
+        global_normal = Expression(("x[0]","x[1]","x[2]"))
+        level_mesh.init_cell_orientations(global_normal)
 
 
     fine_level = len(mesh_hierarchy)-1
