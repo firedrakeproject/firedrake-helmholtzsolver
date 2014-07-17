@@ -39,8 +39,12 @@ class LumpedMass(object):
         energy_lumped *= 0.5
         energy_full *= 0.5
         print 'kinetic energy = '+('%18.12f' % energy_exact)+' [exact]'
-        print '                 '+('%18.12f' % energy_full)+' [full mass matrix]'
-        print '                 '+('%18.12f' % energy_lumped)+' [lumped mass matrix]'
+        print '                 '+('%18.12f' % energy_full)+ \
+          ' (error = '+('%6.4f' % (100.*abs(energy_full/energy_exact-1.)))+'%)' \
+          ' [full mass matrix]'
+        print '                 '+('%18.12f' % energy_lumped)+ \
+          ' (error = '+('%6.4f' % (100.*abs(energy_lumped/energy_exact-1.)))+'%)' \
+          ' [lumped mass matrix]'
             
     def multiply(self,u):
         '''Multiply by lumped mass matrix
