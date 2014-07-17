@@ -318,26 +318,32 @@ class LumpedMassBDFM1(object):
         self.Mu_lumped_inv = Function(self.V_facets,
                                   val=op2.Dat(self.mat_toset,
                                   dtype=float))
-
-        d_Mu_lumped = self.Mu_lumped.dat.data
-        d_Mu_lumped_inv = self.Mu_lumped_inv.dat.data
-
         if (self.diagonal_matrix):
-            # Loop over all edges and construct the lumped matrix
-            for (U,V,i) in zip(d_U,d_MU,range(len(d_Mu_lumped))):
-                B = np.zeros((4),dtype=float)
-                R = np.zeros((4),dtype=float)
-                for k in range(self.n_SBR):
-                    for mu in range(4):
-                        B[mu] += U[k][mu]**2
-                        R[mu] += U[k][mu]*V[k][mu]
-                d_Mu_lumped[i] = np.matrix(np.zeros((4,1),dtype=float))
-                d_Mu_lumped_inv[i] = np.matrix(np.zeros((4,1),dtype=float))
-                for mu in range(4):
-                    m = R[mu]/B[mu]
-                    d_Mu_lumped[i][mu,0] = m
-                    d_Mu_lumped_inv[i][mu,0] = 1./m
+            kernel = '''{
+              for (int mu=0;mu<4;++mu) {
+                double b = 0;
+                double r = 0;
+                for (int k=0;k<4;++k) {
+                  double u_tmp = u[4*k+mu];
+                  double v_tmp = v[4*k+mu];
+                  b += u_tmp*u_tmp;
+                  r += u_tmp*v_tmp;
+                }
+                Mu_lumped[mu] = b/r;
+                Mu_lumped_inv[mu] = r/b;
+              }
+            }'''
+            par_loop(kernel,direct,
+                     {'u':(m_U,READ),
+                      'v':(m_MU,READ),
+                      'Mu_lumped':(self.Mu_lumped,WRITE),
+                      'Mu_lumped_inv':(self.Mu_lumped_inv,WRITE)})
         else:
+            d_U = m_U.dat.data
+            d_MU = m_MU.dat.data
+            d_Mu_lumped = self.Mu_lumped.dat.data
+            d_Mu_lumped_inv = self.Mu_lumped_inv.dat.data
+
             # Build matrix basis for local lumped mass matrix
             # NB: Currently basis is the diagonal basis, so will
             # give same results as with diagonal_matrix
