@@ -325,18 +325,16 @@ class LumpedMassBDFM1(object):
         if (self.diagonal_matrix):
             # Loop over all edges and construct the lumped matrix
             for (U,V,i) in zip(d_U,d_MU,range(len(d_Mu_lumped))):
-                B = np.matrix(np.zeros((4,1),dtype=float))
-                R = np.matrix(np.zeros((4,1),dtype=float))
+                B = np.zeros((4),dtype=float)
+                R = np.zeros((4),dtype=float)
                 for k in range(self.n_SBR):
-                    u = np.matrix(U[k])
-                    v = np.matrix(V[k])
                     for mu in range(4):
-                        B[mu,0] += u[0,mu]**2
-                        R[mu,0] += u[0,mu]*v[0,mu]
+                        B[mu] += U[k][mu]**2
+                        R[mu] += U[k][mu]*V[k][mu]
                 d_Mu_lumped[i] = np.matrix(np.zeros((4,1),dtype=float))
                 d_Mu_lumped_inv[i] = np.matrix(np.zeros((4,1),dtype=float))
                 for mu in range(4):
-                    m = R[mu,0]/B[mu,0]
+                    m = R[mu]/B[mu]
                     d_Mu_lumped[i][mu,0] = m
                     d_Mu_lumped_inv[i][mu,0] = 1./m
         else:
