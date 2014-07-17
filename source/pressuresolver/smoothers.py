@@ -251,7 +251,7 @@ class Jacobi_HigherOrder(Jacobi):
         op2.par_loop(kernel,self.mesh.interior_facets.set,
                      bdiv_dat.dat(op2.READ,dof_map),
                      self.mesh.interior_facets.local_facet_dat(op2.READ),
-                     self.lumped_mass.Mu_lumped_inv.dat(op2.READ,
+                     self.lumped_mass.data_inv.dat(op2.READ,
                        self.lumped_mass.facet2dof_map_facets),
                      self.D_diag_inv.dat(op2.INC,dof_map)
                     )
