@@ -27,6 +27,8 @@ class Operator(object):
         self.V_pressure = V_pressure
         self.w = TestFunction(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
+        self.phi_tmp = Function(self.V_pressure)
+        self.res_tmp = Function(self.V_pressure)
         self.dx = self.V_pressure.mesh()._dx
         self.omega = omega
         if (self.is_lowest_order()):
@@ -62,6 +64,19 @@ class Operator(object):
         M_phi = assemble(self.psi*phi*self.dx)
         return assemble(M_phi + self.omega**2*BT_B_phi)
 
+    def mult(self,mat,x,y):
+        '''PETSc interface for operator application.
+
+        PETSc interface wrapper for the :func:`apply` method.
+
+        :arg x: PETSc vector representing the field to be multiplied.
+        :arg y: PETSc vector representing the result.
+        '''
+        with self.phi_tmp.dat.vec as v:
+            v.array[:] = x.array[:]
+        self.res_tmp = self.apply(self.phi_tmp)
+        with self.res_tmp.dat.vec_ro as v:
+            y.array[:] = v.array[:]
     
     def residual(self,b,phi):
         '''Calculate the residual.

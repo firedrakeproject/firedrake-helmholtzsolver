@@ -82,6 +82,22 @@ class hMultigrid(object):
         self.vcycle()
         phi.assign(self.phi[self.fine_level])
 
+    def apply(self,pc,x,y):
+        '''PETSc interface for preconditioner solve.
+
+        PETSc interface wrapper for the :func:`solve` method.
+
+        :arg x: PETSc vector representing the right hand side in pressure
+            space
+        :arg y: PETSc vector representing the solution pressure space.
+        '''
+        with self.rhs[self.fine_level].dat.vec as v:
+            v.array[:] = x.array[:]
+        self.phi[self.fine_level].assign(0.0)
+        self.vcycle()
+        with self.phi[self.fine_level].dat.vec_ro as v:
+            y.array[:] = v.array[:]
+
 class hpMultigrid(object):
     '''Geometric Multigrid preconditioner with hp- coarsening.
 
@@ -115,6 +131,8 @@ class hpMultigrid(object):
         self.psi_low = TestFunction(self.V_pressure_low)
         self.a_mass = TrialFunction(self.V_pressure)*self.psi*self.dx
         self.a_mass_low = TrialFunction(self.V_pressure_low)*self.psi_low*self.dx
+        self.phi_tmp = Function(self.V_pressure)
+        self.rhs_tmp = Function(self.V_pressure)
 
     def solve(self,b,phi):
         '''Solve approximately.
@@ -141,6 +159,21 @@ class hpMultigrid(object):
         phi.assign(phi+self.dphi)
         # Postsmooth
         self.postsmoother.smooth(b,phi,initial_phi_is_zero=False)
+
+    def apply(self,pc,x,y):
+        '''PETSc interface for preconditioner solve.
+
+        PETSc interface wrapper for the :func:`solve` method.
+
+        :arg x: PETSc vector representing the right hand side in pressure
+            space
+        :arg y: PETSc vector representing the solution pressure space.
+        '''
+        with self.rhs_tmp.dat.vec as v:
+            v.array[:] = x.array[:]
+        self.solve(self.rhs_tmp,self.phi_tmp)
+        with self.phi_tmp.dat.vec_ro as v:
+            y.array[:] = v.array[:]
 
     def restrict(self,phi_high, phi_low):
         '''Restrict to lower order space.

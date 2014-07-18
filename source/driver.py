@@ -18,7 +18,7 @@ if (__name__ == '__main__'):
     ref_count_coarse = 0
     nlevel = 4
     outputDir = 'output'
-    solver_name = 'Loop'
+    solver_name = 'PETSc'
     preconditioner_name = 'Multigrid' 
     tolerance_outer = 1.E-6
     tolerance_inner = 1.E-5
@@ -120,6 +120,12 @@ if (__name__ == '__main__'):
                                            tolerance=tolerance_inner,
                                            maxiter=maxiter_inner,
                                            verbose=2)
+    elif (solver_name == 'PETSc'):
+        pressure_solver = solvers.PETScSolver(operator,
+                                              preconditioner,
+                                              tolerance=tolerance_inner,
+                                              maxiter=maxiter_inner,
+                                              verbose=2)
     else:
         print 'Unknown solver: \''+solver_name+'\'.'
         sys.exit(-1)
