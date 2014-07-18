@@ -23,7 +23,7 @@ class LumpedMass(object):
         '''Check how exactly the kinetic energy can be represented with
         lumped mass matrix.
 
-        Calculate :math:`E_{kin}= \int \\vec{u}\cdot \\vec{u}\;dx` both with
+        Calculate :math:`E_{kin}= \\frac{1}{2} \int \\vec{u}\cdot \\vec{u}\;dx` both with
         the full- and with the lumped mass matrix and compare
         '''
         u_SBR = Function(self.V_velocity)
