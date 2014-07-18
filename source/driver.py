@@ -131,18 +131,18 @@ if (__name__ == '__main__'):
         sys.exit(-1)
         
 
-    helmholtz_solver = helmholtz.Solver(V_pressure,
-                                        V_velocity,
-                                        pressure_solver,
-                                        omega,
-                                        tolerance=tolerance_outer,
-                                        maxiter=maxiter_outer)
+    helmholtz_solver = helmholtz.PETScSolver(V_pressure,
+                                             V_velocity,
+                                             pressure_solver,
+                                             omega,
+                                             tolerance=tolerance_outer,
+                                             maxiter=maxiter_outer)
 
     r_phi = Function(V_pressure).project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
     r_u = Function(V_velocity)
     r_u.assign(0.0)
     # Solve
-    w, phi = helmholtz_solver.solve(r_phi,r_u)
+    phi, w = helmholtz_solver.solve(r_phi,r_u)
 
     # Write output to disk
     DFile_w = File(os.path.join(outputDir,'velocity.pvd'))

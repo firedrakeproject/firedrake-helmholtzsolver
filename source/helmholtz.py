@@ -1,11 +1,18 @@
 from firedrake import *
+import sys, petsc4py
+import numpy as np
+
+petsc4py.init(sys.argv)
+
+from petsc4py import PETSc
+
 '''Solve Helmholtz system in mixed formulation.
 
 This module contains the :class:`.Solver` for solving a Helmholtz system 
 using finite elements.
 '''
 
-class Solver:
+class PETScSolver:
     '''Solver for the Helmholtz system
 
         .. math::
@@ -23,30 +30,50 @@ class Solver:
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
-        :arg verbose: Verbosity level (0=no output, 1=minimal output,
-            2=show convergence rates)
     '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
                  maxiter=100,
-                 tolerance=1.E-6,
-                 verbose=2):
+                 tolerance=1.E-6):
         self.omega = omega
         self.maxiter = maxiter
         self.tolerance = tolerance
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
-        self.verbose = verbose
+
+        self.ndof_phi = self.V_pressure.dof_count
+        self.ndof_u = self.V_velocity.dof_count
+        self.ndof = self.ndof_phi+self.ndof_u 
+        self.u = PETSc.Vec()
+        self.u.create()
+        self.u.setSizes(self.ndof)
+        self.u.setFromOptions()
+        self.rhs = self.u.duplicate()
+
+        op = PETSc.Mat().create()
+        op.setSizes(self.ndof,self.ndof)
+        op.setType(op.Type.PYTHON)
+        op.setPythonContext(MixedOperator(self.V_pressure,
+                                          self.V_velocity,
+                                          self.omega))
+        op.setUp()
+
+        self.ksp = PETSc.KSP()
+        self.ksp.create()
+        self.ksp.setOptionsPrefix('mixed_')
+        self.ksp.setOperators(op)
+        self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
+        self.ksp.setFromOptions()
+        pc = self.ksp.getPC()
+        pc.setType(pc.Type.PYTHON)
+        pc.setPythonContext(MixedPreconditioner(pressure_solver,
+                                                self.V_pressure,
+                                                self.V_velocity))
+
         # Set up test- and trial function spaces
-        self.u = TrialFunction(self.V_velocity)
-        self.phi = TrialFunction(self.V_pressure)
+        self.v = Function(self.V_velocity)
+        self.phi = Function(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
-        self.prec = MixedPreconditioner(pressure_solver,
-                                        self.V_pressure,
-                                        self.V_velocity)
-        self.op = MixedOperator(self.V_pressure,
-                                self.V_velocity,
-                                self.omega)
 
     def solve(self,r_phi,r_u):
         '''Solve Helmholtz system using nested iteration.
@@ -67,95 +94,25 @@ class Solver:
         :arg r_u: right hand side for velocity equation, function in 
             :math:`H(div)` space.
         '''
-        if (self.verbose > 0):
-            print ' === Helmholtz solver ==='
         # Fields for solution
-        u = Function(self.V_velocity)
-        du = Function(self.V_velocity)
-        phi = Function(self.V_pressure)
-        u.assign(0.0)
-        phi.assign(0.0)
-        # Pressure correction
-        d_phi = Function(self.V_pressure)
-        # Residual correction
+        self.phi.assign(0.0)
+        self.v.assign(0.0)
+
+        # RHS
         Mr_phi = assemble(self.psi*r_phi*dx)
         Mr_u = assemble(dot(self.w,r_u)*dx)
-        dMr_phi = Function(self.V_pressure)
-        dMr_u = Function(self.V_velocity)
-        Mr_phi_cur = Function(self.V_pressure)
-        Mr_u_cur = Function(self.V_velocity)
-        dMr_phi.assign(Mr_phi)
-        dMr_u.assign(Mr_u)
-        # Calculate initial residual
-        res_norm = self.residual_norm(dMr_phi,dMr_u) 
-        res_norm_0 = res_norm 
-        DFile = File('output/Fpressure.pvd')
-        DFile << dMr_phi
-        if (self.verbose > 0):
-            print ' initial outer residual : '+('%e' % res_norm_0)
-        for i in range(1,self.maxiter+1):
-            # Calculate correction to pressure and velocity by
-            # calling Schur-complement preconditioner
-            self.prec.solve(dMr_phi,dMr_u,d_phi,du)
-            # Add correction phi -> phi + d_phi, u -> u + du
-            phi.assign(phi + d_phi)
-            u.assign(u + du)
-            # Calculate current residual
-            self.op.apply(phi,u,Mr_phi_cur,Mr_u_cur)
-            # Update residual correction
-            dMr_phi.assign(Mr_phi - Mr_phi_cur)
-            dMr_u.assign(Mr_u - Mr_u_cur)
-            # Check for convergence and print out residual norm
-            res_norm_old = res_norm
-            res_norm = self.residual_norm(dMr_phi,dMr_u) 
-            if (self.verbose > 1):
-                print ' i = '+('%4d' % i) +  \
-                      ' : '+('%8.4e' % res_norm) + \
-                      ' [ '+('%8.4e' % (res_norm/res_norm_0))+' ' + \
-                      ' rho = '+('%6.3f' % (res_norm/res_norm_old))+' ] '
-            if (res_norm/res_norm_0 < self.tolerance):
-                break
-        if (self.verbose > 0):
-            if (res_norm/res_norm_0 < self.tolerance):
-                print ' Outer loop converged after '+str(i)+' iterations.'
-            else:
-                print ' Outer loop failed to converge after '+str(self.maxiter)+' iterations.'
-        return u, phi
 
+        with Mr_phi.dat.vec_ro as v:
+            self.rhs.array[:self.ndof_phi] = v.array[:]
+        with Mr_u.dat.vec_ro as v:
+            self.rhs.array[self.ndof_phi:] = v.array[:]
+        self.ksp.solve(self.rhs,self.u)
+        with self.phi.dat.vec as v:
+            v.array[:] = self.u.array[:self.ndof_phi] 
+        with self.v.dat.vec as v:
+            v.array[:] = self.u.array[self.ndof_phi:]
 
-    def residual_norm(self,Mr_phi,Mr_u):
-        ''' Calculate outer residual norm.
-    
-        Calculates the norm of the full residual in the outer iteration:
-
-        .. math::
-
-            norm = ||\\tilde{r}_\phi||_{L_2} + ||\\tilde{r}_u||_{L_2}
-
-        where :math:`\\tilde{r}_\phi = M_\phi^{-1} (M_\phi r_{\phi})` and 
-        :math:`\\tilde{r}_u = \left(M_u\\right)^{-1} (M_ur_u)`. The
-        multiplication with the inverse mass matrices is necessary because the
-        outer iteration calculates the residuals
-        :math:`M_{\phi} r_{\phi}` and :math:`M_ur_{u}`
-
-        :arg Mr_phi: Residual multiplied by pressure mass matrix
-            :math:`M_{\phi}r_{\phi}` 
-        :arg Mr_u: Residual multiplied by velocity mass matrix
-            :math:`M_ur_{\phi}` 
-        '''
-
-        # Rescale by mass matrices
-
-        # (1) Calculate r_u = (M_u^{-1})*Mr_u
-        a_u_mass = assemble(dot(self.w,self.u)*dx)
-        r_u = Function(self.V_velocity)
-        solve(a_u_mass, r_u, Mr_u, solver_parameters={'ksp_type':'cg'})
-
-        # (2) Calculate r_phi = (M_{phi})^{-1}*Mr_phi
-        a_phi_mass = assemble(self.psi*self.phi*dx)
-        r_phi = Function(self.V_pressure)
-        solve(a_phi_mass, r_phi, Mr_phi, solver_parameters={'ksp_type':'cg'})
-        return sqrt(assemble((r_phi*r_phi+dot(r_u,r_u))*dx))
+        return self.phi, self.v
 
     def solve_petsc(self,r_phi,r_u):
         '''Solve Helmholtz system using PETSc solver.
@@ -201,12 +158,35 @@ class MixedOperator(object):
         self.omega = omega
         self.psi = TestFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
+        self.ndof_phi = self.V_pressure.dof_count
+        self.phi_tmp = Function(self.V_pressure)
+        self.u_tmp = Function(self.V_velocity)
+        self.Mr_phi_tmp = Function(self.V_pressure)
+        self.Mr_u_tmp = Function(self.V_velocity)
 
     def apply(self,phi,u,Mr_phi,Mr_u):
         assemble((self.psi*phi + self.omega*self.psi*div(u))*dx,
                  tensor=Mr_phi)
         assemble((inner(self.w,u) - self.omega*div(self.w)*phi)*dx,
                   tensor=Mr_u)
+
+    def mult(self,mat,x,y):
+        '''PETSc interface for operator application
+
+        PETSc interface wrapper for the :func:`apply` method.
+        :arg x: PETSc vector representing the field to be multiplied.
+        :arg y: PETSc vector representing the result.
+        '''
+        with self.phi_tmp.dat.vec as v:
+            v.array[:] = x.array[:self.ndof_phi]
+        with self.u_tmp.dat.vec as v:
+            v.array[:] = x.array[self.ndof_phi:]
+        self.apply(self.phi_tmp,self.u_tmp,
+                   self.Mr_phi_tmp,self.Mr_u_tmp)
+        with self.Mr_phi_tmp.dat.vec_ro as v:
+            y.array[:self.ndof_phi] = v.array[:]
+        with self.Mr_u_tmp.dat.vec_ro as v:
+            y.array[self.ndof_phi:] = v.array[:]
 
 class MixedPreconditioner(object):
     '''Schur complement preconditioner for the mixed Helmholtz system
@@ -251,6 +231,11 @@ class MixedPreconditioner(object):
         self.psi = TestFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
         self.omega = self.pressure_solver.operator.omega
+        self.phi_tmp = Function(self.V_pressure)
+        self.u_tmp = Function(self.V_velocity)
+        self.P_phi_tmp = Function(self.V_pressure)
+        self.P_u_tmp = Function(self.V_velocity)
+        self.ndof_phi = self.V_pressure.dof_count
         
     def solve(self,R_phi,R_u,phi,u):
         '''Schur complement proconditioner for mixed system.
@@ -285,4 +270,23 @@ class MixedPreconditioner(object):
         u.assign(R_u + self.omega * grad_dphi)
         self.lumped_mass.divide(u)
 
+    def apply(self,pc,x,y):
+        '''PETSc interface for preconditioner solve.
 
+        PETSc interface wrapper for the :func:`solve` method.
+
+        :arg x: PETSc vector representing the right hand side in pressure
+            space
+        :arg y: PETSc vector representing the solution pressure space.
+        '''
+        with self.phi_tmp.dat.vec as v:
+            v.array[:] = x.array[:self.ndof_phi]
+        with self.u_tmp.dat.vec as v:
+            v.array[:] = x.array[self.ndof_phi:]
+        self.solve(self.phi_tmp,self.u_tmp,
+                   self.P_phi_tmp,self.P_u_tmp)
+        with self.P_phi_tmp.dat.vec_ro as v:
+            y.array[:self.ndof_phi] = v.array[:]
+        with self.P_u_tmp.dat.vec_ro as v:
+            y.array[self.ndof_phi:] = v.array[:]
+        
