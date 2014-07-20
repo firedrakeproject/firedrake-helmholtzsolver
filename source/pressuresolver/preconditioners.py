@@ -55,7 +55,7 @@ class hMultigrid(object):
                                                                                 self.phi[level]))
             # Restrict residual to RHS on coarser level
             self.residual.restrict(level)
-            self.rhs[level-1].assign(4.*self.residual[level-1])
+            self.rhs[level-1].assign(self.residual[level-1])
             # Recursive call
             self.vcycle(level-1)
             # Prolongate and add coarse grid correction
