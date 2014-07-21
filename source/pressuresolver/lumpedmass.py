@@ -32,9 +32,7 @@ class LumpedMass(object):
         Mu_SBR = Function(self.V_velocity)
         Mu_SBR.assign(u_SBR)
         self.multiply(Mu_SBR)
-        energy_lumped = 0.0
-        for (x,y) in zip(u_SBR.dat.data,Mu_SBR.dat.data):
-            energy_lumped += x*y
+        energy_lumped = u_SBR.dat.inner(Mu_SBR.dat)
         energy_exact = 4.*pi/3.
         energy_lumped *= 0.5
         energy_full *= 0.5
