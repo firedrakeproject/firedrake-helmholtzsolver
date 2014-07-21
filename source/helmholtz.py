@@ -40,17 +40,17 @@ class PETScSolver:
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
 
-        self.ndof_phi = self.V_pressure.dof_count
-        self.ndof_u = self.V_velocity.dof_count
+        self.ndof_phi = self.V_pressure.dof_dset.size
+        self.ndof_u = self.V_velocity.dof_dset.size
         self.ndof = self.ndof_phi+self.ndof_u 
         self.u = PETSc.Vec()
         self.u.create()
-        self.u.setSizes(self.ndof)
+        self.u.setSizes((self.ndof, None))
         self.u.setFromOptions()
         self.rhs = self.u.duplicate()
 
         op = PETSc.Mat().create()
-        op.setSizes(self.ndof,self.ndof)
+        op.setSizes(((self.ndof, None), (self.ndof, None)))
         op.setType(op.Type.PYTHON)
         op.setPythonContext(MixedOperator(self.V_pressure,
                                           self.V_velocity,
@@ -158,7 +158,7 @@ class MixedOperator(object):
         self.omega = omega
         self.psi = TestFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
-        self.ndof_phi = self.V_pressure.dof_count
+        self.ndof_phi = self.V_pressure.dof_dset.size
         self.phi_tmp = Function(self.V_pressure)
         self.u_tmp = Function(self.V_velocity)
         self.Mr_phi_tmp = Function(self.V_pressure)
@@ -235,7 +235,7 @@ class MixedPreconditioner(object):
         self.u_tmp = Function(self.V_velocity)
         self.P_phi_tmp = Function(self.V_pressure)
         self.P_u_tmp = Function(self.V_velocity)
-        self.ndof_phi = self.V_pressure.dof_count
+        self.ndof_phi = self.V_pressure.dof_dset.size
         
     def solve(self,R_phi,R_u,phi,u):
         '''Schur complement proconditioner for mixed system.
