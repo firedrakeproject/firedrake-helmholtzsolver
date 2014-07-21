@@ -195,15 +195,15 @@ class PETScSolver(IterativeSolver):
                  tolerance=1.E-6,
                  verbose=2):
         super(PETScSolver,self).__init__(operator,preconditioner,maxiter,tolerance,verbose)
-        n = self.operator.V_pressure.dof_count
+        n = self.operator.V_pressure.dof_dset.size
         self.u = PETSc.Vec()
         self.u.create()
-        self.u.setSizes(n)
+        self.u.setSizes((n, None))
         self.u.setFromOptions()
         self.rhs = self.u.duplicate()
 
         op = PETSc.Mat().create()
-        op.setSizes(n,n)
+        op.setSizes(((n, None), (n, None)))
         op.setType(op.Type.PYTHON)
         op.setPythonContext(self.operator)
         op.setUp()
