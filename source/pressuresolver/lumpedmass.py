@@ -242,14 +242,28 @@ class LumpedMassBDFM1(LumpedMass):
         This map is used to access the lumped 4x4 mass matrix.
         '''
         cell2dof_map = self.V_facets.cell_node_map()
+        facetset = self.mesh.interior_facets.set
         facet2celldof_map = self.V_facets.interior_facet_node_map()
-        facet2dof_map_val = []
-        for (x,idx) in zip(facet2celldof_map.values,
-                           self.mesh.interior_facets.local_facet_dat.data):
-            facet2dof_map_val.append(x[idx[0]])
+        facet2celldof_dat = op2.Dat(facetset**6,
+                                    facet2celldof_map.values_with_halo,
+                                    dtype=np.int32)
+        facet2dof_dat = op2.Dat(facetset,dtype=np.int32)
+        local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
+        kernel_code = '''void build_map(int *facet2celldof,
+                                        int *local_facet_idx,
+                                        int *facet2dof) {
+          facet2dof[0] = facet2celldof[local_facet_idx[0]];
+        }'''
+        kernel = op2.Kernel(kernel_code,"build_map")
+        op2.par_loop(kernel,facetset,
+                     facet2celldof_dat(op2.READ),
+                     local_facet_idx_dat(op2.READ),
+                     facet2dof_dat(op2.WRITE))
         toset = cell2dof_map.toset
-        return op2.Map(self.mesh.interior_facets.set,toset,1,
-                       values=facet2dof_map_val)
+        facet2dof_map = op2.Map(facetset,toset,1,
+                                values=facet2dof_dat.data_ro_with_halos)   
+        return facet2dof_map
+
 
     def _build_interiorfacet2dofmap_BDFM1(self):
         '''Map to BDFM1 dofs on a facet
