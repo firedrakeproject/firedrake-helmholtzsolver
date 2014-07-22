@@ -22,8 +22,8 @@ if (__name__ == '__main__'):
     preconditioner_name = 'Multigrid' 
     tolerance_outer = 1.E-6
     tolerance_inner = 1.E-5
-    maxiter_inner=20
-    maxiter_outer=5
+    maxiter_inner=1
+    maxiter_outer=20
     mu_relax = 0.95
     use_maximal_eigenvalue=False
     higher_order=True
