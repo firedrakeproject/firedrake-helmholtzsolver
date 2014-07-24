@@ -292,16 +292,31 @@ class LumpedMassBDFM1(LumpedMass):
         :math:`a_2` are the normal dofs on edge 1 and :math:`a_3` is the
         tangential dof.
         '''
-        cell2dof_map = self.V_velocity.cell_node_map()
+        facetset = self.mesh.interior_facets.set
         facet2celldof_map = self.V_velocity.interior_facet_node_map()
-        facet2dof_map_val = []
-        for (x,idx) in zip(facet2celldof_map.values,
-                           self.mesh.interior_facets.local_facet_dat.data):
-            dofs = [x[2*idx[0]],x[2*idx[0]+1],x[6+idx[0]],x[9+6+idx[1]]]
-            facet2dof_map_val.append(dofs)
+        facet2celldof_dat = op2.Dat(facetset**18,
+                                    facet2celldof_map.values_with_halo,
+                                    dtype=np.int32)
+        facet2dof_dat = op2.Dat(facetset**4,dtype=np.int32)
+        local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
+        kernel_code = '''void build_map(unsigned int *facet2celldof,
+                                        unsigned int *local_facet_idx,
+                                        unsigned int *facet2dof) {
+          facet2dof[0] = facet2celldof[2*local_facet_idx[0]];
+          facet2dof[1] = facet2celldof[2*local_facet_idx[0]+1];
+          facet2dof[2] = facet2celldof[6+local_facet_idx[0]];
+          facet2dof[3] = facet2celldof[9+6+local_facet_idx[1]];
+        }'''
+        kernel = op2.Kernel(kernel_code,"build_map")
+        op2.par_loop(kernel,facetset,
+                     facet2celldof_dat(op2.READ),
+                     local_facet_idx_dat(op2.READ),
+                     facet2dof_dat(op2.WRITE))
+        cell2dof_map = self.V_velocity.cell_node_map()
         toset = cell2dof_map.toset
-        return op2.Map(self.mesh.interior_facets.set,toset,4,
-                       values=facet2dof_map_val)
+        facet2dof_map = op2.Map(facetset,toset,4,
+                                values=facet2dof_dat.data_ro_with_halos)   
+        return facet2dof_map
 
     def _construct_MU_U(self):
         '''Construct the solid body rotation fields.
