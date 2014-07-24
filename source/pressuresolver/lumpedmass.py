@@ -249,9 +249,9 @@ class LumpedMassBDFM1(LumpedMass):
                                     dtype=np.int32)
         facet2dof_dat = op2.Dat(facetset,dtype=np.int32)
         local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
-        kernel_code = '''void build_map(int *facet2celldof,
-                                        int *local_facet_idx,
-                                        int *facet2dof) {
+        kernel_code = '''void build_map(unsigned int *facet2celldof,
+                                        unsigned int *local_facet_idx,
+                                        unsigned int *facet2dof) {
           facet2dof[0] = facet2celldof[local_facet_idx[0]];
         }'''
         kernel = op2.Kernel(kernel_code,"build_map")
