@@ -218,18 +218,33 @@ class LumpedMassBDFM1(LumpedMass):
         The map is constructed by using the interior_facets.local_facet_dat
         structure.
         '''
+        facetset = self.mesh.interior_facets.set 
         cell2dof_map = self.V_coords.cell_node_map()
         facet2celldof_map = self.V_coords.interior_facet_node_map()
-        facet2dof_map_val = []
-        # Loop over all facets and identify shared dofs
-        for (x,y) in zip(facet2celldof_map.values,
-                         self.mesh.interior_facets.local_facet_dat.data):
-            local_map = {0:[1,2],1:[0,2],2:[0,1]}
-            dofs = [x[local_map[y[0]][i]] for i in range(2)]
-            facet2dof_map_val.append(dofs)
+        facet2celldof_dat = op2.Dat(facetset**6,
+                                    facet2celldof_map.values_with_halo,
+                                    dtype=np.int32)
+        facet2vertexdof_dat = op2.Dat(facetset**2,dtype=np.int32)
+        local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
+        kernel_code = '''void build_map(unsigned int *facet2celldof,
+                                        unsigned int *local_facet_idx,
+                                        unsigned int *facet2vertexdof) {
+          unsigned int local_map[3][2] = { {1,2}, {0,2}, {0,1} };
+          for (int i=0;i<2;++i) {
+            facet2vertexdof[i] 
+              = facet2celldof[local_map[local_facet_idx[0]][i]];
+          }
+        }'''
+        kernel = op2.Kernel(kernel_code,"build_map")
+        op2.par_loop(kernel,facetset,
+                     facet2celldof_dat(op2.READ),
+                     local_facet_idx_dat(op2.READ),
+                     facet2vertexdof_dat(op2.WRITE))
         toset = cell2dof_map.toset
-        return op2.Map(self.mesh.interior_facets.set,toset,2,
-                       values=facet2dof_map_val)
+        facet2vertexdof_map = op2.Map(facetset,toset,2,
+                                          values=facet2vertexdof_dat.data_ro_with_halos)
+        return facet2vertexdof_map
+            
 
     def _build_interiorfacet2dofmap_facets(self):
         '''Map to facet dofs
