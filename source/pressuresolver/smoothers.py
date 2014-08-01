@@ -246,7 +246,6 @@ class Jacobi_HigherOrder(Jacobi):
         }'''
 
         kernel = op2.Kernel(kernel_code,'build_diagonal')
-        dof_map = V_DG0.interior_facet_node_map()
         omega2 = op2.Const(1, self.operator.omega**2,
                            name="omega2", dtype=float)
         facetset = V_RT0.dof_dset.set
