@@ -158,6 +158,7 @@ class Jacobi_HigherOrder(Jacobi):
         Calculate the diagonal matrix :math:`D`.
         '''
         V_DG0 = FunctionSpace(self.mesh,'DG',0)
+        V_RT0 = FunctionSpace(self.mesh,'RT',1)
         w = TrialFunction(self.V_velocity)
         phi = TestFunction(self.V_pressure)
         psi = TrialFunction(self.V_pressure)
@@ -248,13 +249,17 @@ class Jacobi_HigherOrder(Jacobi):
         dof_map = V_DG0.interior_facet_node_map()
         omega2 = op2.Const(1, self.operator.omega**2,
                            name="omega2", dtype=float)
-        op2.par_loop(kernel,self.mesh.interior_facets.set,
-                     bdiv_dat.dat(op2.READ,dof_map),
-                     self.mesh.interior_facets.local_facet_dat(op2.READ),
-                     self.lumped_mass.data_inv.dat(op2.READ,
-                       self.lumped_mass.facet2dof_map_facets),
-                     self.D_diag_inv.dat(op2.INC,dof_map)
-                    )
+        facetset = V_RT0.dof_dset.set
+        facetdofmap = self.lumped_mass.facet2dof_map_facets
+        celldofmap = op2.Map(facetset,V_DG0.dof_dset.set,2,
+            V_DG0.interior_facet_node_map().values_with_halo)
+        local_facet_idx_dat = op2.Dat(facetset**2,
+            self.mesh.interior_facets.local_facet_dat.data_ro_with_halos)
+        op2.par_loop(kernel,facetset,
+                     bdiv_dat.dat(op2.READ,celldofmap),
+                     local_facet_idx_dat(op2.READ),
+                     self.lumped_mass.data_inv.dat(op2.READ,facetdofmap),
+                     self.D_diag_inv.dat(op2.INC,celldofmap))
         # * Step 4 *
         # invert local 3x3 matrix
         kernel_inv3x3mat = '''{

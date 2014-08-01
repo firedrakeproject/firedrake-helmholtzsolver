@@ -197,12 +197,12 @@ class LumpedMassBDFM1(LumpedMass):
         self.coords = self.mesh.coordinates
         self.n_SBR=4
         self.diagonal_matrix = diagonal_matrix
+        # Space with one dof per facet (hijack RT0 space)
+        self.V_facets = FunctionSpace(self.mesh,'RT',1)
         # Coordinate space
         self.V_coords = self.coords.function_space()
         # Set up map from facets to coordinate dofs
         self.facet2dof_map_coords = self._build_interiorfacet2dofmap_coords()
-        # Space with one dof per facet (hijack RT0 space)
-        self.V_facets = FunctionSpace(self.mesh,'RT',1)
         # Set up map from facets to dofs on facet
         self.facet2dof_map_facets = self._build_interiorfacet2dofmap_facets()
         # Set up map from facets to BDFM1 dofs on facet
@@ -218,14 +218,15 @@ class LumpedMassBDFM1(LumpedMass):
         The map is constructed by using the interior_facets.local_facet_dat
         structure.
         '''
-        facetset = self.mesh.interior_facets.set 
+        facetset = self.V_facets.dof_dset.set 
         cell2dof_map = self.V_coords.cell_node_map()
         facet2celldof_map = self.V_coords.interior_facet_node_map()
         facet2celldof_dat = op2.Dat(facetset**6,
                                     facet2celldof_map.values_with_halo,
                                     dtype=np.int32)
         facet2vertexdof_dat = op2.Dat(facetset**2,dtype=np.int32)
-        local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
+        local_facet_idx_dat = op2.Dat(facetset**2,
+            self.mesh.interior_facets.local_facet_dat.data_ro_with_halos) 
         kernel_code = '''void build_map(unsigned int *facet2celldof,
                                         unsigned int *local_facet_idx,
                                         unsigned int *facet2vertexdof) {
@@ -242,7 +243,7 @@ class LumpedMassBDFM1(LumpedMass):
                      facet2vertexdof_dat(op2.WRITE))
         toset = cell2dof_map.toset
         facet2vertexdof_map = op2.Map(facetset,toset,2,
-                                          values=facet2vertexdof_dat.data_ro_with_halos)
+                                      values=facet2vertexdof_dat.data_ro_with_halos)
         return facet2vertexdof_map
             
 
@@ -257,13 +258,14 @@ class LumpedMassBDFM1(LumpedMass):
         This map is used to access the lumped 4x4 mass matrix.
         '''
         cell2dof_map = self.V_facets.cell_node_map()
-        facetset = self.mesh.interior_facets.set
+        facetset = self.V_facets.dof_dset.set
         facet2celldof_map = self.V_facets.interior_facet_node_map()
         facet2celldof_dat = op2.Dat(facetset**6,
                                     facet2celldof_map.values_with_halo,
                                     dtype=np.int32)
         facet2dof_dat = op2.Dat(facetset,dtype=np.int32)
-        local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
+        local_facet_idx_dat = op2.Dat(facetset**2,
+            self.mesh.interior_facets.local_facet_dat.data_ro_with_halos)
         kernel_code = '''void build_map(unsigned int *facet2celldof,
                                         unsigned int *local_facet_idx,
                                         unsigned int *facet2dof) {
@@ -292,13 +294,14 @@ class LumpedMassBDFM1(LumpedMass):
         :math:`a_2` are the normal dofs on edge 1 and :math:`a_3` is the
         tangential dof.
         '''
-        facetset = self.mesh.interior_facets.set
+        facetset = self.V_facets.dof_dset.set
         facet2celldof_map = self.V_velocity.interior_facet_node_map()
         facet2celldof_dat = op2.Dat(facetset**18,
                                     facet2celldof_map.values_with_halo,
                                     dtype=np.int32)
         facet2dof_dat = op2.Dat(facetset**4,dtype=np.int32)
-        local_facet_idx_dat = self.mesh.interior_facets.local_facet_dat
+        local_facet_idx_dat = op2.Dat(facetset**2,
+            self.mesh.interior_facets.local_facet_dat.data_ro_with_halos)
         kernel_code = '''void build_map(unsigned int *facet2celldof,
                                         unsigned int *local_facet_idx,
                                         unsigned int *facet2dof) {
@@ -365,7 +368,8 @@ class LumpedMassBDFM1(LumpedMass):
         MU_tilde_y = assemble(dot(w,U_tilde_y)*dx)
         MU_tilde_z = assemble(dot(w,U_tilde_z)*dx)
 
-        op2.par_loop(kernel,self.mesh.interior_facets.set,
+        facetset = self.V_facets.dof_dset.set
+        op2.par_loop(kernel,facetset,
                      m_U.dat(op2.WRITE,self.facet2dof_map_facets),
                      self.coords.dat(op2.READ,self.facet2dof_map_coords),
                      U_x.dat(op2.READ,self.facet2dof_map_BDFM1),
@@ -375,7 +379,7 @@ class LumpedMassBDFM1(LumpedMass):
                      U_tilde_y.dat(op2.READ,self.facet2dof_map_BDFM1),
                      U_tilde_z.dat(op2.READ,self.facet2dof_map_BDFM1))
 
-        op2.par_loop(kernel,self.mesh.interior_facets.set,
+        op2.par_loop(kernel,facetset,
                      m_MU.dat(op2.WRITE,self.facet2dof_map_facets),
                      self.coords.dat(op2.READ,self.facet2dof_map_coords),
                      MU_x.dat(op2.READ,self.facet2dof_map_BDFM1),
@@ -502,6 +506,7 @@ class LumpedMassBDFM1(LumpedMass):
                                }
                              }'''
         kernel = op2.Kernel(kernel_code,"matmul")
-        op2.par_loop(kernel,self.mesh.interior_facets.set,
+        facetset = self.V_facets.dof_dset.set
+        op2.par_loop(kernel,facetset,
                      m.dat(op2.READ,self.facet2dof_map_facets),
                      u.dat(op2.RW,self.facet2dof_map_BDFM1))
