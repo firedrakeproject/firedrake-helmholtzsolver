@@ -164,54 +164,31 @@ Solve the elliptic equation in (\ref{eqn:EllipticEquation}) with a multigrid ite
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Smoother}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-For the smoother we use the following Richardson iteration
+For the smoother we use the following Jacobi iteration
 \begin{equation}
-  \vec{\Phi} \mapsto \vec{\Phi} + 2\mu D^{-1} \left(\vec{F}-H\vec{\Phi}\right)
+  \vec{\Phi} \mapsto \vec{\Phi} + \mu D^{-1} \left(\vec{F}-H\vec{\Phi}\right)
   \label{eqn:Richardson}
 \end{equation}
-where $D$ is a diagonal matrix which fulfils the following conditions:
-\begin{enumerate}
-  \item $D$ is positive definite 
-  \item $\mu H < D$ (i.e. $\mu \vec{\Psi}^T H \vec{\Psi} < \vec{\Psi}^T D \vec{\Psi}$ for all $\vec{\Psi}$)
-  \item The iteration in (\ref{eqn:Richardson}) should be efficient at reducing high-frequency error components.
-\end{enumerate}
-The first two conditions guarantee that the spectrum of the iteration matrix 
+where $D$ is the diagonal of $H$. The spectrum of the iteration matrix 
 \begin{equation}
-  S \equiv \mathbb{I} - 2 \mu D^{-1} H,
+  S \equiv \mathbb{I} - \mu D^{-1} H,
 \end{equation}
-which describes the reduction of the error $\vec{\Psi}-\vec{\Psi}_{\operatorname{exact}}$, is contained in $[-1,1]$ and the iteration does not diverge.
+which describes the reduction of the error $\vec{\Psi}-\vec{\Psi}_{\operatorname{exact}}$, should be contained in $[-1,1]$.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Lowest order}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 We first treat the lowest order ($DG_0$+$RT_0$) case.
-To bound $H$, consider the term $B\alpha^{(u)} B^T$. We can write
+The $DG_0$ mass matrix $M_\phi$ is already diagonal. Consider the term $B\alpha^{(u)} B^T$. We can write for the diagonal entries
 \begin{equation}
- \begin{aligned}
-  \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} &= \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \Psi_i B_{ie} \alpha^{(u)}_{ee} B_{je} \Psi_j 
-\\
-  &= \sum_{e} \alpha_e^{(u)} \left(\Psi_{i_+(e)}-\Psi_{i_-(e)}\right)^2
-  & \le 2\sum_e\left(\alpha_e^{(u)} \Psi_{i_+(e)}^2+\alpha_e^{(u)} \Psi_{i_-(e)}^2\right)\\
-  &= 2 \sigma \sum_i \alpha_{ii}^{(\phi)} \Psi_i ^2 = 2\sigma \vec{\Psi}^T \alpha^{(\phi)}\vec{\Psi}
- \end{aligned}\label{eqn:MatrixBound}
+  (B \alpha^{(u)} B^T)_{ii} = \sum_{\operatorname{edges}\;e\in\mathcal{E}(i)} B_{ie} \alpha^{(u)}_{ee} B_{ie}
+= \sum_{e\in\mathcal{E}(i)} \alpha_{ee}^{(u)} \equiv \alpha_{ii}^{(\phi)}
+\label{eqn:MatrixBound}
 \end{equation}
-In this expression $i_{\pm}(e)$ denotes the two cells adjacent to the edge $e$. The inequality follows from $(a-b)^2 \le 2(a^2+b^2)$. The integer $\sigma$ denotes the number of edges adjacent to a cell, i.e. $\sigma=3$ for triangles and $\sigma=4$ for quadrilaterals. We define the projection of $\alpha^{(u)}$ onto the  cells as 
+where $\mathcal{E}(i)$ are all edges touching cell $i$ and we have used the fact that $B_{ie}=\pm 1$. Hence the diagonal entries of $H$ are given by 
 \begin{equation}
-  \alpha^{(\phi)}_{ii} \equiv \frac{1}{\sigma} \sum_{e'\in e(i)} \alpha_{e'e'}^{(u)}
-\end{equation}
-where $e(i)$ are all edges touching cell $i$ and $\alpha^{(\phi)}$ is a diagonal matrix.
-
-The bound in (\ref{eqn:MatrixBound}) is sharp for a regular triangulation/tiling of a flat domain. To see this, consider the high-frequency field which is given by $\Psi_i = \pm 1$ and changes sign whenever an edge is crossed. On a regular flat grid this field exists and $(\Psi_{i_+(e)-\Psi_{i_-(e)}})^2 = 2 (\Psi_{i_+(e)}^2+\Psi_{i_-(e)}^2) = 4$ for all edges $e$. For the semi-structured grids on the sphere the bound will still be reasonably sharp, at least for the fine grids where we can choose such an oscillating field on each of the panels - it will only be violated where the panels meet, i.e. on a 1d subdomain.
-
-We therefore use the following diagonal matrix $D$ in the smoother:
-\begin{equation}
-  D = M_{\phi} + 2\omega^2 \sigma \alpha^{(\phi)}
+  H_{ii} = D_{ii} = \left(M_{\phi}\right)_{ii} + \omega^2 \alpha^{(\phi)}_{ii}
 \label{eqn:blockSmootherLO}
 \end{equation}
-The spectrum of the error reduction matrix $S$ is contained in
-\begin{equation}
-  \lambda \in [1-2\mu,1]
-\end{equation}
-where the high-frequency modes (for which $H\Psi^{(hf)}\approx D\Psi^{(hf)}$) have eigenvalues of $\lambda \approx 1-2\mu$. A possible choice would be $\mu=2/3$.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 \paragraph{Implementation.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
@@ -219,7 +196,7 @@ To apply the matrix $D^{-1}$ to a field $\vec{\Phi}$, i.e. $\vec{\Psi}=D^{-1}\ve
 \begin{enumerate}
   \item calculate
 \begin{equation}
-  D_{ii} = |E_i| + 2\omega^2 \sum_{e'\in e(i)} \alpha^{(u)}_{e'e'}
+  D_{ii} = |E_i| + \omega^2 \sum_{e\in \mathcal{E}(i)} \alpha^{(u)}_{ee}
 \end{equation}
   \item calculate $\Psi_i = \Phi_i/D_{ii}$.
 \end{enumerate}
