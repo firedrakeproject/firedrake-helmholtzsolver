@@ -64,9 +64,9 @@ class Jacobi(object):
             # Update phi
             if ( (i ==0) and (initial_phi_is_zero) ):
                 phi.assign(r)
-                r *= 2.*self.mu_relax
+                r *= self.mu_relax
             else:
-                phi.assign(phi+2.*self.mu_relax*r)
+                phi.assign(phi+self.mu_relax*r)
 
 class Jacobi_LowestOrder(Jacobi):
     '''Lowest order Jacobi smoother.
@@ -105,7 +105,7 @@ class Jacobi_LowestOrder(Jacobi):
         one_pressure = Function(self.V_pressure)
         one_pressure.assign(1.0)
         D_diag = assemble(TestFunction(self.V_pressure)*one_pressure*self.dx)
-        kernel_add_vterm = 'for(int i=0; i<M_u_lumped.dofs; i++) {D_diag[0][0] += 2.*omega2[0]/M_u_lumped[i][0];}'
+        kernel_add_vterm = 'for(int i=0; i<M_u_lumped.dofs; i++) {D_diag[0][0] += omega2[0]/M_u_lumped[i][0];}'
         M_u_lumped = self.lumped_mass.get()
         omega2 = Constant(self.operator.omega**2)
         par_loop(kernel_add_vterm,self.dx,
@@ -235,7 +235,7 @@ class Jacobi_HigherOrder(Jacobi):
                       ell_lumped += icell;
                     }
                     // Work out index to use in lumped mass matrix
-                    ddiag[icell][3*j+k] += 2.*omega2 
+                    ddiag[icell][3*j+k] += omega2 
                                          * bdiv[icell][9*j+idx[ell]]
                                          * Mulumpedinv[0][ell_lumped]
                                          * bdiv[icell][9*k+idx[ell]];
