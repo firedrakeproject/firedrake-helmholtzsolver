@@ -27,11 +27,13 @@ class PETScSolver:
         :arg V_velocity: Function space for velocity field :math:`\\vec{u}`
         :arg pressure_solver: Solver for Schur complement pressure system,
             e.g. :class:`.LoopSolver` and :class:`.CGSolver`.
+        :arg lumped_mass: Explicitly specify lumped mass for preconsitioner. If none is set, use the lumped mass from the pressuresolver object.
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
+                 lumped_mass=None,
                  maxiter=100,
                  tolerance=1.E-6):
         self.omega = omega
@@ -67,7 +69,8 @@ class PETScSolver:
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(MixedPreconditioner(pressure_solver,
                                                 self.V_pressure,
-                                                self.V_velocity))
+                                                self.V_velocity,
+                                                lumped_mass))
 
         # Set up test- and trial function spaces
         self.v = Function(self.V_velocity)
@@ -220,10 +223,17 @@ class MixedPreconditioner(object):
     :arg pressure_solver: Solver in pressure space
     :arg V_pressure: Function space for pressure
     :arg V_velocity: Function space for velocity
+    :arg lumped_mass: Explicitly specify lumped mass matrix. If not specified, use the one from the Helmholtz operator.
     '''
-    def __init__(self,pressure_solver,V_pressure,V_velocity):
+    def __init__(self,pressure_solver,
+                 V_pressure,
+                 V_velocity,
+                 lumped_mass=None):
         self.pressure_solver = pressure_solver
-        self.lumped_mass = self.pressure_solver.operator.lumped_mass
+        if (lumped_mass==None):
+            self.lumped_mass = self.pressure_solver.operator.lumped_mass
+        else:
+            self.lumped_mass = lumped_mass
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
         self.F_pressure = Function(self.V_pressure)

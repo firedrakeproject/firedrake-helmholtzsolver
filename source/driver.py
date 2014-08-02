@@ -27,6 +27,8 @@ if (__name__ == '__main__'):
     mu_relax = 0.95
     use_maximal_eigenvalue=False
     higher_order=True
+    # Lump mass matrix in Schur complement substitution
+    lump_mass_schursub=True
         
     # Create mesh
     coarse_mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
@@ -51,13 +53,9 @@ if (__name__ == '__main__'):
     if (higher_order):
         V_pressure = FunctionSpace(mesh,'DG',1)
         V_velocity = FunctionSpace(mesh,'BDFM',2)
-        lumped_mass = lumpedmass.LumpedMassBDFM1(V_velocity)
     else:
         V_pressure = FunctionSpace(mesh,'DG',0)
         V_velocity = FunctionSpace(mesh,'RT',1)
-        lumped_mass = lumpedmass.LumpedMassRT1(V_velocity)
-
-    lumped_mass.test_kinetic_energy()
 
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
@@ -107,6 +105,8 @@ if (__name__ == '__main__'):
         print 'Unknown preconditioner: \''+prec_name+'\'.'
         sys.exit(-1)
 
+    operator.lumped_mass.test_kinetic_energy()
+
     # Construct solver
     if (solver_name == 'Loop'):
         pressure_solver = solvers.LoopSolver(operator,
@@ -130,11 +130,20 @@ if (__name__ == '__main__'):
         print 'Unknown solver: \''+solver_name+'\'.'
         sys.exit(-1)
         
-
+    # If we ignore mass lumping in the substitution, specify a 
+    # lumped mass matrix to use 
+    if (not lump_mass_schursub):
+        if (higher_order):
+            lumped_mass_schursub = lumpedmass.LumpedMassBDFM1(V_velocity,True)
+        else:
+            lumped_mass_schursub = lumpedmass.LumpedMassRT1(V_velocity,True)
+    else:
+        lumped_mass_schursub=None
     helmholtz_solver = helmholtz.PETScSolver(V_pressure,
                                              V_velocity,
                                              pressure_solver,
                                              omega,
+                                             lumped_mass=lumped_mass_schursub,
                                              tolerance=tolerance_outer,
                                              maxiter=maxiter_outer)
 
