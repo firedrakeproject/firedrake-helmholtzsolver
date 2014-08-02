@@ -204,12 +204,12 @@ To apply the matrix $D^{-1}$ to a field $\vec{\Phi}$, i.e. $\vec{\Psi}=D^{-1}\ve
 \subsubsection{Higher order}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 The higher order case $DG_1$ + $BDFM_1$ can be treated similarly. Her we only consider the case of constant reference profiles, i.e. $\alpha^{(u)}=\left(M_u^*\right)^{-1}$.
-To bound the term $\vec{\Phi}^T B\alpha^{(u)}$ we write as in Eqn. (\ref{eqn:MatrixBound})
+To calculate the block-diagonal entries of $B\alpha^{(u)}B^T$ we write as in Eqn. (\ref{eqn:MatrixBound})
 \begin{equation}
-  \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi} = \sum_{\operatorname{cells}\;i,j}\;\;\sum_{\operatorname{edges}\;e} \vec{\Psi}_i B_{ie} \alpha^{(u)}_{ee} B^T_{ej} \vec{\Psi}_j 
+(B \alpha^{(u)} B^T)_{ii} = \sum_{\operatorname{edges}\;e\in\mathcal{E}(i)} B_{ie} \alpha^{(u)}_{ee} B^T_{ei}
 \label{eqn:MatrixBoundBDFM1}
 \end{equation}
-with the only difference being that now $\vec{\Psi}_i$ is the vector of the three degrees of freedom on cell $i$ and $\alpha^{(u)}_{ee}$ is a $4\times 4$ matrix. The $3\times 4$ matrices $B_{ie}$ arise as follows: consider the finite element discretisation of the divergence operator:
+where $\alpha^{(u)}_{ee}$ is a $4\times 4$ matrix and the left hand side is a $3\times 3$ matrix in each cell $i$. For each edge $e\in\mathcal{E}(i)$ the $3\times 4$ matrix $B_{ie}$ arises as follows: consider the finite element discretisation of the divergence operator:
 \begin{equation}
   \int_{\Omega} \psi^{(j)}\operatorname{div}\vec{w}^{(k)}\; dx
 \end{equation}
@@ -233,33 +233,13 @@ For a given edge $e$ and cell $i$ the matrices $B_{ie}$ and $\tilde{B}_i$ are re
 \end{equation}
 The function $\omega_{ie}$ maps the local index on a facet $e$ (in range $1,\dots,4$) to the corresponding local index (in range $1,\dots,9$) on cell $i$.
 
-We can now use the identity
+As above define the $3\times 3$ matrix $\alpha^{(\phi)}$ as
 \begin{equation}
-\left(\vec{x}+\vec{y}\right)^T A \left(\vec{x}+\vec{y}\right)
-\le 2\left(\vec{x}^T A\vec{x}+\vec{y}^T A\vec{y}\right)
+  \alpha_{ii}^{(\phi)} \equiv \sum_{e\in \mathcal{E}(i)} B_{ie}\alpha^{(u)}_{ee}B^T_{ei}.
 \end{equation}
-which holds for any positive definite symmetric matrix $A$ to bound the expression in Eqn. (\ref{eqn:MatrixBoundBDFM1}) as follows:
+Together with the local $DG_1$ mass matrix we can write for the local $3\times 3$ entries of the block-diagonal of $H$:
 \begin{equation}
- \begin{aligned}
-  \vec{\Psi} B \alpha^{(u)} B^T \vec{\Psi}
-  &= \sum_{e} \left(\vec{\Psi}^T_{i_+(e)}B_{i+(e),e}+\vec{\Psi}^T_{i_-(e)}B_{i-(e),e}\right)\alpha^{(u)}_{ee}
-\left(B^T_{e,i+(e)}\vec{\Psi}_{i_+(e)}+B^T_{e,i-(e)}\vec{\Psi}_{i_-(e)}\right)\\
-  & \le 2\sum_e
-\left(\vec{\Psi}^T_{i_+(e)}B_{i+(e),e}\alpha^{(u)}_{ee}B^T_{e,i+}\vec{\Psi}_{i_+(e)}
-+\vec{\Psi}^T_{i_-(e)}B_{i-(e),e}\alpha^{(u)}_{ee}B^T_{e,i-}\vec{\Psi}_{i_-(e)}
-\right)
-\\
-  &= 2 \sigma \sum_i \vec{\Psi}^T_i\alpha^{(\phi)}_{ii}\vec{\Psi}_i = 2\sigma \vec{\Psi}^T \alpha^{(\phi)}\vec{\Psi}
- \end{aligned}
-\end{equation}
-In this equation the local $3\times 3$ blocks of the block-diagonal matrix $\alpha^{(\phi)}$ is given as
-\begin{equation}
-  \alpha_{ii}^{(\phi)} \equiv \frac{1}{\sigma}\sum_{e'\in e(i)} B_{ie'}\alpha^{(u)}_{e'e'}B^T_{e'i}
-\end{equation}
-with $\sigma$ as defined above. 
-Together with the local $DG_1$ mass matrix we can use the following block-diagonal matrix in the smoother:
-\begin{equation}
-  D = M_{\phi} + 2\omega^2 \sigma \alpha^{(\phi)}.
+  H_{ii} = D_{ii} = \left(M_{\phi}\right)_{ii} + \omega^2\left(\alpha^{(\phi)}\right)_{ii}.
 \end{equation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 \subsection{Intergrid operators}
