@@ -1,6 +1,7 @@
 from operators import *
 import sys, petsc4py
 import numpy as np
+from mpi_utils import Logger
 
 petsc4py.init(sys.argv)
 
@@ -55,6 +56,7 @@ class PETScSolver(IterativeSolver):
                  maxiter=100,
                  tolerance=1.E-6):
         super(PETScSolver,self).__init__(operator,preconditioner,maxiter,tolerance)
+        self.logger = Logger()
         n = self.operator.V_pressure.dof_dset.size
         self.u = PETSc.Vec()
         self.u.create()
@@ -74,6 +76,7 @@ class PETScSolver(IterativeSolver):
         self.ksp.setOperators(op)
         self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
         self.ksp.setFromOptions()
+        self.logger.write('  Pressure KSP type = '+str(self.ksp.getType()))
         pc = self.ksp.getPC()
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(self.preconditioner)

@@ -1,6 +1,7 @@
 from firedrake import *
 import sys, petsc4py
 import numpy as np
+from pressuresolver.mpi_utils import Logger
 
 petsc4py.init(sys.argv)
 
@@ -39,6 +40,7 @@ class PETScSolver:
                  velocity_mass_matrix=None,
                  maxiter=100,
                  tolerance=1.E-6):
+        self.logger = Logger()
         self.omega = omega
         self.maxiter = maxiter
         self.tolerance = tolerance
@@ -68,6 +70,7 @@ class PETScSolver:
         self.ksp.setOperators(op)
         self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
         self.ksp.setFromOptions()
+        self.logger.write('  Mixed KSP type = '+str(self.ksp.getType()))
         pc = self.ksp.getPC()
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(MixedPreconditioner(pressure_solver,

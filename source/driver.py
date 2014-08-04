@@ -7,36 +7,83 @@ from ffc import log
 log.set_level(log.ERROR)
 import helmholtz
 import pressuresolver
-from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass, hierarchy
+from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass, hierarchy, mpi_utils
 import profile_wrapper
+from parameters import Parameters
 
 ##########################################################
 # M A I N
 ##########################################################
 if (__name__ == '__main__'):
-    # Parameters
-    ref_count_coarse = 0
-    nlevel = 4
-    outputDir = 'output'
-    preconditioner_name = 'Multigrid'
-    tolerance_outer = 1.E-6
-    tolerance_inner = 1.E-5
-    maxiter_inner=1
-    maxiter_outer=20
-    mu_relax = 0.95
-    use_maximal_eigenvalue=False
-    higher_order=True
-    # Lump mass matrix in Schur complement substitution
-    lump_mass_schursub=True
-    # Lump mass in Helmholtz operator in pressure space
-    lump_mass_operator=True
-        
-    # Create mesh
-    coarse_mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
+   
+    # Create parallel logger
+    logger = mpi_utils.Logger()
+    
+    logger.write('+------------------------+')
+    logger.write('! Mixed Helmholtz solver !')
+    logger.write('+------------------------+')
+    logger.write('')
+
+    # ------------------------------------------------------
+    # --- User defined Parameters --------------------------
+    # ------------------------------------------------------
+
+    # Output parameters
+    param_output = Parameters('Output',
+        # Directory for output
+        {'output_dir':'output',
+        # Save fields to disk?
+        'savetodisk':False})
+
+    # Grid parameters
+    param_grid = Parameters('Grid',
+        # Number of refinement levels to construct coarsest multigrid level
+        {'ref_count_coarse':0,
+        # Number of multigrid levels
+        'nlevel':5})
+
+    # Mixed system parameters
+    param_mixed = Parameters('Mixed system',
+        # Use higher order discretisation?
+        {'higher_order':True,
+        # Lump mass matrix in Schur complement substitution
+        'lump_mass_schursub':False,
+        # Preconditioner to use: Multigrid or Jacobi (1-level method)
+        'preconditioner':'Multigrid',
+        # tolerance
+        'tolerance':1.E-6,
+        # maximal number of iterations
+        'maxiter':20})
+
+    # Pressure solve parameters
+    param_pressure = Parameters('Pressure solve',
+        # Lump mass in Helmholtz operator in pressure space
+        {'lump_mass_operator':False,
+        # tolerance
+        'tolerance':1.E-5,
+        # maximal number of iterations
+        'maxiter':2})
+    
+    # Multigrid parameters
+    param_multigrid = Parameters('Multigrid',
+        # multigrid smoother relaxation factor
+        {'mu_relax':0.95,
+        # presmoothing steps
+        'n_presmooth':2,
+        # postsmoothing steps
+        'n_postsmooth':2,
+        # number of coarse grid smoothing steps
+        'n_coarsesmooth':1})
+ 
+    # ------------------------------------------------------
+
+    # Create coarsest mesh
+    coarse_mesh = UnitIcosahedralSphereMesh(refinement_level= \
+                                   param_grid['ref_count_coarse'])
     global_normal = Expression(("x[0]","x[1]","x[2]"))
 
     # Create mesh hierarchy
-    mesh_hierarchy = MeshHierarchy(coarse_mesh,nlevel)
+    mesh_hierarchy = MeshHierarchy(coarse_mesh,param_grid['nlevel'])
     for level_mesh in mesh_hierarchy:
         global_normal = Expression(("x[0]","x[1]","x[2]"))
         level_mesh.init_cell_orientations(global_normal)
@@ -45,14 +92,15 @@ if (__name__ == '__main__'):
     fine_level = len(mesh_hierarchy)-1
     mesh = mesh_hierarchy[fine_level]
     ncells = mesh.num_cells()
-    print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
 
-    
+    logger.write('Number of cells on finest grid = '+str(ncells))
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+   
+    # Calculate parameter omega for 2nd order term 
     omega = 8.*0.5*dx
 
     # Build function spaces and velocity mass matrix on finest level
-    if (higher_order):
+    if (param_mixed['higher_order']):
         V_pressure = FunctionSpace(mesh,'DG',1)
         V_velocity = FunctionSpace(mesh,'BDFM',2)
         lumped_mass_fine = lumpedmass.LumpedMassBDFM1(V_velocity)
@@ -65,8 +113,9 @@ if (__name__ == '__main__'):
     lumped_mass_fine.test_kinetic_energy()
     
     # Construct preconditioner
-    if (preconditioner_name == 'Jacobi'):
-        if (lump_mass_operator):
+    if (param_mixed['preconditioner'] == 'Jacobi'):
+        # Case 1: Jacobi
+        if (param_pressure['lump_mass_operator']):
             velocity_mass_matrix_operator = lumped_mass_fine
         else:
             velocity_mass_matrix_operator = full_mass_fine
@@ -74,61 +123,69 @@ if (__name__ == '__main__'):
                                       V_velocity,
                                       velocity_mass_matrix_operator,
                                       omega)
-        if (higher_order):
+        if (param_mixed['higher_order']):
             preconditioner = smoothers.Jacobi_HigherOrder(operator,
                                                           lumped_mass_fine)
         else:
             preconditioner = smoothers.Jacobi_LowestOrder(operator,
-                                                          lumped_mass_fine,
-              use_maximal_eigenvalue=use_maximal_eigenvalue)
-    elif (preconditioner_name == 'Multigrid'):
+                                                          lumped_mass_fine)
+        # Case 2: Multigrid
+    elif (param_mixed['preconditioner'] == 'Multigrid'):
+        # Build hierarchies for h-multigrid 
+        # (i) Function spaces
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
+        # (ii) Lumped mass matrices
         lumped_mass_hierarchy = \
             hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
                                          zip(V_velocity_hierarchy))
+        # (iii) operators
         operator_hierarchy = hierarchy.HierarchyContainer(
             operators.Operator,
             zip(V_pressure_hierarchy,
                 V_velocity_hierarchy,
                 lumped_mass_hierarchy),
             omega)
+        # (iv) pre- and post-smoothers
         presmoother_hierarchy = \
             hierarchy.HierarchyContainer(smoothers.Jacobi_LowestOrder,
                zip(operator_hierarchy,
                    lumped_mass_hierarchy),
-                n_smooth=2,
-                mu_relax=mu_relax,
-                use_maximal_eigenvalue=use_maximal_eigenvalue)
+                n_smooth=param_multigrid['n_presmooth'],
+                mu_relax=param_multigrid['mu_relax'])
         postsmoother_hierarchy = \
             hierarchy.HierarchyContainer(smoothers.Jacobi_LowestOrder,
                 zip(operator_hierarchy,
                     lumped_mass_hierarchy),
-                n_smooth=2,
-                mu_relax=mu_relax,
-                use_maximal_eigenvalue=use_maximal_eigenvalue)
+                n_smooth=param_multigrid['n_postsmooth'],
+                mu_relax=param_multigrid['mu_relax'])
+        # Construct coarse grid solver and set number of smoothing steps
         coarsegrid_solver = smoothers.Jacobi_LowestOrder(operator_hierarchy[0],
                                                          lumped_mass_hierarchy[0])
-        coarsegrid_solver.n_smooth = 1
+        coarsegrid_solver.n_smooth = param_multigrid['n_coarsesmooth']
+        # Construct h-multigrid instance
         hmultigrid = preconditioners.hMultigrid(V_pressure_hierarchy,
                                                 operator_hierarchy,
                                                 presmoother_hierarchy,
                                                 postsmoother_hierarchy,
                                                 coarsegrid_solver)
-        if (higher_order):
-            if (lump_mass_operator):
+        # For the higher-order case, also build an hp-multigrid instance
+        if (param_mixed['higher_order']):
+            if (param_pressure['lump_mass_operator']):
                 velocity_mass_matrix_operator = lumped_mass_fine
             else:                
                 velocity_mass_matrix_operator = full_mass_fine
+            # Constuct operator and smoothers
             operator = operators.Operator(V_pressure,
                                           V_velocity,
                                           velocity_mass_matrix_operator,
                                           omega)
             higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator,
                 lumped_mass_fine,
-                mu_relax=mu_relax,
-                n_smooth=2)
+                mu_relax=param_multigrid['mu_relax'],
+                n_smooth=param_multigrid['n_presmooth'])
             higherorder_postsmoother = higherorder_presmoother
+            # Construct hp-multigrid instance
             hpmultigrid = preconditioners.hpMultigrid(hmultigrid,
                                                       operator,
                                                       higherorder_presmoother,
@@ -141,14 +198,16 @@ if (__name__ == '__main__'):
         print 'Unknown preconditioner: \''+prec_name+'\'.'
         sys.exit(-1)
     
+    # Construct pressure solver based on operator and preconditioner 
+    # built above
     pressure_solver = solvers.PETScSolver(operator,
                                           preconditioner,
-                                          tolerance=tolerance_inner,
-                                          maxiter=maxiter_inner)
+                                          tolerance=param_pressure['tolerance'],
+                                          maxiter=param_pressure['maxiter'])
 
     # Specify the lumped mass matrix to use in the Schur-complement
     # substitution
-    if (lump_mass_schursub):
+    if (param_mixed['lump_mass_schursub']):
         velocity_mass_matrix_schursub = lumped_mass_fine
     else:
         velocity_mass_matrix_schursub = full_mass_fine
@@ -160,18 +219,24 @@ if (__name__ == '__main__'):
                                              omega,
                                              velocity_mass_matrix = \
                                                 velocity_mass_matrix_schursub,
-                                             tolerance=tolerance_outer,
-                                             maxiter=maxiter_outer)
+                                             tolerance=param_mixed['tolerance'],
+                                             maxiter=param_mixed['maxiter'])
 
+    # Right hand side function
     r_phi = Function(V_pressure).project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
     r_u = Function(V_velocity)
     r_u.assign(0.0)
-    # Solve
+
+    # Solve and return both pressure and velocity field
     phi, w = helmholtz_solver.solve(r_phi,r_u)
 
-    # Write output to disk
-    DFile_w = File(os.path.join(outputDir,'velocity.pvd'))
-    DFile_w << w
-    DFile_phi = File(os.path.join(outputDir,'pressure.pvd'))
-    DFile_phi << phi
+    # If requested, write fields to disk
+    if (param_output['savetodisk']):
+        # Write output to disk
+        DFile_w = File(os.path.join(param_output['output_dir'],
+                                    'velocity.pvd'))
+        DFile_w << w
+        DFile_phi = File(os.path.join(param_output['output_dir'],
+                                      'pressure.pvd'))
+        DFile_phi << phi
 
