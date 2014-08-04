@@ -16,33 +16,11 @@ class FullMass(object):
         self.dx = self.V_velocity.mesh()._dx
         v = TrialFunction(self.V_velocity)
         self.a_mass = assemble(dot(self.w,v)*self.dx)
-
-    def test_kinetic_energy(self):
-        '''Check how well the kinetic energy can be represented with
-        the mass matrix.
-
-        Calculate :math:`E_{kin}= \\frac{1}{2} \int \\vec{u}\cdot \\vec{u}\;dx`
-        for a solid body rotation field :math:`(0,-z,y)`
-        with the full mass matrix and compare
-        '''
-        u_SBR = Function(self.V_velocity)
-        u_SBR.project(Expression(('0','-x[2]','x[1]')))
-        energy_full = assemble(dot(u_SBR,u_SBR)*self.dx)
-        Mu_SBR = Function(self.V_velocity)
-        Mu_SBR.assign(u_SBR)
-        self.multiply(Mu_SBR)
-        energy_full = u_SBR.dat.inner(Mu_SBR.dat)
-        energy_exact = 4.*pi/3.
-        energy_full *= 0.5
-        print 'kinetic energy = '+('%18.12f' % energy_exact)+' [exact]'
-        print '                 '+('%18.12f' % energy_full)+ \
-          ' (error = '+('%6.4f' % (100.*abs(energy_full/energy_exact-1.)))+'%)' \
-          ' [full mass matrix]'
             
     def multiply(self,u):
         '''Multiply by mass matrix
 
-        In-place multiply a velocity field by the mass matrix
+        In-place multiply a velocity field by the mass matrix.
 
         :arg u: velocity field to multiply (will be modified in-place)
         '''
