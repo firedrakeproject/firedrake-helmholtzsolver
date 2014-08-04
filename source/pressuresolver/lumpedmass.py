@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from collections import Counter
 from firedrake import *
 
 class FullMass(object):
