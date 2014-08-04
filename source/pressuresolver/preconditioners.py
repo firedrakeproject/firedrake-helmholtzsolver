@@ -7,14 +7,16 @@ class hMultigrid(object):
     smoother and coarse grid operator are passed as arguments, this allows
     tuning of the number of smoothing steps etc.
 
+    :arg V_pressure_hierarchy: Hierarchy of pressure spaces
     :arg operator_hierarchy: Schur complement :class:`Operator` s on the
         different multigrid levels.
-
     :arg presmoother_hierarchy: Presmoother on different multigrid levels
     :arg postsmoother_hierarchy: Postsmoother on different multigrid levels
     :arg coarsegrid_solver: Solver object for coarse grid equation
     ''' 
-    def __init__(self,operator_hierarchy,
+    def __init__(self,
+                 V_pressure_hierarchy,
+                 operator_hierarchy,
                  presmoother_hierarchy,
                  postsmoother_hierarchy,
                  coarsegrid_solver):
@@ -22,7 +24,7 @@ class hMultigrid(object):
         self.presmoother_hierarchy = presmoother_hierarchy
         self.postsmoother_hierarchy = postsmoother_hierarchy
         self.coarsegrid_solver = coarsegrid_solver
-        self.V_pressure_hierarchy = self.operator_hierarchy.V_pressure_hierarchy
+        self.V_pressure_hierarchy = V_pressure_hierarchy 
         self.residual = FunctionHierarchy(self.V_pressure_hierarchy)
         self.rhs = FunctionHierarchy(self.V_pressure_hierarchy)
         self.phi = FunctionHierarchy(self.V_pressure_hierarchy)

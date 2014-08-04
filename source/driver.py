@@ -7,7 +7,7 @@ from ffc import log
 log.set_level(log.ERROR)
 import helmholtz
 import pressuresolver
-from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass
+from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass, hierarchy
 import profile_wrapper
 
 ##########################################################
@@ -85,30 +85,34 @@ if (__name__ == '__main__'):
     elif (preconditioner_name == 'Multigrid'):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
-        lumped_mass_hierarchy = lumpedmass.LumpedMassHierarchy(lumpedmass.LumpedMassRT0,
-                                                    V_velocity_hierarchy)
-        operator_hierarchy = operators.OperatorHierarchy(V_pressure_hierarchy,
-                                                         V_velocity_hierarchy,
-                                                         lumped_mass_hierarchy,
-                                                         omega)
+        lumped_mass_hierarchy = \
+            hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
+                                         zip(V_velocity_hierarchy))
+        operator_hierarchy = hierarchy.HierarchyContainer(
+            operators.Operator,
+            zip(V_pressure_hierarchy,
+                V_velocity_hierarchy,
+                lumped_mass_hierarchy),
+            omega)
         presmoother_hierarchy = \
-          smoothers.SmootherHierarchy(smoothers.Jacobi_LowestOrder,
-            operator_hierarchy,
-            lumped_mass_hierarchy,
-            n_smooth=2,
-            mu_relax=mu_relax,
-            use_maximal_eigenvalue=use_maximal_eigenvalue)
+            hierarchy.HierarchyContainer(smoothers.Jacobi_LowestOrder,
+               zip(operator_hierarchy,
+                   lumped_mass_hierarchy),
+                n_smooth=2,
+                mu_relax=mu_relax,
+                use_maximal_eigenvalue=use_maximal_eigenvalue)
         postsmoother_hierarchy = \
-          smoothers.SmootherHierarchy(smoothers.Jacobi_LowestOrder,
-            operator_hierarchy,
-            lumped_mass_hierarchy,
-            n_smooth=2,
-            mu_relax=mu_relax,
-            use_maximal_eigenvalue=use_maximal_eigenvalue)
+            hierarchy.HierarchyContainer(smoothers.Jacobi_LowestOrder,
+                zip(operator_hierarchy,
+                    lumped_mass_hierarchy),
+                n_smooth=2,
+                mu_relax=mu_relax,
+                use_maximal_eigenvalue=use_maximal_eigenvalue)
         coarsegrid_solver = smoothers.Jacobi_LowestOrder(operator_hierarchy[0],
                                                          lumped_mass_hierarchy[0])
         coarsegrid_solver.n_smooth = 1
-        hmultigrid = preconditioners.hMultigrid(operator_hierarchy,
+        hmultigrid = preconditioners.hMultigrid(V_pressure_hierarchy,
+                                                operator_hierarchy,
                                                 presmoother_hierarchy,
                                                 postsmoother_hierarchy,
                                                 coarsegrid_solver)

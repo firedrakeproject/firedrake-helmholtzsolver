@@ -544,31 +544,3 @@ class LumpedMassBDFM1(LumpedMass):
         op2.par_loop(kernel,facetset,
                      m.dat(op2.READ,self.facet2dof_map_facets),
                      u.dat(op2.RW,self.facet2dof_map_BDFM1))
-
-
-class LumpedMassHierarchy(object):
-    '''Hierarchy of :class:`.LumpedMass` s on function space hierarchy.
-
-    Collection of lumped mass objects on different levels of a function space
-    hierarchy which represents fields on different multigrid levels.
-    
-    :arg Type: Type of lumped mass to use
-    :arg V_velocity_hierarchy: Hierarchical function space for velocity fields
-    '''
-    def __init__(self,Type,V_velocity_hierarchy,*args,**kwargs):
-        self.V_velocity_hierarchy = V_velocity_hierarchy
-        self._hierarchy = [Type(V_velocity,*args,**kwargs)
-                           for V_velocity in self.V_velocity_hierarchy]
-
-    def __getitem__(self,level):
-        '''Return lumped mass on given level in the functionspace hierarchy.
-
-        :arg level: level in hierarchy
-        '''
-        return self._hierarchy[level]
-
-    def __len__(self):
-        '''Return number of levels in lumped mass hierarchy.'''
-        return len(self._hierarchy)
-
-
