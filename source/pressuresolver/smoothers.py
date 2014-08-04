@@ -7,10 +7,13 @@ class Jacobi(object):
 
     Base class for matrix-free smoother for the linear Schur complement system.
     :arg operator: Schur complement operator, of type :class:`Operator`.
+    :arg velocity_mass_matrix: Velocity mass matrix used in the diagonal
+        operator. If none is specified, use the one from the operator.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
     '''
     def __init__(self,operator,
+                 velocity_mass_matrix=None,
                  mu_relax=2./3.,
                  n_smooth=1,
                  *args):
@@ -22,7 +25,13 @@ class Jacobi(object):
         self.n_smooth = n_smooth
         self.dx = self.mesh._dx
         # Construct lumped mass matrix
-        self.lumped_mass = self.operator.lumped_mass
+        if (velocity_mass_matrix):
+            self.velocity_mass_matrix = velocity_mass_matrix
+        else:
+            self.velocity_mass_matrix = self.operator.velocity_mass_matrix
+        # Check if this is a lumped mass matrix
+        assert(isinstance(self.velocity_mass_matrix,LumpedMass))
+        
        
     def solve(self,b,phi):
         '''Solve approximately with RHS :math:`b`.
@@ -82,6 +91,8 @@ class Jacobi_LowestOrder(Jacobi):
     (where :math:`e(i)` are all facets adjacent to cell :math:`i`.)
 
     :arg operator: Schur complement operator, of type :class:`Operator`.
+    :arg velocity_mass_matrix: Velocity mass matrix used in the diagonal
+        operator. If none is specified, use the one from the operator.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
     :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set 
@@ -90,10 +101,12 @@ class Jacobi_LowestOrder(Jacobi):
         necessarily the case otherwise.
     '''
     def __init__(self,operator,
+                 velocity_mass_matrix=None,
                  mu_relax=2./3.,
                  n_smooth=1,
                  use_maximal_eigenvalue=False):
-        super(Jacobi_LowestOrder,self).__init__(operator,mu_relax,n_smooth)
+        super(Jacobi_LowestOrder,self).__init__(operator,velocity_mass_matrix,
+                                                mu_relax,n_smooth)
         self.use_maximal_eigenvalue=use_maximal_eigenvalue
         self._build_D_diag()
 
@@ -106,7 +119,7 @@ class Jacobi_LowestOrder(Jacobi):
         one_pressure.assign(1.0)
         D_diag = assemble(TestFunction(self.V_pressure)*one_pressure*self.dx)
         kernel_add_vterm = 'for(int i=0; i<M_u_lumped.dofs; i++) {D_diag[0][0] += omega2[0]/M_u_lumped[i][0];}'
-        M_u_lumped = self.lumped_mass.get()
+        M_u_lumped = self.velocity_mass_matrix.get()
         omega2 = Constant(self.operator.omega**2)
         par_loop(kernel_add_vterm,self.dx,
                  {'D_diag':(D_diag,INC),
@@ -139,16 +152,21 @@ class Jacobi_HigherOrder(Jacobi):
     (where :math:`e(i)` are all facets adjacent to cell :math:`i`.)
 
     :arg operator: Schur complement operator, of type :class:`Operator`.
+    :arg velocity_mass_matrix: Velocity mass matrix used in the diagonal
+        operator. If none is specified, use the one from the operator.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method
         :class:`smooth()`.
     '''
     def __init__(self,operator,
+                 velocity_mass_matrix=None,
                  mu_relax=2./3.,
                  n_smooth=1):
-        super(Jacobi_HigherOrder,self).__init__(operator,mu_relax,n_smooth)
+        super(Jacobi_HigherOrder,self).__init__(operator,
+                                                velocity_mass_matrix,
+                                                mu_relax,n_smooth)
         # Only works if diagonal lumped mass matrix is used
-        if (not self.lumped_mass.diagonal_matrix):
+        if (not self.velocity_mass_matrix.diagonal_matrix):
             raise NotImplementedError('Higher order Jacobi smoother only implemented for diagonal lumped BDFM1 mass matrices')
         self._build_D_diag()
 
@@ -249,7 +267,7 @@ class Jacobi_HigherOrder(Jacobi):
         omega2 = op2.Const(1, self.operator.omega**2,
                            name="omega2", dtype=float)
         facetset = V_RT0.dof_dset.set
-        facetdofmap = self.lumped_mass.facet2dof_map_facets
+        facetdofmap = self.velocity_mass_matrix.facet2dof_map_facets
         celldofmap = op2.Map(facetset,V_DG0.dof_dset.set,2,
             V_DG0.interior_facet_node_map().values_with_halo)
         local_facet_idx_dat = op2.Dat(facetset**2,
@@ -257,7 +275,7 @@ class Jacobi_HigherOrder(Jacobi):
         op2.par_loop(kernel,facetset,
                      bdiv_dat.dat(op2.READ,celldofmap),
                      local_facet_idx_dat(op2.READ),
-                     self.lumped_mass.data_inv.dat(op2.READ,facetdofmap),
+                     self.velocity_mass_matrix.data_inv.dat(op2.READ,facetdofmap),
                      self.D_diag_inv.dat(op2.INC,celldofmap))
         # * Step 4 *
         # invert local 3x3 matrix
@@ -305,24 +323,31 @@ class SmootherHierarchy(object):
     :arg Type: the type (class) of the smoother
     :arg operator_hierarchy: An :class:`.OperatorHierarchy` of linear Schur 
         complement operators in pressure space
+    :arg velocity_mass_matrix_hierarchy: An :class:`.MassMatrixHierarchy` of
+        mass matrices. 
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
     :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
     :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set to :math:`\max_i\{D_{ii}\} Id`, i.e. the unit matrix times the maximal eigenvalue. This means that the smoother is symmetric, which is not necessarily the case otherwise. Only supported at lowest order, i.e. DG0 + RT0 elements. 
     '''
     def __init__(self,Type,
                  operator_hierarchy,
+                 velocity_mass_matrix_hierarchy,
                  mu_relax=2./3.,
                  n_smooth=1,
                  use_maximal_eigenvalue=False):
         self.operator_hierarchy = operator_hierarchy
+        self.velocity_mass_matrix_hierarchy = velocity_mass_matrix_hierarchy
         self.mu_relax = mu_relax
         self.n_smooth = n_smooth
         self.use_maximal_eigenvalue=use_maximal_eigenvalue
         self._hierarchy = [Type(operator,
+                                velocity_mass_matrix,
                                 self.mu_relax,
                                 self.n_smooth,
                                 self.use_maximal_eigenvalue)
-                           for operator in self.operator_hierarchy]
+                           for (operator,velocity_mass_matrix) 
+                             in zip(self.operator_hierarchy,
+                                    self.velocity_mass_matrix_hierarchy)]
 
     def __getitem__(self,level):
         '''Return smoother on a particular level.

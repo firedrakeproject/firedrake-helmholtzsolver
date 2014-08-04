@@ -3,28 +3,82 @@ import numpy as np
 from collections import Counter
 from firedrake import *
 
-class LumpedMass(object):
-    ''' Base class for velocity lumped mass matrix.
+class FullMass(object):
+    '''Class for full velocity mass matrix.
 
-    :arg V_velocity: Velocity space, has to be a :math:`RT1` space.
-    :arg ignore_lumping: For debugging, this can be set to true to use the
-        full mass matrix in the :class:`multiply()` and :class:`divide()`
-        methods.
+    Note that this is not very efficient as the mass matrix is assembled
+    and solved for explicity (using the built-in PETSc solver).
+
+    :arg V_velocity: Velocity space
     '''
-    def __init__(self,V_velocity,
-                      ignore_lumping=False):
+    def __init__(self,V_velocity):
         self.V_velocity = V_velocity
         self.w = TestFunction(self.V_velocity)
+        self.dx = self.V_velocity.mesh()._dx
+        v = TrialFunction(self.V_velocity)
+        self.a_mass = assemble(dot(self.w,v)*self.dx)
+
+    def test_kinetic_energy(self):
+        '''Check how well the kinetic energy can be represented with
+        the mass matrix.
+
+        Calculate :math:`E_{kin}= \\frac{1}{2} \int \\vec{u}\cdot \\vec{u}\;dx`
+        for a solid body rotation field :math:`(0,-z,y)`
+        with the full mass matrix and compare
+        '''
+        u_SBR = Function(self.V_velocity)
+        u_SBR.project(Expression(('0','-x[2]','x[1]')))
+        energy_full = assemble(dot(u_SBR,u_SBR)*self.dx)
+        Mu_SBR = Function(self.V_velocity)
+        Mu_SBR.assign(u_SBR)
+        self.multiply(Mu_SBR)
+        energy_full = u_SBR.dat.inner(Mu_SBR.dat)
+        energy_exact = 4.*pi/3.
+        energy_full *= 0.5
+        print 'kinetic energy = '+('%18.12f' % energy_exact)+' [exact]'
+        print '                 '+('%18.12f' % energy_full)+ \
+          ' (error = '+('%6.4f' % (100.*abs(energy_full/energy_exact-1.)))+'%)' \
+          ' [full mass matrix]'
+            
+    def multiply(self,u):
+        '''Multiply by mass matrix
+
+        In-place multiply a velocity field by the mass matrix
+
+        :arg u: velocity field to multiply (will be modified in-place)
+        '''
+        u_out = assemble(dot(self.w,u)*self.dx)
+        u.assign(u_out)
+            
+    def divide(self,u):
+        '''Divide by mass matrix
+
+        In-place divide a velocity field by the mass matrix
+
+        :arg u: velocity field to divide (will be modified in-place)
+        '''
+        u_out = Function(self.V_velocity)
+        solve(self.a_mass, u_out, u)
+        u.assign(u_out)
+
+class LumpedMass(object):
+    ''' Base class for lumped velocity mass matrix.
+
+    :arg V_velocity: Velocity space, has to be a :math:`RT0` or
+        :math:`BDFM1` space.
+    '''
+    def __init__(self,V_velocity):
+        self.V_velocity = V_velocity
         self.mesh = self.V_velocity.mesh()
-        self.ignore_lumping = ignore_lumping
         self.dx = self.V_velocity.mesh()._dx
 
     def test_kinetic_energy(self):
         '''Check how exactly the kinetic energy can be represented with
         lumped mass matrix.
 
-        Calculate :math:`E_{kin}= \\frac{1}{2} \int \\vec{u}\cdot \\vec{u}\;dx` both with
-        the full- and with the lumped mass matrix and compare
+        Calculate :math:`E_{kin}= \\frac{1}{2} \int \\vec{u}\cdot \\vec{u}\;dx`
+        for a solid body rotation field :math:`(0,-z,y)` both with
+        the full- and with the lumped mass matrix and compare the results.
         '''
         u_SBR = Function(self.V_velocity)
         u_SBR.project(Expression(('0','-x[2]','x[1]')))
@@ -51,12 +105,7 @@ class LumpedMass(object):
 
         :arg u: velocity field to multiply (will be modified in-place)
         '''
-        if (self.ignore_lumping):
-            psi = TestFunction(self.V_velocity)
-            w = assemble(dot(self.w,u)*self.dx)
-            u.assign(w)
-        else:
-            self._matmul(self.data,u)
+        self._matmul(self.data,u)
             
 
     def divide(self,u):
@@ -66,24 +115,16 @@ class LumpedMass(object):
 
         :arg u: velocity field to divide (will be modified in-place)
         '''
-        if (self.ignore_lumping):
-            psi = TestFunction(self.V_velocity)
-            phi = TrialFunction(self.V_velocity)
-            a_mass = assemble(dot(psi,phi)*self.dx)
-            w = Function(self.V_velocity)
-            solve(a_mass, w, u)
-            u.assign(w)
-        else:
-            self._matmul(self.data_inv,u)
+        self._matmul(self.data_inv,u)
 
 
-class LumpedMassRT1(LumpedMass):
+class LumpedMassRT0(LumpedMass):
     '''Lumped velocity mass matrix.
     
     This class constructs a diagonal lumped velocity mass matrix :math:`M_u^*` 
-    in the :math:`RT1` space and provides methods for multiplying and dividing 
-    :math:`RT1` functions by this lumped mass matrix. Internally the mass matrix
-    is represented as a :math:`RT1` field.
+    in the :math:`RT0` space and provides methods for multiplying and dividing 
+    :math:`RT0` functions by this lumped mass matrix. Internally the mass matrix
+    is represented as a :math:`RT0` field.
 
     Currently, two methods for mass lumping are supported and can be chosen by 
     the parameter :class:`use_SBR`:
@@ -107,14 +148,11 @@ class LumpedMassRT1(LumpedMass):
         where :math:`U^{(i)}` is a solid body rotation field around coordinate
         axis :math:`i` and :math:`V^{(i)} = M_u U^{(i)}`
 
-    :arg V_velocity: Velocity space, has to be a :math:`RT1` space.
-    :arg ignore_lumping: For debugging, this can be set to true to use the
-        full mass matrix in the :class:`multiply()` and :class:`divide()`
-        methods.
+    :arg V_velocity: Velocity space, has to be a :math:`RT0` space.
     :arg use_SBR: Use mass lumping based on solid body rotation fields.
     '''
-    def __init__(self,V_velocity,ignore_lumping=False,use_SBR=True):
-        super(LumpedMassRT1,self).__init__(V_velocity,ignore_lumping)
+    def __init__(self,V_velocity,use_SBR=True):
+        super(LumpedMassRT0,self).__init__(V_velocity)
         self.use_SBR = use_SBR
         if (self.use_SBR):
             w = TestFunction(self.V_velocity)
@@ -151,17 +189,17 @@ class LumpedMassRT1(LumpedMass):
                   'data':(self.data,READ)})
 
     def get(self):
-        '''Return :math:`RT1` representation of mass matrix.'''
+        '''Return :math:`RT0` representation of mass matrix.'''
         return self.data
 
     def _matmul(self,m,u):
         '''Multiply by diagonal matrix
 
-        In-place multiply a RT1 field by a diagonal matrix, which 
+        In-place multiply a RT0 field by a diagonal matrix, which 
         is either the lumped mass matrix or its inverse.
 
         :arg m: block-diagonal matrix to multiply with
-        :arg u: RT1 field to multiply (will be modified in-place)
+        :arg u: RT0 field to multiply (will be modified in-place)
         '''
         kernel = '(*u) *= (*m);'
         par_loop(kernel,direct,
@@ -184,16 +222,12 @@ class LumpedMassBDFM1(LumpedMass):
 
     :arg V_velocity: Velocity function space, has to be of type
         :math:`BDFM_1`
-    :arg ignore_lumping: For debugging, this can be set to true to use the
-        full mass matrix in the :class:`multiply()` and :class:`divide()`
-        methods.
     :arg diagonal_matrix: Assume local blocks are diagonal. This allows for 
         some further optimisations. NB: Currently only this option is
         supported in :class:`Jacobi_HigherOrder`
     '''
-    def __init__(self,V_velocity,ignore_lumping=False,
-                 diagonal_matrix=True):
-        super(LumpedMassBDFM1,self).__init__(V_velocity,ignore_lumping)
+    def __init__(self,V_velocity,diagonal_matrix=True):
+        super(LumpedMassBDFM1,self).__init__(V_velocity)
         self.coords = self.mesh.coordinates
         self.n_SBR=4
         self.diagonal_matrix = diagonal_matrix
@@ -510,3 +544,31 @@ class LumpedMassBDFM1(LumpedMass):
         op2.par_loop(kernel,facetset,
                      m.dat(op2.READ,self.facet2dof_map_facets),
                      u.dat(op2.RW,self.facet2dof_map_BDFM1))
+
+
+class LumpedMassHierarchy(object):
+    '''Hierarchy of :class:`.LumpedMass` s on function space hierarchy.
+
+    Collection of lumped mass objects on different levels of a function space
+    hierarchy which represents fields on different multigrid levels.
+    
+    :arg Type: Type of lumped mass to use
+    :arg V_velocity_hierarchy: Hierarchical function space for velocity fields
+    '''
+    def __init__(self,Type,V_velocity_hierarchy,*args,**kwargs):
+        self.V_velocity_hierarchy = V_velocity_hierarchy
+        self._hierarchy = [Type(V_velocity,*args,**kwargs)
+                           for V_velocity in self.V_velocity_hierarchy]
+
+    def __getitem__(self,level):
+        '''Return lumped mass on given level in the functionspace hierarchy.
+
+        :arg level: level in hierarchy
+        '''
+        return self._hierarchy[level]
+
+    def __len__(self):
+        '''Return number of levels in lumped mass hierarchy.'''
+        return len(self._hierarchy)
+
+

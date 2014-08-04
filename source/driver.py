@@ -19,7 +19,7 @@ if (__name__ == '__main__'):
     nlevel = 4
     outputDir = 'output'
     solver_name = 'PETSc'
-    preconditioner_name = 'Multigrid' 
+    preconditioner_name = 'Multigrid'
     tolerance_outer = 1.E-6
     tolerance_inner = 1.E-5
     maxiter_inner=1
@@ -29,69 +29,102 @@ if (__name__ == '__main__'):
     higher_order=True
     # Lump mass matrix in Schur complement substitution
     lump_mass_schursub=True
+    # Lump mass in Helmholtz operator in pressure space
+    lump_mass_operator=True
         
     # Create mesh
     coarse_mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
     global_normal = Expression(("x[0]","x[1]","x[2]"))
 
+    # Create mesh hierarchy
     mesh_hierarchy = MeshHierarchy(coarse_mesh,nlevel)
-
     for level_mesh in mesh_hierarchy:
         global_normal = Expression(("x[0]","x[1]","x[2]"))
         level_mesh.init_cell_orientations(global_normal)
 
-
+    # Extract mesh on finest level
     fine_level = len(mesh_hierarchy)-1
     mesh = mesh_hierarchy[fine_level]
-
     ncells = mesh.num_cells()
     print 'Number of cells on finest grid = '+str(ncells)
     dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
 
+    
     omega = 8.*0.5*dx
 
+    # Build function spaces and velocity mass matrix on finest level
     if (higher_order):
         V_pressure = FunctionSpace(mesh,'DG',1)
         V_velocity = FunctionSpace(mesh,'BDFM',2)
+        lumped_mass_fine = lumpedmass.LumpedMassBDFM1(V_velocity)
     else:
         V_pressure = FunctionSpace(mesh,'DG',0)
         V_velocity = FunctionSpace(mesh,'RT',1)
+        lumped_mass_fine = lumpedmass.LumpedMassRT0(V_velocity)
+    full_mass_fine = lumpedmass.FullMass(V_velocity)
 
+    lumped_mass_fine.test_kinetic_energy()
+    
     # Construct preconditioner
     if (preconditioner_name == 'Jacobi'):
-        operator = operators.Operator(V_pressure,V_velocity,omega)
+        if (lump_mass_operator):
+            velocity_mass_matrix_operator = lumped_mass_fine
+        else:
+            velocity_mass_matrix_operator = full_mass_fine
+        operator = operators.Operator(V_pressure,
+                                      V_velocity,
+                                      velocity_mass_matrix_operator,
+                                      omega)
         if (higher_order):
-            preconditioner = smoothers.Jacobi_HigherOrder(operator)
+            preconditioner = smoothers.Jacobi_HigherOrder(operator,
+                                                          lumped_mass_fine)
         else:
             preconditioner = smoothers.Jacobi_LowestOrder(operator,
+                                                          lumped_mass_fine,
               use_maximal_eigenvalue=use_maximal_eigenvalue)
     elif (preconditioner_name == 'Multigrid'):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
+        lumped_mass_hierarchy = lumpedmass.LumpedMassHierarchy(lumpedmass.LumpedMassRT0,
+                                                    V_velocity_hierarchy)
         operator_hierarchy = operators.OperatorHierarchy(V_pressure_hierarchy,
                                                          V_velocity_hierarchy,
+                                                         lumped_mass_hierarchy,
                                                          omega)
         presmoother_hierarchy = \
           smoothers.SmootherHierarchy(smoothers.Jacobi_LowestOrder,
-            operator_hierarchy,n_smooth=2,
+            operator_hierarchy,
+            lumped_mass_hierarchy,
+            n_smooth=2,
             mu_relax=mu_relax,
             use_maximal_eigenvalue=use_maximal_eigenvalue)
         postsmoother_hierarchy = \
           smoothers.SmootherHierarchy(smoothers.Jacobi_LowestOrder,
-            operator_hierarchy,n_smooth=2,
+            operator_hierarchy,
+            lumped_mass_hierarchy,
+            n_smooth=2,
             mu_relax=mu_relax,
             use_maximal_eigenvalue=use_maximal_eigenvalue)
-        coarsegrid_solver = smoothers.Jacobi_LowestOrder(operator_hierarchy[0])
+        coarsegrid_solver = smoothers.Jacobi_LowestOrder(operator_hierarchy[0],
+                                                         lumped_mass_hierarchy[0])
         coarsegrid_solver.n_smooth = 1
         hmultigrid = preconditioners.hMultigrid(operator_hierarchy,
                                                 presmoother_hierarchy,
                                                 postsmoother_hierarchy,
                                                 coarsegrid_solver)
         if (higher_order):
-            operator = operators.Operator(V_pressure,V_velocity,omega)
+            if (lump_mass_operator):
+                velocity_mass_matrix_operator = lumped_mass_fine
+            else:                
+                velocity_mass_matrix_operator = full_mass_fine
+            operator = operators.Operator(V_pressure,
+                                          V_velocity,
+                                          velocity_mass_matrix_operator,
+                                          omega)
             higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator,
-              mu_relax=mu_relax,
-              n_smooth=2)
+                lumped_mass_fine,
+                mu_relax=mu_relax,
+                n_smooth=2)
             higherorder_postsmoother = higherorder_presmoother
             hpmultigrid = preconditioners.hpMultigrid(hmultigrid,
                                                       operator,
@@ -105,9 +138,7 @@ if (__name__ == '__main__'):
         print 'Unknown preconditioner: \''+prec_name+'\'.'
         sys.exit(-1)
 
-    operator.lumped_mass.test_kinetic_energy()
-
-    # Construct solver
+    # Construct pressure solver
     if (solver_name == 'Loop'):
         pressure_solver = solvers.LoopSolver(operator,
                                              preconditioner,
@@ -129,21 +160,21 @@ if (__name__ == '__main__'):
     else:
         print 'Unknown solver: \''+solver_name+'\'.'
         sys.exit(-1)
-        
-    # If we ignore mass lumping in the substitution, specify a 
-    # lumped mass matrix to use 
-    if (not lump_mass_schursub):
-        if (higher_order):
-            lumped_mass_schursub = lumpedmass.LumpedMassBDFM1(V_velocity,True)
-        else:
-            lumped_mass_schursub = lumpedmass.LumpedMassRT1(V_velocity,True)
+
+    # Specify the lumped mass matrix to use in the Schur-complement
+    # substitution
+    if (lump_mass_schursub):
+        velocity_mass_matrix_schursub = lumped_mass_fine
     else:
-        lumped_mass_schursub=None
+        velocity_mass_matrix_schursub = full_mass_fine
+
+    # Construct mixed Helmholtz solver
     helmholtz_solver = helmholtz.PETScSolver(V_pressure,
                                              V_velocity,
                                              pressure_solver,
                                              omega,
-                                             lumped_mass=lumped_mass_schursub,
+                                             velocity_mass_matrix = \
+                                                velocity_mass_matrix_schursub,
                                              tolerance=tolerance_outer,
                                              maxiter=maxiter_outer)
 

@@ -27,13 +27,15 @@ class PETScSolver:
         :arg V_velocity: Function space for velocity field :math:`\\vec{u}`
         :arg pressure_solver: Solver for Schur complement pressure system,
             e.g. :class:`.LoopSolver` and :class:`.CGSolver`.
-        :arg lumped_mass: Explicitly specify lumped mass for preconsitioner. If none is set, use the lumped mass from the pressuresolver object.
+        :arg velocity_mass_matrix: Explicitly specify mass matrix for 
+            preconditioner. If none is set, use the lumped mass from the
+            pressuresolver object.
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
-                 lumped_mass=None,
+                 velocity_mass_matrix=None,
                  maxiter=100,
                  tolerance=1.E-6):
         self.omega = omega
@@ -70,7 +72,7 @@ class PETScSolver:
         pc.setPythonContext(MixedPreconditioner(pressure_solver,
                                                 self.V_pressure,
                                                 self.V_velocity,
-                                                lumped_mass))
+                                                velocity_mass_matrix))
 
         # Set up test- and trial function spaces
         self.v = Function(self.V_velocity)
@@ -146,7 +148,7 @@ class PETScSolver:
                                  'pc_fieldsplit_type':'schur',
                                  'pc_fieldsplit_schur_fact_type':'FULL',
                                  'fieldsplit_P0_ksp_type':'cg',
-                                 'fieldsplit_RT1_ksp_type':'cg'})
+                                 'fieldsplit_RT0_ksp_type':'cg'})
         return v_mixed.split()
 
 class MixedOperator(object):
@@ -223,17 +225,20 @@ class MixedPreconditioner(object):
     :arg pressure_solver: Solver in pressure space
     :arg V_pressure: Function space for pressure
     :arg V_velocity: Function space for velocity
-    :arg lumped_mass: Explicitly specify lumped mass matrix. If not specified, use the one from the Helmholtz operator.
+    :arg velocity_mass_matrix: Explicitly specify velocity mass matrix.
+        If not specified, use the one from the Helmholtz operator.
     '''
     def __init__(self,pressure_solver,
                  V_pressure,
                  V_velocity,
-                 lumped_mass=None):
+                 velocity_mass_matrix=None):
         self.pressure_solver = pressure_solver
-        if (lumped_mass==None):
-            self.lumped_mass = self.pressure_solver.operator.lumped_mass
+        if (velocity_mass_matrix==None):
+            self.velocity_mass_matrix \
+                = self.pressure_solver.operator.velocity_mass_matrix
         else:
-            self.lumped_mass = lumped_mass
+            self.velocity_mass_matrix \
+                = velocity_mass_matrix
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
         self.F_pressure = Function(self.V_pressure)
@@ -268,7 +273,7 @@ class MixedPreconditioner(object):
         '''
         # Construct RHS for linear (pressure) solve
         self.dMinvMr_u.assign(R_u)
-        self.lumped_mass.divide(self.dMinvMr_u)
+        self.velocity_mass_matrix.divide(self.dMinvMr_u)
         self.F_pressure.assign(R_phi - \
                                self.omega*assemble(self.psi*div(self.dMinvMr_u)*dx))
         # Solve for pressure correction
@@ -278,7 +283,7 @@ class MixedPreconditioner(object):
         # u = (M_u^{lumped})^{-1}*(R_u + omega*grad(phi))
         grad_dphi = assemble(div(self.w)*phi*dx)
         u.assign(R_u + self.omega * grad_dphi)
-        self.lumped_mass.divide(u)
+        self.velocity_mass_matrix.divide(u)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
