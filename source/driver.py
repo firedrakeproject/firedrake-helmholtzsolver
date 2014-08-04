@@ -144,8 +144,7 @@ if (__name__ == '__main__'):
     pressure_solver = solvers.PETScSolver(operator,
                                           preconditioner,
                                           tolerance=tolerance_inner,
-                                          maxiter=maxiter_inner,
-                                          verbose=2)
+                                          maxiter=maxiter_inner)
 
     # Specify the lumped mass matrix to use in the Schur-complement
     # substitution

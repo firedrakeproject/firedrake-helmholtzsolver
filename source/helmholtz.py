@@ -27,9 +27,10 @@ class PETScSolver:
         :arg V_velocity: Function space for velocity field :math:`\\vec{u}`
         :arg pressure_solver: Solver for Schur complement pressure system,
             e.g. :class:`.LoopSolver` and :class:`.CGSolver`.
-        :arg velocity_mass_matrix: Explicitly specify mass matrix for 
-            preconditioner. If none is set, use the lumped mass from the
-            pressuresolver object.
+        :arg velocity_mass_matrix: Explicitly specify mass matrix to be used 
+            in the RHS construction and backsubstitution in the Schur
+            complement preconditioner. If none is set, use the lumped mass
+            from the pressuresolver object.
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration

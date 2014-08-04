@@ -6,11 +6,13 @@ class Jacobi(object):
     '''Jacobi smoother.
 
     Base class for matrix-free smoother for the linear Schur complement system.
+
     :arg operator: Schur complement operator, of type :class:`Operator`.
     :arg velocity_mass_matrix: Velocity mass matrix used in the diagonal
         operator. If none is specified, use the one from the operator.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
-    :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    :arg n_smooth: Number of smoothing steps to apply in method
+        :class:`smooth()`.
     '''
     def __init__(self,operator,
                  velocity_mass_matrix=None,
@@ -51,7 +53,7 @@ class Jacobi(object):
         
         .. math::
 
-            \phi \mapsto \phi + 2\mu D^{-1} (b-H\phi)
+            \phi \mapsto \phi + \mu D^{-1} (b-H\phi)
             
         repeatedly to the state vector :math:`\phi`.
         If :class:`initial_phi_is_zero` is True, then the initial :math:`\phi`
@@ -86,7 +88,7 @@ class Jacobi_LowestOrder(Jacobi):
     
     .. math::
         
-        D_{ii} = (M_\phi)_{ii} + 2 \sum_{e'\in e(i)} \\frac{1}{(M_u^*)_{e'e'}}
+        D_{ii} = (M_\phi)_{ii} + \sum_{e'\in e(i)} \\frac{1}{(M_u^*)_{e'e'}}
 
     (where :math:`e(i)` are all facets adjacent to cell :math:`i`.)
 
@@ -94,7 +96,8 @@ class Jacobi_LowestOrder(Jacobi):
     :arg velocity_mass_matrix: Velocity mass matrix used in the diagonal
         operator. If none is specified, use the one from the operator.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
-    :arg n_smooth: Number of smoothing steps to apply in method :class:`smooth()`.
+    :arg n_smooth: Number of smoothing steps to apply in method
+        :class:`smooth()`.
     :arg use_maximal_eigenvalue: If this is true, then :math:`D` with be set 
         to :math:`\max_i\{D_{ii}\} Id`, i.e. the unit matrix times the maximal
         eigenvalue. This means that the smoother is symmetric, which is not
@@ -118,7 +121,9 @@ class Jacobi_LowestOrder(Jacobi):
         one_pressure = Function(self.V_pressure)
         one_pressure.assign(1.0)
         D_diag = assemble(TestFunction(self.V_pressure)*one_pressure*self.dx)
-        kernel_add_vterm = 'for(int i=0; i<M_u_lumped.dofs; i++) {D_diag[0][0] += omega2[0]/M_u_lumped[i][0];}'
+        kernel_add_vterm = '''for(int i=0; i<M_u_lumped.dofs; i++) {
+            D_diag[0][0] += omega2[0]/M_u_lumped[i][0];
+        }'''
         M_u_lumped = self.velocity_mass_matrix.get()
         omega2 = Constant(self.operator.omega**2)
         par_loop(kernel_add_vterm,self.dx,
@@ -147,7 +152,7 @@ class Jacobi_HigherOrder(Jacobi):
     
     .. math::
         
-        D_{ii} = (M_\phi)_{ii} + 2 \sum_{e'\in e(i)} B_{ie'}{(M_u^*)^{-1}_{e'e'}}B^T_{e'i}
+        D_{ii} = (M_\phi)_{ii} + \sum_{e'\in e(i)} B_{ie'}{(M_u^*)^{-1}_{e'e'}}B^T_{e'i}
 
     (where :math:`e(i)` are all facets adjacent to cell :math:`i`.)
 

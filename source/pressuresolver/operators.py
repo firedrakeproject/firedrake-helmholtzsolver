@@ -14,9 +14,10 @@ class Operator(object):
         H = M_\phi + \omega^2 B^T (M_{u}^*)^{-1} B
 
     where :math:`B` and :math:`B^T` arise from the finite element
-    representation of the divergence and gradient operator. The lumped mass
-    matrix is represented by a :class:`.LumpedMassRT0` or
-    :class:`.LumpedMassBDFM1` object.
+    representation of the divergence and gradient operator. The 
+    (possibly lumped) velocity mass matrix :math:`M_{u}^*` is represented by
+    a :class:`.FullMass`, :class:`.LumpedMassRT0` or :class:`.LumpedMassBDFM1`
+    instance.
     
     :arg V_pressure: Function space for pressure fields
     :arg V_velocity: Function space for velocity fields

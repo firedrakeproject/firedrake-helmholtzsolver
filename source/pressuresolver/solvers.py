@@ -17,14 +17,11 @@ class IterativeSolver(object):
     :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
-    :arg verbose: Verbosity level (0=no output, 1=minimal output,
-        2=show convergence rates)
     '''
     def __init__(self,operator,
                  preconditioner,
                  maxiter=100,
-                 tolerance=1.E-6,
-                 verbose=2):
+                 tolerance=1.E-6):
         self.operator = operator
         self.V_pressure = self.operator.V_pressure
         self.V_velocity = self.operator.V_velocity
@@ -32,8 +29,6 @@ class IterativeSolver(object):
         self.maxiter = maxiter
         self.tolerance = tolerance
         self.dx = self.V_pressure.mesh()._dx
-        self.verbose = verbose
-        self.fmt = '  {iter: >10}  {res: ^10}  {rel_res: ^16}  {rho: ^20}'
 
     def solve(self,b,phi):
         '''Solve linear system :math:`H\phi = b`.
@@ -54,14 +49,12 @@ class PETScSolver(IterativeSolver):
     :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
-    :arg verbose: Verbosity level (0=no output, 1=minimal output, 2=show convergence rates)
     '''
     def __init__(self,operator,
                  preconditioner,
                  maxiter=100,
-                 tolerance=1.E-6,
-                 verbose=2):
-        super(PETScSolver,self).__init__(operator,preconditioner,maxiter,tolerance,verbose)
+                 tolerance=1.E-6):
+        super(PETScSolver,self).__init__(operator,preconditioner,maxiter,tolerance)
         n = self.operator.V_pressure.dof_dset.size
         self.u = PETSc.Vec()
         self.u.create()

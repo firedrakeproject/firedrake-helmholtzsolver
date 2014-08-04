@@ -3,12 +3,13 @@ import numpy as np
 from firedrake import *
 
 class FullMass(object):
-    '''Class for full velocity mass matrix.
+    '''Class for full velocity mass matrix implemented in UFL.
 
-    Note that this is not very efficient as the mass matrix is assembled
-    and solved for explicity (using the built-in PETSc solver).
+    Note that this implementation is not very efficient as the mass matrix is
+    assembled in the constructor and inverted explicity using the built-in
+    PETSc solver when the :func:`divide` method is called.
 
-    :arg V_velocity: Velocity space
+    :arg V_velocity: Velocity space the mass matrix is built on
     '''
     def __init__(self,V_velocity):
         self.V_velocity = V_velocity
@@ -30,7 +31,8 @@ class FullMass(object):
     def divide(self,u):
         '''Divide by mass matrix
 
-        In-place divide a velocity field by the mass matrix
+        In-place divide a velocity field by the mass matrix. Note that this
+        requires a global solve.
 
         :arg u: velocity field to divide (will be modified in-place)
         '''
@@ -41,8 +43,13 @@ class FullMass(object):
 class LumpedMass(object):
     ''' Base class for lumped velocity mass matrix.
 
-    :arg V_velocity: Velocity space, has to be a :math:`RT0` or
-        :math:`BDFM1` space.
+    The lumped mass matrix provides some approximation to the full mass
+    matrix implemented in :class:`FullMass` which is cheaper to invert
+    (in particular this does not require a global solve), but is less
+    accurate.
+
+    :arg V_velocity: Velocity space, has to be a :math:`RT_0` or
+        :math:`BDFM_1` space.
     '''
     def __init__(self,V_velocity):
         self.V_velocity = V_velocity
@@ -99,9 +106,9 @@ class LumpedMassRT0(LumpedMass):
     '''Lumped velocity mass matrix.
     
     This class constructs a diagonal lumped velocity mass matrix :math:`M_u^*` 
-    in the :math:`RT0` space and provides methods for multiplying and dividing 
+    in the :math:`RT_0` space and provides methods for multiplying and dividing 
     :math:`RT0` functions by this lumped mass matrix. Internally the mass matrix
-    is represented as a :math:`RT0` field.
+    is represented as a :math:`RT_0` field.
 
     Currently, two methods for mass lumping are supported and can be chosen by 
     the parameter :class:`use_SBR`:
@@ -172,11 +179,11 @@ class LumpedMassRT0(LumpedMass):
     def _matmul(self,m,u):
         '''Multiply by diagonal matrix
 
-        In-place multiply a RT0 field by a diagonal matrix, which 
+        In-place multiply a :math:`RT_0` field by a diagonal matrix, which 
         is either the lumped mass matrix or its inverse.
 
         :arg m: block-diagonal matrix to multiply with
-        :arg u: RT0 field to multiply (will be modified in-place)
+        :arg u: :math:`RT_0` field to multiply (will be modified in-place)
         '''
         kernel = '(*u) *= (*m);'
         par_loop(kernel,direct,
@@ -184,18 +191,19 @@ class LumpedMassRT0(LumpedMass):
                   'm':(m,READ)})
 
 class LumpedMassBDFM1(LumpedMass):
-    '''BDFM1 lumped mass matrix.
+    ''':math:`BDFM_1` lumped mass matrix.
 
-    Represents a lumped approximation of the BDFM1 mass matrix. The matrix
-    is block-diagonal with each 4x4 block corresponding to the couplings
-    between the dofs on one facet (2 continuous normal dofs, 2 discontinuous
-    tangential dofs). It is constructed by requiring that on each facet the
-    lumped mass matrix gives the same result as the full BDFM1 mass matrix 
-    when applied to a set of solid body rotation fields.
+    Represents a lumped approximation of the :math:`BDFM_1` mass matrix.
+    The matrix is block-diagonal with each 4x4 block corresponding to the
+    couplings between the dofs on one facet (2 continuous normal dofs,
+    2 discontinuous tangential dofs). It is constructed by requiring that on
+    each facet the lumped mass matrix gives the same result as the full
+    :math:`BDFM_1` mass matrix when applied to a set of solid body rotation
+    fields.
 
     Internally each block of the lumped mass matrix is represented as a
     Dat of suitable shape located on the facets, i.e. the same dof-map as
-    for the RT0 space can be used.
+    for the :math:`RT_0` space can be used.
 
     :arg V_velocity: Velocity function space, has to be of type
         :math:`BDFM_1`
@@ -261,10 +269,11 @@ class LumpedMassBDFM1(LumpedMass):
     def _build_interiorfacet2dofmap_facets(self):
         '''Map to facet dofs
 
-        Build a map from the interior facets to the facet, i.e. the RT0
-        dofs. The map is constructed by looping over all facets, finding the
-        RT0 dofs of the adjacent cells and identifying the local index of the
-        facet in the adjacent cells via interor_facets.local_facet_dat.
+        Build a map from the interior facets to the facet, i.e. the
+        :math:`RT_0` dofs. The map is constructed by looping over all facets,
+        finding the :math:`RT_0` dofs of the adjacent cells and identifying
+        the local index of the facet in the adjacent cells via
+        interor_facets.local_facet_dat.
 
         This map is used to access the lumped 4x4 mass matrix.
         '''
@@ -294,12 +303,12 @@ class LumpedMassBDFM1(LumpedMass):
 
 
     def _build_interiorfacet2dofmap_BDFM1(self):
-        '''Map to BDFM1 dofs on a facet
+        '''Map to :math:`BDFM_1` dofs on a facet
 
-        Build a map from the interior facets to the four BDFM1 dofs 
-        associated with this facet. For this, loop over the BDFM1 dofs in the
-        cells associated with this facet and use local_facet_dat to identify
-        the local index of the facet in each of the two cells.
+        Build a map from the interior facets to the four :math:`BDFM_1`
+        dofs associated with this facet. For this, loop over the :math:`BDFM_1` 
+        dofs in the cells associated with this facet and use local_facet_dat
+        to identify the local index of the facet in each of the two cells.
         On each cells are always ordered like this
         :math:`(a_1,a_2,b_1,b_2,c_1,c_2,a_3,b_3,c_3)`, where :math:`a_1` and
         :math:`a_2` are the normal dofs on edge 1 and :math:`a_3` is the
@@ -491,11 +500,11 @@ class LumpedMassBDFM1(LumpedMass):
     def _matmul(self,m,u):
         '''Multiply by block-diagonal matrix
 
-        In-place multiply a BDFM1 field by a block-diagonal matrix, which 
-        is either the lumped mass matrix or its inverse.
+        In-place multiply a :math:`BDFM_1` field by a block-diagonal matrix,
+        which is either the lumped mass matrix or its inverse.
 
         :arg m: block-diagonal matrix to multiply with
-        :arg u: BDFM1 field to multiply (will be modified in-place)
+        :arg u: :math:`BDFM_1` field to multiply (will be modified in-place)
         '''
         if (self.diagonal_matrix):
             kernel_code = '''void matmul(double **m,

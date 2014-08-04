@@ -7,7 +7,7 @@ class hMultigrid(object):
     smoother and coarse grid operator are passed as arguments, this allows
     tuning of the number of smoothing steps etc.
 
-    :arg V_pressure_hierarchy: Hierarchy of pressure spaces
+    :arg V_pressure_hierarchy: Hierarchy of pressure spaces to solve on
     :arg operator_hierarchy: Schur complement :class:`Operator` s on the
         different multigrid levels.
     :arg presmoother_hierarchy: Presmoother on different multigrid levels
@@ -35,7 +35,7 @@ class hMultigrid(object):
         self.operator = operator_hierarchy[self.fine_level] 
 
     def vcycle(self,level=None):
-        '''Recursive multigrid V-cycle.
+        '''Recursive implementation of multigrid V-cycle.
     
         :arg level: multigrid level, if None, start on finest level.
         '''
@@ -46,7 +46,7 @@ class hMultigrid(object):
             # presmooth
             self.coarsegrid_solver.solve(self.rhs[level],self.phi[level])
         else:
-        # Recursion on all other levels
+            # Recursion on all other levels
             # Only initialise solution to zero on the coarser levels
             initial_phi_is_zero = not (level == self.fine_level)
             # Presmoother
