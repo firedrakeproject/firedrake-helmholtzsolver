@@ -10,6 +10,7 @@ import pressuresolver
 from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass, hierarchy, mpi_utils
 import profile_wrapper
 from parameters import Parameters
+from pressuresolver import ksp_monitor
 
 ##########################################################
 # M A I N
@@ -51,9 +52,11 @@ if (__name__ == '__main__'):
         # Preconditioner to use: Multigrid or Jacobi (1-level method)
         'preconditioner':'Multigrid',
         # tolerance
-        'tolerance':1.E-6,
+        'tolerance':1.E-5,
         # maximal number of iterations
-        'maxiter':20})
+        'maxiter':20,
+        # verbosity level
+        'verbose':2})
 
     # Pressure solve parameters
     param_pressure = Parameters('Pressure solve',
@@ -62,7 +65,9 @@ if (__name__ == '__main__'):
         # tolerance
         'tolerance':1.E-5,
         # maximal number of iterations
-        'maxiter':2})
+        'maxiter':1,
+        # verbosity level
+        'verbose':0})
     
     # Multigrid parameters
     param_multigrid = Parameters('Multigrid',
@@ -197,11 +202,15 @@ if (__name__ == '__main__'):
     else:
         print 'Unknown preconditioner: \''+prec_name+'\'.'
         sys.exit(-1)
-    
+
+    pressure_ksp_monitor = ksp_monitor.KSPMonitor('pressure',
+                                                  verbose=param_pressure['verbose'])
+   
     # Construct pressure solver based on operator and preconditioner 
     # built above
     pressure_solver = solvers.PETScSolver(operator,
                                           preconditioner,
+                                          ksp_monitor=pressure_ksp_monitor,
                                           tolerance=param_pressure['tolerance'],
                                           maxiter=param_pressure['maxiter'])
 
@@ -212,6 +221,9 @@ if (__name__ == '__main__'):
     else:
         velocity_mass_matrix_schursub = full_mass_fine
 
+    mixed_ksp_monitor = ksp_monitor.KSPMonitor('mixed',
+                                               verbose=param_mixed['verbose'])
+ 
     # Construct mixed Helmholtz solver
     helmholtz_solver = helmholtz.PETScSolver(V_pressure,
                                              V_velocity,
@@ -219,6 +231,7 @@ if (__name__ == '__main__'):
                                              omega,
                                              velocity_mass_matrix = \
                                                 velocity_mass_matrix_schursub,
+                                             ksp_monitor=mixed_ksp_monitor,
                                              tolerance=param_mixed['tolerance'],
                                              maxiter=param_mixed['maxiter'])
 
@@ -229,6 +242,8 @@ if (__name__ == '__main__'):
 
     # Solve and return both pressure and velocity field
     phi, w = helmholtz_solver.solve(r_phi,r_u)
+    conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
+    mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
 
     # If requested, write fields to disk
     if (param_output['savetodisk']):

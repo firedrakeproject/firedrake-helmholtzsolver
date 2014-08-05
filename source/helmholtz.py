@@ -32,12 +32,14 @@ class PETScSolver:
             in the RHS construction and backsubstitution in the Schur
             complement preconditioner. If none is set, use the lumped mass
             from the pressuresolver object.
+        :arg ksp_monitor: KSP monitor instance, see e.g. :class:`KSP_Monitor`
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
                  velocity_mass_matrix=None,
+                 ksp_monitor=None,
                  maxiter=100,
                  tolerance=1.E-6):
         self.logger = Logger()
@@ -70,6 +72,8 @@ class PETScSolver:
         self.ksp.setOperators(op)
         self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
         self.ksp.setFromOptions()
+        if (ksp_monitor):
+            self.ksp.setMonitor(ksp_monitor)
         self.logger.write('  Mixed KSP type = '+str(self.ksp.getType()))
         pc = self.ksp.getPC()
         pc.setType(pc.Type.PYTHON)
