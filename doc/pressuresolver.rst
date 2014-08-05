@@ -44,6 +44,29 @@ pressuresolver.solvers module
     :undoc-members:
     :show-inheritance:
 
+pressuresolver.mpi_utils module
+-------------------------------
+
+.. automodule:: pressuresolver.mpi_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pressuresolver.hierarchy module
+-------------------------------
+
+.. automodule:: pressuresolver.hierarchy
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pressuresolver.ksp_monitor module
+---------------------------------
+
+.. automodule:: pressuresolver.ksp_monitor
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 Module contents
 ---------------
