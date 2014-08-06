@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from mpi4py import MPI
 from firedrake import *
 
 class FullMass(object):
@@ -76,13 +77,15 @@ class LumpedMass(object):
         energy_exact = 4.*pi/3.
         energy_lumped *= 0.5
         energy_full *= 0.5
-        print 'kinetic energy = '+('%18.12f' % energy_exact)+' [exact]'
-        print '                 '+('%18.12f' % energy_full)+ \
-          ' (error = '+('%6.4f' % (100.*abs(energy_full/energy_exact-1.)))+'%)' \
-          ' [full mass matrix]'
-        print '                 '+('%18.12f' % energy_lumped)+ \
-          ' (error = '+('%6.4f' % (100.*abs(energy_lumped/energy_exact-1.)))+'%)' \
-          ' [lumped mass matrix]'
+        comm = MPI.COMM_WORLD
+        if (comm.Get_rank() == 0):
+            print 'kinetic energy = '+('%18.12f' % energy_exact)+' [exact]'
+            print '                 '+('%18.12f' % energy_full)+ \
+                  ' (error = '+('%6.4f' % (100.*abs(energy_full/energy_exact-1.)))+'%)' \
+                  ' [full mass matrix]'
+            print '                 '+('%18.12f' % energy_lumped)+ \
+                  ' (error = '+('%6.4f' % (100.*abs(energy_lumped/energy_exact-1.)))+'%)' \
+                  ' [lumped mass matrix]'
             
     def multiply(self,u):
         '''Multiply by lumped mass matrix
