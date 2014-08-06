@@ -37,7 +37,9 @@ class FullMass(object):
         :arg u: velocity field to divide (will be modified in-place)
         '''
         u_out = Function(self.V_velocity)
-        solve(self.a_mass, u_out, u)
+        solve(self.a_mass, u_out, u,
+              solver_parameters={'ksp_type': 'cg',
+                                 'pc_type':'jacobi'})
         u.assign(u_out)
 
 class LumpedMass(object):
