@@ -23,7 +23,7 @@ Pressure / velocity system arising from implicit time stepping
 \begin{equation}
  \begin{aligned}
   \phi + \omega \divergence\left(\phi^* \vec{u}\right) &= r_{\phi} \\
-  \vec{u} + \omega \grad\phi &= \vec{r}_{\vec{u}}
+  -\vec{u} - \omega \grad\phi &= \vec{r}_{\vec{u}}
  \end{aligned}
   \label{eqn:MixedSystem}
 \qquad 
@@ -49,7 +49,7 @@ Multiply (\ref{eqn:MixedSystem}) by test functions $\psi\in \Vpressure$, $\vec{w
  \begin{aligned}
   \intOmega{\psi \phi} + \omega \intOmega{\psi \divergence(\phi^* \vec{u})} &= 
   \intOmega{\psi r_{\phi}} \\
-  \intOmega{\vec{w}\cdot\vec{u}} - \omega \intOmega{\divergence \vec{w} \phi} &= \intOmega{\vec{w}\cdot \vec{r}_{\vec{u}}}
+  -\intOmega{\vec{w}\cdot\vec{u}} + \omega \intOmega{\divergence \vec{w} \phi} &= \intOmega{\vec{w}\cdot \vec{r}_{\vec{u}}}
  \end{aligned}
  \qquad\forall{\psi\in\Vpressure, \vec{w}\in\Vvelocity}
 \end{equation}
@@ -58,7 +58,7 @@ This leads to the matrix system
 \begin{equation}
  \begin{aligned}
   M_{\phi} \vec{\Phi} + \omega B (\Phi^* \vec{U}) &= M_{\phi}\vec{R}_\phi \\
-  M_{u} \vec{U} - \omega B^T \vec{\Phi} &= M_u \vec{R}_{\vec{u}}
+  \omega B^T \vec{\Phi} - M_{u} \vec{U} &= M_u \vec{R}_{\vec{u}}
  \end{aligned}
 \label{eqn:MatrixSystem}
 \end{equation}
@@ -83,7 +83,7 @@ The solution at iteration $k$ is given by $\vec{\Phi}^{(k)}$, $\vec{U}^{(k)}$.
 \begin{equation}
  \begin{aligned}
   M_{\phi} \vec{\Phi}^{(k)} + \omega B (\Phi^* \vec{U}^{(k)}) &= M_{\phi}\vec{R}^{(k)}_\phi \\
-  M_{u} \vec{U}^{(k)} - \omega B^T \vec{\Phi}^{(k)} &= M_u \vec{R}^{(k)}_{\vec{u}}
+\omega B^T \vec{\Phi}^{(k)} -  M_{u} \vec{U}^{(k)}   &= M_u \vec{R}^{(k)}_{\vec{u}}
  \end{aligned}
 \end{equation}
 To obtain the next iterate $\vec{\Phi}^{(k+1)} = \vec{\Phi}^{(k)}+\vec{\Phi}'$, $\vec{U}^{(k+1)} = \vec{U}^{(k)}+\vec{U}'$, find the increments $\vec{\Phi}'$, $\vec{U}'$ which solve the residual correction equation
@@ -91,7 +91,7 @@ To obtain the next iterate $\vec{\Phi}^{(k+1)} = \vec{\Phi}^{(k)}+\vec{\Phi}'$, 
  \begin{aligned}
   M_{\phi} \vec{\Phi}' + \omega B (\Phi^* \vec{U}') &= M_{\phi}\vec{R}'_\phi
 = M_\phi\left(\vec{R}_\phi-\vec{R}^{(k)}_\phi\right)\\
-  M^*_{u} \vec{U}' - \omega B^T \vec{\Phi}' &= M^*_u \vec{R}'_{\vec{u}}
+  \omega B^T \vec{\Phi}' - M^*_{u} \vec{U}' &= M^*_u \vec{R}'_{\vec{u}}
 = {M_u} \left(\vec{R}_{\vec{u}}-\vec{R}^{(k)}_{\vec{u}}\right)
  \end{aligned}
 \label{eqn:MatrixSystemCorrection}
@@ -99,7 +99,7 @@ To obtain the next iterate $\vec{\Phi}^{(k+1)} = \vec{\Phi}^{(k)}+\vec{\Phi}'$, 
 where we replaced $M_u$ by the lumped mass-matrix $M_u^*$ (see appendix \ref{sec:MassLumping}). By solving the second equation in (\ref{eqn:MatrixSystemCorrection}) for $\vec{U}'$ and inserting it into the first, one obtains the following elliptic equation for the pressure correction $\vec{\Phi}'$:
 \begin{equation}
   M_{\phi}\vec{\Phi}' + \omega^2 B \alpha^{(u)} B^T \vec{\Phi}'
-  \equiv H\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}'_{\phi}-\omega B \Phi^* \left(M_u^*\right)^{-1}M_u\vec{R}'_{\vec{u}}
+  \equiv H\vec{\Phi}' = M_{\phi}\vec{F} \equiv M_{\phi}\vec{R}'_{\phi}+\omega B \Phi^* \left(M_u^*\right)^{-1}M_u\vec{R}'_{\vec{u}}
 \label{eqn:EllipticEquation}
 \end{equation}
 where we defined the diagonal matrix
@@ -109,7 +109,7 @@ where we defined the diagonal matrix
 which we assume to be positive definite. We use a multigrid algorithm to solve 
 (\ref{eqn:EllipticEquation}) approximately for $\vec{\Phi}'$ and then calculate the velocity correction as 
 \begin{equation}
-  \vec{U}' = \left(M_u^*\right)^{-1}\left(M_u\vec{R}'_{\vec{u}}+ \omega B^T \vec{\Phi}'\right).
+  \vec{U}' = \left(M_u^*\right)^{-1}\left(-M_u\vec{R}'_{\vec{u}}+ \omega B^T \vec{\Phi}'\right).
 \end{equation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Schur complement preconditioner}
@@ -124,7 +124,7 @@ $\vec{R}=(M_{\phi}\vec{R}_{\phi},M_u\vec{R}_{\vec{u}})^T$ is the right hand side
   A \equiv
 \begin{pmatrix}
   M_\phi & \omega B\Phi^* \\
-  -\omega B^T & M_u
+  \omega B^T & -M_u
 \end{pmatrix}
 \label{eqn:MixedMatrixA}
 \end{equation}
@@ -137,7 +137,7 @@ and the preconditioner is the original matrix in (\ref{eqn:MixedMatrixA}) with t
     P \equiv
 \begin{pmatrix}
   M_\phi & \omega B\Phi^* \\
-  -\omega B^T & M^*_u
+  \omega B^T & -M^*_u
 \end{pmatrix}
 \end{equation}
 The inverse of $P$ can be written as
@@ -149,10 +149,10 @@ The inverse of $P$ can be written as
 \end{pmatrix}
 \begin{pmatrix}
   H^{-1} & 0 \\
-  0 & (M_u^*)^{-1}
+  0 & -(M_u^*)^{-1}
 \end{pmatrix}
 \begin{pmatrix}
-  \mathbbm{1} & -\omega B\Phi^* (M_u^*)^{-1} \\
+  \mathbbm{1} & \omega B\Phi^* (M_u^*)^{-1} \\
   0 & \mathbbm{1}
 \end{pmatrix}
 \end{equation}
