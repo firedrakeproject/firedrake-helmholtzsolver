@@ -20,7 +20,7 @@ class PETScSolver:
   
             \phi + \omega (\\nabla\cdot\phi^*\\vec{u}) = r_\phi
 
-            \\vec{u} + \omega \\nabla{\phi} = \\vec{r}_u
+            -\\vec{u} - \omega \\nabla{\phi} = \\vec{r}_u
 
         in the mixed finite element formulation.
 
@@ -180,7 +180,7 @@ class MixedOperator(object):
     def apply(self,phi,u,Mr_phi,Mr_u):
         assemble((self.psi*phi + self.omega*self.psi*div(u))*dx,
                  tensor=Mr_phi)
-        assemble((inner(self.w,u) - self.omega*div(self.w)*phi)*dx,
+        assemble((self.omega*div(self.w)*phi - inner(self.w,u))*dx,
                   tensor=Mr_u)
 
     def mult(self,mat,x,y):
@@ -211,7 +211,7 @@ class MixedPreconditioner(object):
 
         \\begin{pmatrix}
              M_\phi & \omega B \\\\
-           -\omega B^T & M_u^* 
+           \omega B^T & -M_u^* 
         \\end{pmatrix}^{-1}
         = 
         \\begin{pmatrix}
@@ -220,10 +220,10 @@ class MixedPreconditioner(object):
         \\end{pmatrix}
         \\begin{pmatrix}
            H^{-1} & 0 \\\\
-           0 & (M_u^*)^{-1}
+           0 & -(M_u^*)^{-1}
         \\end{pmatrix}
         \\begin{pmatrix}
-            1 & -\omega B (M_u^*)^{-1} \\\\
+            1 & \omega B (M_u^*)^{-1} \\\\
             0 &  1
         \\end{pmatrix}
 
@@ -268,11 +268,11 @@ class MixedPreconditioner(object):
 
         .. math::
 
-            F = R_{\phi} - \omega B (M_u^*)^{-1} R_{u}
+            F = R_{\phi} + \omega B (M_u^*)^{-1} R_{u}
 
             \phi = A^{-1}
 
-            u = (M_u^*)^{-1} ( R_u + \omega B^T \phi)
+            u = (M_u^*)^{-1} (-R_u + \omega B^T \phi)
  
         :arg R_phi: = :math:`R_{\phi}` RHS in pressure space
         :arg R_u: = :math:`R_u` RHS in velocity space
@@ -282,7 +282,7 @@ class MixedPreconditioner(object):
         # Construct RHS for linear (pressure) solve
         self.dMinvMr_u.assign(R_u)
         self.velocity_mass_matrix.divide(self.dMinvMr_u)
-        self.F_pressure.assign(R_phi - \
+        self.F_pressure.assign(R_phi + \
                                self.omega*assemble(self.psi*div(self.dMinvMr_u)*dx))
         # Solve for pressure correction
         phi.assign(0.0)
@@ -290,7 +290,7 @@ class MixedPreconditioner(object):
         # Calculate for corresponding velocity
         # u = (M_u^{lumped})^{-1}*(R_u + omega*grad(phi))
         grad_dphi = assemble(div(self.w)*phi*dx)
-        u.assign(R_u + self.omega * grad_dphi)
+        u.assign(-R_u + self.omega * grad_dphi)
         self.velocity_mass_matrix.divide(u)
 
     def apply(self,pc,x,y):
