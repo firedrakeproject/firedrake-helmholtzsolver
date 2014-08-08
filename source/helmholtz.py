@@ -270,7 +270,7 @@ class MixedPreconditioner(object):
 
             F = R_{\phi} - \omega B (M_u^*)^{-1} R_{u}
 
-            \phi = A^{-1}
+            \phi = H^{-1}
 
             u = (M_u^*)^{-1} ( R_u + \omega B^T \phi)
  
