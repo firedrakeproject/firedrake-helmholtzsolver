@@ -49,6 +49,8 @@ if (__name__ == '__main__'):
         {'higher_order':True,
         # Lump mass matrix in Schur complement substitution
         'lump_mass_schursub':False,
+        # Use diagonal only in Schur complement preconditioner
+        'schur_diagonal_only':False,
         # Preconditioner to use: Multigrid or Jacobi (1-level method)
         'preconditioner':'Multigrid',
         # tolerance
@@ -231,6 +233,8 @@ if (__name__ == '__main__'):
                                              omega,
                                              velocity_mass_matrix = \
                                                 velocity_mass_matrix_schursub,
+                                             schur_diagonal_only = \
+                                                param_mixed['schur_diagonal_only'],
                                              ksp_monitor=mixed_ksp_monitor,
                                              tolerance=param_mixed['tolerance'],
                                              maxiter=param_mixed['maxiter'])

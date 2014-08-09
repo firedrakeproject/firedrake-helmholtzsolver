@@ -32,6 +32,8 @@ class PETScSolver:
             in the RHS construction and backsubstitution in the Schur
             complement preconditioner. If none is set, use the lumped mass
             from the pressuresolver object.
+        :arg schur_diagonal_only: Only use the diagonal part in the 
+            Schur complement preconditioner, see :class:`MixedPreconditioner`.
         :arg ksp_monitor: KSP monitor instance, see e.g. :class:`KSP_Monitor`
         :arg omega: Positive real number
         :arg maxiter: Maximal number of iterations for outer iteration
@@ -39,6 +41,7 @@ class PETScSolver:
     '''
     def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
                  velocity_mass_matrix=None,
+                 schur_diagonal_only=False,
                  ksp_monitor=None,
                  maxiter=100,
                  tolerance=1.E-6):
@@ -80,7 +83,8 @@ class PETScSolver:
         pc.setPythonContext(MixedPreconditioner(pressure_solver,
                                                 self.V_pressure,
                                                 self.V_velocity,
-                                                velocity_mass_matrix))
+                                                velocity_mass_matrix,
+                                                schur_diagonal_only))
 
         # Set up test- and trial function spaces
         self.v = Function(self.V_velocity)
@@ -228,18 +232,24 @@ class MixedPreconditioner(object):
         \\end{pmatrix}
 
     where :math:`H = M_{\phi} + \omega^2 B (M_u^*)^{-1} B^T` is the
-    Helmholtz operator in pressure space.
+    Helmholtz operator in pressure space. Depending on the value of the
+    parameter diagonal_only, only the central, block-diagonal matrix is used
+    and the back/forward substitution with the upper/lower triagular matrix
+    is ignored.
     
     :arg pressure_solver: Solver in pressure space
     :arg V_pressure: Function space for pressure
     :arg V_velocity: Function space for velocity
     :arg velocity_mass_matrix: Explicitly specify velocity mass matrix.
         If not specified, use the one from the Helmholtz operator.
+    :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
+        substitution with triagular matrices
     '''
     def __init__(self,pressure_solver,
                  V_pressure,
                  V_velocity,
-                 velocity_mass_matrix=None):
+                 velocity_mass_matrix=None,
+                 diagonal_only=False):
         self.pressure_solver = pressure_solver
         if (velocity_mass_matrix==None):
             self.velocity_mass_matrix \
@@ -259,6 +269,7 @@ class MixedPreconditioner(object):
         self.P_phi_tmp = Function(self.V_pressure)
         self.P_u_tmp = Function(self.V_velocity)
         self.ndof_phi = self.V_pressure.dof_dset.size
+        self.diagonal_only = diagonal_only
         
     def solve(self,R_phi,R_u,phi,u):
         '''Schur complement proconditioner for mixed system.
@@ -270,28 +281,46 @@ class MixedPreconditioner(object):
 
             F = R_{\phi} + \omega B (M_u^*)^{-1} R_{u}
 
-            \phi = H^{-1}
+            \phi = H^{-1} F
 
             u = (M_u^*)^{-1} (-R_u + \omega B^T \phi)
- 
+
+        If the diagonal_only parameter has been set, calculate instead:
+
+        .. math::
+
+            \phi = H^{-1} R_{\phi}
+
+            u = -(M_u^*)^{-1} R_u
+
         :arg R_phi: = :math:`R_{\phi}` RHS in pressure space
         :arg R_u: = :math:`R_u` RHS in velocity space
         :arg phi: = :math:`\phi` Resulting pressure correction
         :arg u: Resulting velocity correction
         '''
         # Construct RHS for linear (pressure) solve
-        self.dMinvMr_u.assign(R_u)
-        self.velocity_mass_matrix.divide(self.dMinvMr_u)
-        self.F_pressure.assign(R_phi + \
-                               self.omega*assemble(self.psi*div(self.dMinvMr_u)*dx))
-        # Solve for pressure correction
-        phi.assign(0.0)
-        self.pressure_solver.solve(self.F_pressure,phi)
-        # Calculate for corresponding velocity
-        # u = (M_u^{lumped})^{-1}*(R_u + omega*grad(phi))
-        grad_dphi = assemble(div(self.w)*phi*dx)
-        u.assign(-R_u + self.omega * grad_dphi)
-        self.velocity_mass_matrix.divide(u)
+        if (self.diagonal_only):
+            # Solve for pressure correction
+            phi.assign(0.0)
+            self.pressure_solver.solve(R_phi,phi)
+            # Solve for velocity correction
+            # u = -(M_u^{lumped})^{-1}*R_u
+            u.assign(-R_u)
+            self.velocity_mass_matrix.divide(u)
+        else:
+            self.dMinvMr_u.assign(R_u)
+            self.velocity_mass_matrix.divide(self.dMinvMr_u)
+            self.F_pressure.assign(R_phi + \
+                                   self.omega * \
+                                     assemble(self.psi*div(self.dMinvMr_u)*dx))
+            # Solve for pressure correction
+            phi.assign(0.0)
+            self.pressure_solver.solve(self.F_pressure,phi)
+            # Calculate for corresponding velocity
+            # u = (M_u^{lumped})^{-1}*(-R_u + omega*grad(phi))
+            grad_dphi = assemble(div(self.w)*phi*dx)
+            u.assign(-R_u + self.omega * grad_dphi)
+            self.velocity_mass_matrix.divide(u)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
