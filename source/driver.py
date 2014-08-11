@@ -48,7 +48,7 @@ if (__name__ == '__main__'):
         # Use higher order discretisation?
         {'higher_order':True,
         # Lump mass matrix in Schur complement substitution
-        'lump_mass_schursub':False,
+        'lump_mass':False,
         # Use diagonal only in Schur complement preconditioner
         'schur_diagonal_only':False,
         # Preconditioner to use: Multigrid or Jacobi (1-level method)
@@ -63,7 +63,7 @@ if (__name__ == '__main__'):
     # Pressure solve parameters
     param_pressure = Parameters('Pressure solve',
         # Lump mass in Helmholtz operator in pressure space
-        {'lump_mass_operator':False,
+        {'lump_mass':False,
         # tolerance
         'tolerance':1.E-5,
         # maximal number of iterations
@@ -73,8 +73,10 @@ if (__name__ == '__main__'):
     
     # Multigrid parameters
     param_multigrid = Parameters('Multigrid',
+        # Lump mass in multigrid
+        {'lump_mass':False,
         # multigrid smoother relaxation factor
-        {'mu_relax':0.95,
+        'mu_relax':0.95,
         # presmoothing steps
         'n_presmooth':2,
         # postsmoothing steps
@@ -122,7 +124,7 @@ if (__name__ == '__main__'):
     # Construct preconditioner
     if (param_mixed['preconditioner'] == 'Jacobi'):
         # Case 1: Jacobi
-        if (param_pressure['lump_mass_operator']):
+        if (param_pressure['lump_mass']):
             velocity_mass_matrix_operator = lumped_mass_fine
         else:
             velocity_mass_matrix_operator = full_mass_fine
@@ -132,10 +134,10 @@ if (__name__ == '__main__'):
                                       omega)
         if (param_mixed['higher_order']):
             preconditioner = smoothers.Jacobi_HigherOrder(operator,
-                                                          lumped_mass_fine)
+                velocity_mass_matrix_operator)
         else:
             preconditioner = smoothers.Jacobi_LowestOrder(operator,
-                                                          lumped_mass_fine)
+                velocity_mass_matrix_operator)
         # Case 2: Multigrid
     elif (param_mixed['preconditioner'] == 'Multigrid'):
         # Build hierarchies for h-multigrid 
@@ -178,28 +180,27 @@ if (__name__ == '__main__'):
                                                 coarsegrid_solver)
         # For the higher-order case, also build an hp-multigrid instance
         if (param_mixed['higher_order']):
-            if (param_pressure['lump_mass_operator']):
-                velocity_mass_matrix_operator = lumped_mass_fine
+            if (param_multigrid['lump_mass']):
+                velocity_mass_matrix_mg = lumped_mass_fine
             else:                
-                velocity_mass_matrix_operator = full_mass_fine
+                velocity_mass_matrix_mg = full_mass_fine
             # Constuct operator and smoothers
-            operator = operators.Operator(V_pressure,
-                                          V_velocity,
-                                          velocity_mass_matrix_operator,
-                                          omega)
-            higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator,
+            operator_mg = operators.Operator(V_pressure,
+                                             V_velocity,
+                                             velocity_mass_matrix_mg,
+                                             omega)
+            higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator_mg,
                 lumped_mass_fine,
                 mu_relax=param_multigrid['mu_relax'],
                 n_smooth=param_multigrid['n_presmooth'])
             higherorder_postsmoother = higherorder_presmoother
             # Construct hp-multigrid instance
             hpmultigrid = preconditioners.hpMultigrid(hmultigrid,
-                                                      operator,
+                                                      operator_mg,
                                                       higherorder_presmoother,
                                                       higherorder_postsmoother)
             preconditioner = hpmultigrid
         else:
-            operator = operator_hierarchy[fine_level]
             preconditioner = hmultigrid
     else:
         print 'Unknown preconditioner: \''+prec_name+'\'.'
@@ -207,7 +208,20 @@ if (__name__ == '__main__'):
 
     pressure_ksp_monitor = ksp_monitor.KSPMonitor('pressure',
                                                   verbose=param_pressure['verbose'])
-   
+
+    if (param_mixed['higher_order']):   
+        if (param_mixed['lump_mass']):
+            velocity_mass_matrix_op = lumped_mass_fine
+        else:                
+            velocity_mass_matrix_op = full_mass_fine
+    else:
+        velocity_mass_matrix_op = lumped_mass_fine
+
+    operator = operators.Operator(V_pressure,
+                                  V_velocity,
+                                  velocity_mass_matrix_op,
+                                  omega)
+
     # Construct pressure solver based on operator and preconditioner 
     # built above
     pressure_solver = solvers.PETScSolver(operator,
@@ -218,7 +232,7 @@ if (__name__ == '__main__'):
 
     # Specify the lumped mass matrix to use in the Schur-complement
     # substitution
-    if (param_mixed['lump_mass_schursub']):
+    if (param_mixed['lump_mass']):
         velocity_mass_matrix_schursub = lumped_mass_fine
     else:
         velocity_mass_matrix_schursub = full_mass_fine
