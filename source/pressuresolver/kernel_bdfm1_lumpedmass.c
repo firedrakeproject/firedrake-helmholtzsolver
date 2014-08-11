@@ -55,8 +55,8 @@ void set_matrix(double **m,
      * the matrix m
      *
      *  (0): t.U       (maximal tangential flow of type A)
-     *  (1): n.U       (maximal normal flow of type A)
-     *  (2): t.U_tilde (maximal tangential flow of type B)
+     *  (1): t.U_tilde (maximal tangential flow of type B)
+     *  (2): n.U       (maximal normal flow of type A)
      *  (3): n.U_tilde (maximal normal flow of type B)
      */
     for (int i=0; i<4; ++i) {
