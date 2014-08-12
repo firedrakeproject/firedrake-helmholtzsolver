@@ -2,6 +2,7 @@ from firedrake import *
 import sys, petsc4py
 import numpy as np
 from pressuresolver.mpi_utils import Logger
+import xml.etree.cElementTree as ET
 
 petsc4py.init(sys.argv)
 
@@ -13,7 +14,7 @@ This module contains the :class:`.Solver` for solving a Helmholtz system
 using finite elements.
 '''
 
-class PETScSolver:
+class PETScSolver(object):
     '''Solver for the Helmholtz system
 
         .. math::
@@ -51,6 +52,9 @@ class PETScSolver:
         self.tolerance = tolerance
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
+        self.pressure_solver = pressure_solver        
+        self.schur_diagonal_only = schur_diagonal_only
+        self.velocity_mass_matrix = velocity_mass_matrix
 
         self.ndof_phi = self.V_pressure.dof_dset.size
         self.ndof_u = self.V_velocity.dof_dset.size
@@ -80,17 +84,40 @@ class PETScSolver:
         self.logger.write('  Mixed KSP type = '+str(self.ksp.getType()))
         pc = self.ksp.getPC()
         pc.setType(pc.Type.PYTHON)
-        pc.setPythonContext(MixedPreconditioner(pressure_solver,
+        pc.setPythonContext(MixedPreconditioner(self.pressure_solver,
                                                 self.V_pressure,
                                                 self.V_velocity,
-                                                velocity_mass_matrix,
-                                                schur_diagonal_only))
+                                                self.velocity_mass_matrix,
+                                                self.schur_diagonal_only))
 
         # Set up test- and trial function spaces
         self.v = Function(self.V_velocity)
         self.phi = Function(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
+
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        v_str = self.V_velocity.ufl_element()._short_name
+        v_str += str(self.V_velocity.ufl_element().degree())
+        e.set("velocity_space",v_str)
+        v_str = self.V_pressure.ufl_element()._short_name
+        v_str += str(self.V_pressure.ufl_element().degree())
+        e.set("pressure_space",v_str)
+        self.pressure_solver.add_to_xml(e,"pressure_solver")
+        e.set("ksp_type",str(self.ksp.getType()))
+        e.set("omega",('%e' % self.omega))
+        e.set("maxiter",str(self.maxiter))
+        e.set("tolerance",str(self.tolerance))
+        e.set("schur_diagonal_only",str(self.schur_diagonal_only))
+        self.velocity_mass_matrix.add_to_xml(e,"velocity_mass_matrix")
+        
 
     def solve(self,r_phi,r_u):
         '''Solve Helmholtz system using nested iteration.

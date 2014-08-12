@@ -1,4 +1,5 @@
 from operators import *
+import xml.etree.cElementTree as ET
 
 class hMultigrid(object):
     '''Geometric Multigrid preconditioner with h-coarsening only.
@@ -33,6 +34,19 @@ class hMultigrid(object):
         self.dx = [self.V_pressure_hierarchy[level].mesh()._dx
                    for level in range(len(self.V_pressure_hierarchy))]
         self.operator = operator_hierarchy[self.fine_level] 
+
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        self.operator_hierarchy.add_to_xml(e,'operator_hierarchy')
+        self.presmoother_hierarchy.add_to_xml(e,'presmoother_hierarchy')
+        self.postsmoother_hierarchy.add_to_xml(e,'postsmoother_hierarchy')
+        self.coarsegrid_solver.add_to_xml(e,'coarse_grid_solver')
 
     def vcycle(self,level=None):
         '''Recursive implementation of multigrid V-cycle.
@@ -135,6 +149,19 @@ class hpMultigrid(object):
         self.a_mass_low = TrialFunction(self.V_pressure_low)*self.psi_low*self.dx
         self.phi_tmp = Function(self.V_pressure)
         self.rhs_tmp = Function(self.V_pressure)
+
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        self.operator.add_to_xml(e,'high_order_operator')
+        self.presmoother.add_to_xml(e,'high_order_presmoother')
+        self.postsmoother.add_to_xml(e,'high_order_postsmoother')
+        self.hmultigrid.add_to_xml(e,'hmultigrid')
 
     def solve(self,b,phi):
         '''Solve approximately.

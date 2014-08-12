@@ -2,6 +2,7 @@ import os
 import numpy as np
 from mpi4py import MPI
 from firedrake import *
+import xml.etree.cElementTree as ET
 
 class FullMass(object):
     '''Class for full velocity mass matrix implemented in UFL.
@@ -18,6 +19,18 @@ class FullMass(object):
         self.dx = self.V_velocity.mesh()._dx
         v = TrialFunction(self.V_velocity)
         self.a_mass = assemble(dot(self.w,v)*self.dx)
+
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        v_str = self.V_velocity.ufl_element()._short_name
+        v_str += str(self.V_velocity.ufl_element().degree())
+        e.set("velocity_space",v_str)
             
     def multiply(self,u):
         '''Multiply by mass matrix
@@ -58,6 +71,18 @@ class LumpedMass(object):
         self.V_velocity = V_velocity
         self.mesh = self.V_velocity.mesh()
         self.dx = self.V_velocity.mesh()._dx
+
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        v_str = self.V_velocity.ufl_element()._short_name
+        v_str += str(self.V_velocity.ufl_element().degree())
+        e.set("velocity_space",v_str)
 
     def test_kinetic_energy(self):
         '''Check how exactly the kinetic energy can be represented with
