@@ -79,8 +79,8 @@ class PETScSolver(object):
         self.ksp.setOperators(op)
         self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
         self.ksp.setFromOptions()
-        if (ksp_monitor):
-            self.ksp.setMonitor(ksp_monitor)
+        self.ksp_monitor = ksp_monitor
+        self.ksp.setMonitor(self.ksp_monitor)
         self.logger.write('  Mixed KSP type = '+str(self.ksp.getType()))
         pc = self.ksp.getPC()
         pc.setType(pc.Type.PYTHON)
@@ -150,7 +150,8 @@ class PETScSolver(object):
             self.rhs.array[:self.ndof_phi] = v.array[:]
         with Mr_u.dat.vec_ro as v:
             self.rhs.array[self.ndof_phi:] = v.array[:]
-        self.ksp.solve(self.rhs,self.u)
+        with self.ksp_monitor:
+            self.ksp.solve(self.rhs,self.u)
         with self.phi.dat.vec as v:
             v.array[:] = self.u.array[:self.ndof_phi] 
         with self.v.dat.vec as v:

@@ -27,10 +27,6 @@ class KSPMonitor(object):
     def __call__(self,ksp,its,rnorm):
         if (its==0):
             self.rnorm0 = rnorm
-            if (self.verbose >= 1):
-                s = '  KSP '+('%20s' % self.label)
-                s += '    iter             rnrm   rnrm/rnrm_0       rho'
-                self.logger.write(s)
         if (self.verbose>=2):
             s = '  KSP '+('%20s' % self.label)
             s += ('  %6d' % its)+' : '
@@ -40,11 +36,42 @@ class KSPMonitor(object):
                 s += ('  %8.4f' % (rnorm/self.rnorm_old))
             else:
                 s += '      ----'
-        if (self.verbose >= 1):
-            self.logger.write(s) 
+            self.logger.write(s)
+        self.its += 1
+        self.rnorm = rnorm
         self.iterations.append(its)
         self.resnorm.append(rnorm)
         self.rnorm_old = rnorm
+
+    def __enter__(self):
+        '''Print information at beginning of iteration.
+        '''
+        self.its = 0
+        if (self.verbose >= 1):
+            self.logger.write('')
+        if (self.verbose == 2):
+            s = '  KSP '+('%20s' % self.label)
+            s += '    iter             rnrm   rnrm/rnrm_0       rho'
+            self.logger.write(s)
+        return self
+    
+    def __exit__(self,*exc):
+        '''Print information at end of iteration.
+        '''
+        niter = self.its-1
+        if (self.verbose == 1):
+            s = '  KSP '+('%20s' % self.label)
+            s += '    iter             rnrm   rnrm/rnrm_0   rho_avg'
+            self.logger.write(s)
+            s = '  KSP '+('%20s' % self.label)
+            s += ('  %6d' % niter)+' : '
+            s += ('  %10.6e' % self.rnorm)
+            s += ('  %10.6e' % (self.rnorm/self.rnorm0))
+            s += ('  %8.4f' % (self.rnorm/self.rnorm0)**(1./float(niter)))
+            self.logger.write(s)
+        if (self.verbose >= 1):
+            self.logger.write('')
+        return False
 
     def save_convergence_history(self,filename):
         '''Save the convergence history to a file.

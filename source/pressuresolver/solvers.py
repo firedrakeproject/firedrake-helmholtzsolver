@@ -54,7 +54,7 @@ class PETScSolver(IterativeSolver):
     '''
     def __init__(self,operator,
                  preconditioner,
-                 ksp_monitor=None,
+                 ksp_monitor,
                  maxiter=100,
                  tolerance=1.E-6):
         super(PETScSolver,self).__init__(operator,preconditioner,maxiter,tolerance)
@@ -79,8 +79,8 @@ class PETScSolver(IterativeSolver):
         self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
         self.ksp.setFromOptions()
         self.logger.write('  Pressure KSP type = '+str(self.ksp.getType()))
-        if (ksp_monitor):
-            self.ksp.setMonitor(ksp_monitor)
+        self.ksp_monitor = ksp_monitor
+        self.ksp.setMonitor(self.ksp_monitor)
         pc = self.ksp.getPC()
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(self.preconditioner)
@@ -107,6 +107,7 @@ class PETScSolver(IterativeSolver):
         '''
         with b.dat.vec_ro as v:
             self.rhs.array[:] = v.array[:]
-        self.ksp.solve(self.rhs,self.u)
+        with self.ksp_monitor:
+            self.ksp.solve(self.rhs,self.u)
         with phi.dat.vec as v:
             v.array[:] = self.u.array[:]
