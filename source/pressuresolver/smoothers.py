@@ -1,6 +1,7 @@
 import numpy as np
 from operators import *
 from firedrake.ffc_interface import compile_form
+import xml.etree.cElementTree as ET
 
 class Jacobi(object):
     '''Jacobi smoother.
@@ -33,7 +34,19 @@ class Jacobi(object):
             self.velocity_mass_matrix = self.operator.velocity_mass_matrix
         # Check if this is a lumped mass matrix
         assert(isinstance(self.velocity_mass_matrix,LumpedMass))
-        
+            
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        self.velocity_mass_matrix.add_to_xml(e,'velocity_mass_matrix')
+        self.operator.add_to_xml(e,'operator')
+        e.set("mu_relax",str(self.mu_relax))
+        e.set("n_smooth",str(self.n_smooth))
        
     def solve(self,b,phi):
         '''Solve approximately with RHS :math:`b`.

@@ -1,3 +1,5 @@
+import xml.etree.cElementTree as ET
+
 class HierarchyContainer(object):
     '''Container class for hierarchy over levels.
 
@@ -27,6 +29,16 @@ class HierarchyContainer(object):
             arglist.append(tmp)
         self._data = [Type(*x,**kwargs) for x in arglist] 
 
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        for i,x in enumerate(self._data):
+            x.add_to_xml(e,'level_'+('%03d' % i))
+       
     def __getitem__(self,level):
         '''Return object on given level in the functionspace hierarchy.
 

@@ -1,3 +1,4 @@
+import xml.etree.cElementTree as ET
 from operators import *
 import sys, petsc4py
 import numpy as np
@@ -84,6 +85,20 @@ class PETScSolver(IterativeSolver):
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(self.preconditioner)
 
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        self.operator.add_to_xml(e,'operator')
+        self.preconditioner.add_to_xml(e,'preconditioner')
+        e.set("ksp_type",str(self.ksp.getType()))
+        e.set("maxiter",str(self.maxiter))
+        e.set("tolerance",str(self.tolerance))
+       
     def solve(self,b,phi):
         '''Solve linear system :math:`H\phi = b`.
 

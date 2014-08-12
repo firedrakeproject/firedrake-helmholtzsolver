@@ -1,5 +1,6 @@
 from firedrake import *
 from lumpedmass import *
+import xml.etree.cElementTree as ET
 
 class Operator(object):
     '''Schur complement operator with lumped velocity mass matrix.
@@ -38,6 +39,22 @@ class Operator(object):
         self.dx = self.V_pressure.mesh()._dx
         self.omega = omega
         self.velocity_mass_matrix = velocity_mass_matrix
+
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        v_str = self.V_pressure.ufl_element()._short_name
+        v_str += str(self.V_pressure.ufl_element().degree())
+        e.set("pressure_space",v_str)
+        v_str = self.V_velocity.ufl_element()._short_name
+        v_str += str(self.V_velocity.ufl_element().degree())
+        e.set("velocity_space",v_str)
+        self.velocity_mass_matrix.add_to_xml(e,'velocity_mass_matrix')
 
     def apply(self,phi):
         '''Apply operator.

@@ -1,6 +1,7 @@
 import sys
 import os
 import math
+import xml.etree.cElementTree as ET
 from firedrake import * 
 op2.init(log_level="WARNING")
 from ffc import log
@@ -11,6 +12,7 @@ from pressuresolver import operators, smoothers, solvers, preconditioners, lumpe
 import profile_wrapper
 from parameters import Parameters
 from pressuresolver import ksp_monitor
+from mpi4py import MPI
 
 ##########################################################
 # M A I N
@@ -238,6 +240,14 @@ if (__name__ == '__main__'):
                                              ksp_monitor=mixed_ksp_monitor,
                                              tolerance=param_mixed['tolerance'],
                                              maxiter=param_mixed['maxiter'])
+
+    comm = MPI.COMM_WORLD
+    if (comm.Get_rank() == 0):
+        xml_root = ET.Element("SolverInformation")
+        xml_tree = ET.ElementTree(xml_root)
+        helmholtz_solver.add_to_xml(xml_root,"helmholtz_solver")
+        xml_tree.write('solver.xml')
+
 
     # Right hand side function
     r_phi = Function(V_pressure).project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
