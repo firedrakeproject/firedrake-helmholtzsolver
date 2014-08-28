@@ -147,15 +147,24 @@ if (__name__ == '__main__'):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
         # (ii) Lumped mass matrices
-        lumped_mass_hierarchy = \
-            hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
-                                         zip(V_velocity_hierarchy))
+        if (param_multigrid['lump_mass']):
+            mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
+                                             zip(V_velocity_hierarchy))
+            lumped_mass_hierarchy = mass_hierarchy
+        else:                
+            mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.FullMass,
+                                             zip(V_velocity_hierarchy))
+            lumped_mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
+                                             zip(V_velocity_hierarchy))
         # (iii) operators
         operator_hierarchy = hierarchy.HierarchyContainer(
             operators.Operator,
             zip(V_pressure_hierarchy,
                 V_velocity_hierarchy,
-                lumped_mass_hierarchy),
+                mass_hierarchy),
             omega)
         # (iv) pre- and post-smoothers
         presmoother_hierarchy = \
