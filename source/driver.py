@@ -147,15 +147,24 @@ if (__name__ == '__main__'):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
         # (ii) Lumped mass matrices
-        lumped_mass_hierarchy = \
-            hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
-                                         zip(V_velocity_hierarchy))
+        if (param_multigrid['lump_mass']):
+            mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
+                                             zip(V_velocity_hierarchy))
+            lumped_mass_hierarchy = mass_hierarchy
+        else:                
+            mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.FullMass,
+                                             zip(V_velocity_hierarchy))
+            lumped_mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
+                                             zip(V_velocity_hierarchy))
         # (iii) operators
         operator_hierarchy = hierarchy.HierarchyContainer(
             operators.Operator,
             zip(V_pressure_hierarchy,
                 V_velocity_hierarchy,
-                lumped_mass_hierarchy),
+                mass_hierarchy),
             omega)
         # (iv) pre- and post-smoothers
         presmoother_hierarchy = \
@@ -211,13 +220,10 @@ if (__name__ == '__main__'):
     pressure_ksp_monitor = ksp_monitor.KSPMonitor('pressure',
                                                   verbose=param_pressure['verbose'])
 
-    if (param_mixed['higher_order']):   
-        if (param_mixed['lump_mass']):
-            velocity_mass_matrix_op = lumped_mass_fine
-        else:                
-            velocity_mass_matrix_op = full_mass_fine
-    else:
+    if (param_pressure['lump_mass']):
         velocity_mass_matrix_op = lumped_mass_fine
+    else:                
+        velocity_mass_matrix_op = full_mass_fine
 
     operator = operators.Operator(V_pressure,
                                   V_velocity,
