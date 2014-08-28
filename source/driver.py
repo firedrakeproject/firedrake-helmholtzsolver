@@ -211,13 +211,10 @@ if (__name__ == '__main__'):
     pressure_ksp_monitor = ksp_monitor.KSPMonitor('pressure',
                                                   verbose=param_pressure['verbose'])
 
-    if (param_mixed['higher_order']):   
-        if (param_mixed['lump_mass']):
-            velocity_mass_matrix_op = lumped_mass_fine
-        else:                
-            velocity_mass_matrix_op = full_mass_fine
-    else:
+    if (param_pressure['lump_mass']):
         velocity_mass_matrix_op = lumped_mass_fine
+    else:                
+        velocity_mass_matrix_op = full_mass_fine
 
     operator = operators.Operator(V_pressure,
                                   V_velocity,
