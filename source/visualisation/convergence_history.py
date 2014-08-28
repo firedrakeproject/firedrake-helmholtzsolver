@@ -29,7 +29,7 @@ class ConvergenceHistory(object):
         regex_float = '[0-9]+\.[0-9]+[eE][\+\-][0-9]+'
         datafile = open(self.filename,'r')
         for line in datafile:
-            m = re.match(' *('+regex_int+') *('+regex_float+') *('+regex_float+').*',line)
+            m = re.match(' *KSP *mixed *('+regex_int+') *: *('+regex_float+') *('+regex_float+').*',line)
             if m:
                 self.its.append(int(m.group(1)))
                 self.rnorm.append(float(m.group(2)))
