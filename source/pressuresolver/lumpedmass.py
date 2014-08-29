@@ -71,6 +71,8 @@ class LumpedMass(object):
         self.V_velocity = V_velocity
         self.mesh = self.V_velocity.mesh()
         self.dx = self.V_velocity.mesh()._dx
+        self.project_solver_param = {'ksp_type':'cg',
+                                     'pc_type':'jacobi'}
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -93,7 +95,8 @@ class LumpedMass(object):
         the full- and with the lumped mass matrix and compare the results.
         '''
         u_SBR = Function(self.V_velocity)
-        u_SBR.project(Expression(('0','-x[2]','x[1]')))
+        u_SBR.project(Expression(('0','-x[2]','x[1]')),
+                      solver_parameters=self.project_solver_param)
         energy_full = assemble(dot(u_SBR,u_SBR)*self.dx)
         Mu_SBR = Function(self.V_velocity)
         Mu_SBR.assign(u_SBR)
@@ -171,9 +174,12 @@ class LumpedMassRT0(LumpedMass):
         if (self.use_SBR):
             w = TestFunction(self.V_velocity)
             self.data = Function(self.V_velocity)
-            SBR_x = Function(self.V_velocity).project(Expression(('0','-x[2]','x[1]')))
-            SBR_y = Function(self.V_velocity).project(Expression(('x[2]','0','-x[0]')))
-            SBR_z = Function(self.V_velocity).project(Expression(('-x[1]','x[0]','0')))
+            SBR_x = Function(self.V_velocity).project(Expression(('0','-x[2]','x[1]')),
+                                                      solver_parameters=self.project_solver_param)
+            SBR_y = Function(self.V_velocity).project(Expression(('x[2]','0','-x[0]')),
+                                                      solver_parameters=self.project_solver_param)
+            SBR_z = Function(self.V_velocity).project(Expression(('-x[1]','x[0]','0')),
+                                                      solver_parameters=self.project_solver_param)
             M_SBR_x = assemble(dot(w,SBR_x)*self.dx)
             M_SBR_y = assemble(dot(w,SBR_y)*self.dx)
             M_SBR_z = assemble(dot(w,SBR_z)*self.dx)
@@ -399,18 +405,24 @@ class LumpedMassBDFM1(LumpedMass):
                         val=op2.Dat(toset**(self.n_SBR,4),
                         dtype=float))
 
-        U_x = Function(self.V_velocity).project(Expression(('0','-x[2]','x[1]')))
-        U_y = Function(self.V_velocity).project(Expression(('x[2]','0','-x[0]')))
-        U_z = Function(self.V_velocity).project(Expression(('-x[1]','x[0]','0')))
+        U_x = Function(self.V_velocity).project(Expression(('0','-x[2]','x[1]')),
+                                                solver_parameters=self.project_solver_param)
+        U_y = Function(self.V_velocity).project(Expression(('x[2]','0','-x[0]')),
+                                                solver_parameters=self.project_solver_param)
+        U_z = Function(self.V_velocity).project(Expression(('-x[1]','x[0]','0')),
+                                                solver_parameters=self.project_solver_param)
         U_tilde_x = Function(self.V_velocity).project(Expression(('0',
                                                                '-x[2]*x[0]',
-                                                               'x[1]*x[0]')))
+                                                               'x[1]*x[0]')),
+                                                      solver_parameters=self.project_solver_param)
         U_tilde_y = Function(self.V_velocity).project(Expression(('x[2]*x[1]',
                                                                '0',
-                                                               '-x[0]*x[1]')))
+                                                               '-x[0]*x[1]')),
+                                                      solver_parameters=self.project_solver_param)
         U_tilde_z = Function(self.V_velocity).project(Expression(('-x[1]*x[2]',
                                                                'x[0]*x[2]',
-                                                               '0')))
+                                                               '0')),
+                                                      solver_parameters=self.project_solver_param)
         MU_x = assemble(dot(w,U_x)*dx)
         MU_y = assemble(dot(w,U_y)*dx)
         MU_z = assemble(dot(w,U_z)*dx)
