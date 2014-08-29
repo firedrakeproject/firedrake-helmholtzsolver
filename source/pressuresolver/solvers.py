@@ -3,6 +3,7 @@ from operators import *
 import sys, petsc4py
 import numpy as np
 from mpi_utils import Logger
+from pyop2.profiling import timed_region
 
 petsc4py.init(sys.argv)
 
@@ -107,7 +108,7 @@ class PETScSolver(IterativeSolver):
         '''
         with b.dat.vec_ro as v:
             self.rhs.array[:] = v.array[:]
-        with self.ksp_monitor:
+        with self.ksp_monitor, timed_region('pressure_solve'):
             self.ksp.solve(self.rhs,self.u)
         with phi.dat.vec as v:
             v.array[:] = self.u.array[:]
