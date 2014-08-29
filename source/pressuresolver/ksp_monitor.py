@@ -1,6 +1,7 @@
 from mpi_utils import Logger
 import numpy as np
 from mpi4py import MPI
+import time
 
 class KSPMonitor(object):
     '''KSP Monitor writing to stdout.
@@ -15,6 +16,8 @@ class KSPMonitor(object):
         self.logger = Logger()
         self.iterations = []
         self.resnorm = []
+        self.t_start = 0.0
+        self.t_finish = 0.0
 
     '''Call logger. 
 
@@ -53,11 +56,13 @@ class KSPMonitor(object):
             s = '  KSP '+('%20s' % self.label)
             s += '    iter             rnrm   rnrm/rnrm_0       rho'
             self.logger.write(s)
+        self.t_start = time.clock()
         return self
     
     def __exit__(self,*exc):
         '''Print information at end of iteration.
         '''
+        self.t_finish = time.clock()
         niter = self.its-1
         if (self.verbose == 1):
             s = '  KSP '+('%20s' % self.label)
@@ -70,6 +75,11 @@ class KSPMonitor(object):
             s += ('  %8.4f' % (self.rnorm/self.rnorm0)**(1./float(niter)))
             self.logger.write(s)
         if (self.verbose >= 1):
+            t_elapsed = self.t_finish - self.t_start
+            s = '  KSP '+('%20s' % self.label)
+            s += (' t_solve = %10.6f s' % t_elapsed)
+            s += (' t_iter = %10.6f s' % (t_elapsed/niter))
+            self.logger.write(s)
             self.logger.write('')
         return False
 
