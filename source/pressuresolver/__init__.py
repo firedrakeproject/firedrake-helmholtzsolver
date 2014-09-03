@@ -6,4 +6,7 @@ __all__ = ['operators',
            'lumpedmass',
            'smoothers',
            'solvers',
-           'preconditioners']
+           'preconditioners',
+           'mpi_utils',
+           'ksp_monitor',
+           'hierarchy']

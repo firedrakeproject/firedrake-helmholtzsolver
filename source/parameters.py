@@ -1,4 +1,4 @@
-from mpi_utils import Logger
+from pressuresolver.mpi_utils import Logger
 
 class Parameters(object):
     '''Class for storing a set of parameters.
