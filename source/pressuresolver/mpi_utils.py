@@ -18,3 +18,11 @@ class Logger(object):
         '''
         if (self.rank == 0):
             print text 
+
+    def warning(self,text):
+        '''Print warning to screen on master rank only.
+
+        :arg text: text to print to screen
+        '''
+        if (self.rank == 0):
+            print 'WARNING: '+text 
