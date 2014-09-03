@@ -13,6 +13,7 @@ import profile_wrapper
 from parameters import Parameters
 from pressuresolver import ksp_monitor
 from mpi4py import MPI
+import sys
 
 ##########################################################
 # M A I N
@@ -26,6 +27,14 @@ if (__name__ == '__main__'):
     logger.write('! Mixed Helmholtz solver !')
     logger.write('+------------------------+')
     logger.write('')
+
+    if (len(sys.argv) > 2):
+        logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
+        sys.exit(1)
+    if (len(sys.argv) == 2):
+        parameter_filename = sys.argv[1]
+    else:
+        parameter_filename = None
 
     # ------------------------------------------------------
     # --- User defined Parameters --------------------------
@@ -41,22 +50,22 @@ if (__name__ == '__main__'):
     # Grid parameters
     param_grid = Parameters('Grid',
         # Number of refinement levels to construct coarsest multigrid level
-        {'ref_count_coarse':0,
+        {'ref_count_coarse':3,
         # Number of multigrid levels
-        'nlevel':5})
+        'nlevel':4})
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
         # Use higher order discretisation?
-        {'higher_order':True,
+        {'higher_order':False,
         # Lump mass matrix in Schur complement substitution
-        'lump_mass':False,
+        'lump_mass':True,
         # Use diagonal only in Schur complement preconditioner
         'schur_diagonal_only':False,
         # Preconditioner to use: Multigrid or Jacobi (1-level method)
         'preconditioner':'Multigrid',
         # tolerance
-        'tolerance':1.E-5,
+        'tolerance':1.0E-5,
         # maximal number of iterations
         'maxiter':20,
         # verbosity level
@@ -65,27 +74,42 @@ if (__name__ == '__main__'):
     # Pressure solve parameters
     param_pressure = Parameters('Pressure solve',
         # Lump mass in Helmholtz operator in pressure space
-        {'lump_mass':False,
+        {'lump_mass':True,
         # tolerance
         'tolerance':1.E-5,
         # maximal number of iterations
-        'maxiter':1,
+        'maxiter':10,
         # verbosity level
-        'verbose':0})
+        'verbose':1})
     
     # Multigrid parameters
     param_multigrid = Parameters('Multigrid',
         # Lump mass in multigrid
-        {'lump_mass':False,
+        {'lump_mass':True,
         # multigrid smoother relaxation factor
-        'mu_relax':0.95,
+        'mu_relax':1.0,
         # presmoothing steps
-        'n_presmooth':2,
+        'n_presmooth':1,
         # postsmoothing steps
-        'n_postsmooth':2,
+        'n_postsmooth':1,
         # number of coarse grid smoothing steps
         'n_coarsesmooth':1})
- 
+
+    if parameter_filename:
+        for param in (param_output,
+                      param_grid,
+                      param_mixed,
+                      param_pressure,
+                      param_multigrid):
+            param.read_from_file(parameter_filename)
+
+    for param in (param_output,
+                  param_grid,
+                  param_mixed,
+                  param_pressure,
+                  param_multigrid):
+        param.show()
+        
     # ------------------------------------------------------
 
     # Create coarsest mesh
