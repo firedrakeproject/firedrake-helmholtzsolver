@@ -56,8 +56,10 @@ if (__name__ == '__main__'):
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
+        # KSP type for PETSc solver
+        {'ksp_type':'gmres',
         # Use higher order discretisation?
-        {'higher_order':False,
+        'higher_order':False,
         # Lump mass matrix in Schur complement substitution
         'lump_mass':True,
         # Use diagonal only in Schur complement preconditioner
@@ -73,8 +75,10 @@ if (__name__ == '__main__'):
 
     # Pressure solve parameters
     param_pressure = Parameters('Pressure solve',
+        # KSP type for PETSc solver
+        {'ksp_type':'cg',
         # Lump mass in Helmholtz operator in pressure space
-        {'lump_mass':True,
+        'lump_mass':True,
         # tolerance
         'tolerance':1.E-5,
         # maximal number of iterations
@@ -258,6 +262,7 @@ if (__name__ == '__main__'):
     # built above
     pressure_solver = solvers.PETScSolver(operator,
                                           preconditioner,
+                                          param_pressure['ksp_type'],
                                           ksp_monitor=pressure_ksp_monitor,
                                           tolerance=param_pressure['tolerance'],
                                           maxiter=param_pressure['maxiter'])
@@ -276,6 +281,7 @@ if (__name__ == '__main__'):
     helmholtz_solver = helmholtz.PETScSolver(V_pressure,
                                              V_velocity,
                                              pressure_solver,
+                                             param_mixed['ksp_type'],
                                              omega,
                                              velocity_mass_matrix = \
                                                 velocity_mass_matrix_schursub,
