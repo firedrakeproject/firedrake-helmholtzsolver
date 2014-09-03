@@ -17,6 +17,7 @@ Grid:
 # Mixed system parameters
 ################################################################################ 
 Mixed system:
+    ksp_type = gmres                # KSP type for PETSc solver
     higher_order = False            # Use higher order discretisation?
     lump_mass = True                # Lump mass matrix in Schur complement substitution
     schur_diagonal_only = False     # Use diagonal only in Schur complement preconditioner
@@ -29,6 +30,7 @@ Mixed system:
 # Pressure solve parameters
 ################################################################################ 
 Pressure solve:
+    ksp_type = cg                   # KSP type for PETSc solver
     lump_mass  = True               # Lump mass in Helmholtz operator in pressure space
     tolerance = 1.E-14              # tolerance
     maxiter = 200                   # maximal number of iterations

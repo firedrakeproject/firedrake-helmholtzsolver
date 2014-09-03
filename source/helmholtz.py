@@ -40,12 +40,13 @@ class PETScSolver(object):
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
     '''
-    def __init__(self,V_pressure,V_velocity,pressure_solver,omega,
+    def __init__(self,V_pressure,V_velocity,pressure_solver,ksp_type,omega,
                  velocity_mass_matrix=None,
                  schur_diagonal_only=False,
                  ksp_monitor=None,
                  maxiter=100,
                  tolerance=1.E-6):
+        self.ksp_type = ksp_type
         self.logger = Logger()
         self.omega = omega
         self.maxiter = maxiter
@@ -78,7 +79,7 @@ class PETScSolver(object):
         self.ksp.setOptionsPrefix('mixed_')
         self.ksp.setOperators(op)
         self.ksp.setTolerances(rtol=self.tolerance,max_it=self.maxiter)
-        self.ksp.setFromOptions()
+        self.ksp.setType(self.ksp_type)
         self.ksp_monitor = ksp_monitor
         self.ksp.setMonitor(self.ksp_monitor)
         self.logger.write('  Mixed KSP type = '+str(self.ksp.getType()))
