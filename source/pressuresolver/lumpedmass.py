@@ -273,7 +273,7 @@ class LumpedMassBDFM1(LumpedMass):
         The map is constructed by using the interior_facets.local_facet_dat
         structure.
         '''
-        facetset = self.V_facets.dof_dset.set 
+        facetset = op2.Set(self.V_facets.dof_dset.total_size)
         cell2dof_map = self.V_coords.cell_node_map()
         facet2celldof_map = self.V_coords.interior_facet_node_map()
         facet2celldof_dat = op2.Dat(facetset**6,
@@ -297,6 +297,7 @@ class LumpedMassBDFM1(LumpedMass):
                      local_facet_idx_dat(op2.READ),
                      facet2vertexdof_dat(op2.WRITE))
         toset = cell2dof_map.toset
+        facetset = self.V_facets.dof_dset.set
         facet2vertexdof_map = op2.Map(facetset,toset,2,
                                       values=facet2vertexdof_dat.data_ro_with_halos)
         return facet2vertexdof_map
@@ -314,7 +315,7 @@ class LumpedMassBDFM1(LumpedMass):
         This map is used to access the lumped 4x4 mass matrix.
         '''
         cell2dof_map = self.V_facets.cell_node_map()
-        facetset = self.V_facets.dof_dset.set
+        facetset = op2.Set(self.V_facets.dof_dset.total_size)
         facet2celldof_map = self.V_facets.interior_facet_node_map()
         facet2celldof_dat = op2.Dat(facetset**6,
                                     facet2celldof_map.values_with_halo,
@@ -333,6 +334,7 @@ class LumpedMassBDFM1(LumpedMass):
                      local_facet_idx_dat(op2.READ),
                      facet2dof_dat(op2.WRITE))
         toset = cell2dof_map.toset
+        facetset = self.V_facets.dof_dset.set
         facet2dof_map = op2.Map(facetset,toset,1,
                                 values=facet2dof_dat.data_ro_with_halos)   
         return facet2dof_map
@@ -350,7 +352,7 @@ class LumpedMassBDFM1(LumpedMass):
         :math:`a_2` are the normal dofs on edge 1 and :math:`a_3` is the
         tangential dof.
         '''
-        facetset = self.V_facets.dof_dset.set
+        facetset = op2.Set(self.V_facets.dof_dset.total_size)
         facet2celldof_map = self.V_velocity.interior_facet_node_map()
         facet2celldof_dat = op2.Dat(facetset**18,
                                     facet2celldof_map.values_with_halo,
@@ -373,8 +375,9 @@ class LumpedMassBDFM1(LumpedMass):
                      facet2dof_dat(op2.WRITE))
         cell2dof_map = self.V_velocity.cell_node_map()
         toset = cell2dof_map.toset
-        facet2dof_map = op2.Map(facetset,toset,4,
-                                values=facet2dof_dat.data_ro_with_halos)   
+        facet2dof_map = op2.Map(self.V_facets.dof_dset.set,toset,4,
+                                values=facet2dof_dat.data_ro_with_halos)
+
         return facet2dof_map
 
     def _construct_MU_U(self):
