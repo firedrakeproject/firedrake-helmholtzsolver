@@ -297,8 +297,7 @@ class LumpedMassBDFM1(LumpedMass):
                      local_facet_idx_dat(op2.READ),
                      facet2vertexdof_dat(op2.WRITE))
         toset = cell2dof_map.toset
-        facetset = self.V_facets.dof_dset.set
-        facet2vertexdof_map = op2.Map(facetset,toset,2,
+        facet2vertexdof_map = op2.Map(self.V_facets.dof_dset.set,toset,2,
                                       values=facet2vertexdof_dat.data_ro_with_halos)
         return facet2vertexdof_map
             
@@ -334,8 +333,7 @@ class LumpedMassBDFM1(LumpedMass):
                      local_facet_idx_dat(op2.READ),
                      facet2dof_dat(op2.WRITE))
         toset = cell2dof_map.toset
-        facetset = self.V_facets.dof_dset.set
-        facet2dof_map = op2.Map(facetset,toset,1,
+        facet2dof_map = op2.Map(self.V_facets.dof_dset.set,toset,1,
                                 values=facet2dof_dat.data_ro_with_halos)   
         return facet2dof_map
 
