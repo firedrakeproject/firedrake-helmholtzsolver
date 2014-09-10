@@ -130,7 +130,7 @@ if (__name__ == '__main__'):
     # Extract mesh on finest level
     fine_level = len(mesh_hierarchy)-1
     mesh = mesh_hierarchy[fine_level]
-    ncells = mesh.num_cells()
+    ncells = MPI.COMM_WORLD.allreduce(mesh.cell_set.size)
 
     logger.write('Number of cells on finest grid = '+str(ncells))
     dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
