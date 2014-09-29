@@ -1,4 +1,5 @@
 import sys
+sys.path.insert(0,'/work/n02/n02/eike/PyOP2')
 import os
 import math
 import xml.etree.cElementTree as ET
@@ -22,7 +23,7 @@ if (__name__ == '__main__'):
    
     # Create parallel logger
     logger = mpi_utils.Logger()
-    
+
     logger.write('+------------------------+')
     logger.write('! Mixed Helmholtz solver !')
     logger.write('+------------------------+')
@@ -117,6 +118,11 @@ if (__name__ == '__main__'):
         param.show()
         
     # ------------------------------------------------------
+
+    # Create output directory if it does not already exist
+    if (logger.rank == 0):
+        if (not os.path.exists(param_output['output_dir'])):
+            os.mkdir(param_output['output_dir'])
 
     # Create coarsest mesh
     coarse_mesh = UnitIcosahedralSphereMesh(refinement_level= \
