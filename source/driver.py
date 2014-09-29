@@ -108,7 +108,9 @@ if (__name__ == '__main__'):
                       param_mixed,
                       param_pressure,
                       param_multigrid):
-            param.read_from_file(parameter_filename)
+            if (logger.rank == 0):
+                param.read_from_file(parameter_filename)
+            param.broadcast(logger.comm)
 
     logger.write('*** Parameters ***')
     for param in (param_output,

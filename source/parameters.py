@@ -1,5 +1,3 @@
-from pressuresolver.mpi_utils import Logger
-from mpi4py import MPI
 import re
 
 class Parameters(object):
@@ -13,7 +11,6 @@ class Parameters(object):
     def __init__(self,label,data):
         self.label = label
         self._data = data
-        self.logger = Logger()
 
     def __str__(self):
         '''Convert to string representation.
@@ -45,52 +42,53 @@ class Parameters(object):
 
         :arg filename: Name of file to read
         '''
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        # Read file on rank 0
-        if (rank == 0):
-            param_file = open(filename,'r')
-            # Parse until the keyword <label>: is found
-            parse_section = False
-            nsection = 0
-            valid_keys = {}
-            for key in self._data:
-                valid_keys[key] = False
-            for line in param_file:
-                # Find section labels in parameter file
-                m = re.match('^ *([a-zA-Z0-9\_\- ]+): *$',line)
+        param_file = open(filename,'r')
+        # Parse until the keyword <label>: is found
+        parse_section = False
+        nsection = 0
+        valid_keys = {}
+        for key in self._data:
+            valid_keys[key] = False
+        for line in param_file:
+            # Find section labels in parameter file
+            m = re.match('^ *([a-zA-Z0-9\_\- ]+): *$',line)
+            if m:
+                parse_section = (str(m.group(1)) == self.label)
+                if (parse_section):
+                    nsection += 1
+            # Read data
+            if parse_section:
+                m = re.match(' +([a-zA-Z0-9\_]+) *= *([0-9a-zA-Z\_\-\+\.]+) *[#]?.*',line)
                 if m:
-                    parse_section = (str(m.group(1)) == self.label)
-                    if (parse_section):
-                        nsection += 1
-                # Read data
-                if parse_section:
-                    m = re.match(' +([a-zA-Z0-9\_]+) *= *([0-9a-zA-Z\_\-\+\.]+) *[#]?.*',line)
-                    if m:
-                        key, value = m.group(1), m.group(2)
-                        if (key in self._data.keys()):
-                            value = self._parse_value(value)
-                            valid_type = ((type(value) == type(self._data[key])) or \
-                                          ((type(value) is int) and (type(self._data[key]) is float)))
-                            if valid_type:
-                                self._data[key] = value 
-                                valid_keys[key] = True
-                            else:
-                                print type(value), type(self._data[key])
-            # Section was not found or was found multiple times
-            if (nsection==0):
-                self.logger.warning('parameters for '+self.label+\
-                                    ' not defined in file '+filename+'.')
-            if (nsection>1):
-                self.logger.warning('parameters for '+self.label+\
-                                    ' defined multiple times in '+filename+'.')
-            # Check if all parameters in the section were found
-            for key, valid in valid_keys.iteritems():
-                if (not valid):
-                    self.logger.warning('No valid value provided for parameter '+\
-                                        self.label+'::'+key+' in file'+filename+'.')
-                
-            param_file.close()
+                    key, value = m.group(1), m.group(2)
+                    if (key in self._data.keys()):
+                        value = self._parse_value(value)
+                        valid_type = ((type(value) == type(self._data[key])) or \
+                                      ((type(value) is int) and (type(self._data[key]) is float)))
+                        if valid_type:
+                            self._data[key] = value 
+                            valid_keys[key] = True
+                        else:
+                            print type(value), type(self._data[key])
+        # Section was not found or was found multiple times
+        if (nsection==0):
+            print 'WARNING: parameters for '+self.label+\
+                  ' not defined in file '+filename+'.'
+        if (nsection>1):
+            print 'WARNING: parameters for '+self.label+\
+                  ' defined multiple times in '+filename+'.'
+        # Check if all parameters in the section were found
+        for key, valid in valid_keys.iteritems():
+            if (not valid):
+                print 'No valid value provided for parameter '+\
+                      self.label+'::'+key+' in file'+filename+'.'
+        param_file.close()
+
+    def broadcast(self,comm):
+        '''Broadcast data to all processors.
+
+            :arg comm: Communicator
+        '''
         self._data = comm.bcast(self._data,root=0)
 
     def _parse_value(self,value):
