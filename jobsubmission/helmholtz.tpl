@@ -34,15 +34,20 @@ module add anaconda
 module use /work/y07/y07/fdrake/modules
 module load firedrake
 
+module load fdrake-build-env
+module load fdrake-python-env
+
 export FIREDRAKE_FFC_KERNEL_CACHE_DIR=$WORK/firedrake-cache
 export PYOP2_LAZY=1
 export PYOP2_BACKEND_COMPILER=gnu
 export PYOP2_SIMD_ISA=avx
 export PYOP2_CACHE_DIR=$WORK/pyop2-cache
 export LD_LIBRARY_PATH=$ANACONDA_LIB:$LD_LIBRARY_PATH
-export PYTHONPATH=$WORK/firedrake-bench:$WORK/pybench:$PYTHONPATH
-export PYTHONPATH=$WORK/PyOP2:${PYTHONPATH}
-export PYTHONPATH=$WORK/firedrake:${PYTHONPATH}
+export FDRAKEWORK=${WORK}/git_workspace/
+export PYTHONPATH=$FDRAKEWORK/firedrake-bench:${PYTHONPATH}
+export PYTHONPATH=$FDRAKEWORK/pybench:${PYTHONPATH}
+export PYTHONPATH=$FDRAKEWORK/PyOP2:${PYTHONPATH}
+export PYTHONPATH=$FDRAKEWORK/firedrake:${PYTHONPATH}
 export PYTHONPATH=$HELMHOLTZSOURCEDIR:${PYTHONPATH}
 export PETSC_OPTIONS=-log_summary
 # Prevent matplotlib from accessing /home
