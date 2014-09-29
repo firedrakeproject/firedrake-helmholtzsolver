@@ -10,6 +10,7 @@ class Logger(object):
     def __init__(self):
         self.comm = MPI.COMM_WORLD
         self.rank = self.comm.Get_rank()
+        self.size = self.comm.Get_size()
 
     def write(self,text):
         '''Print text to screen on master rank only.

@@ -27,6 +27,8 @@ if (__name__ == '__main__'):
     logger.write('! Mixed Helmholtz solver !')
     logger.write('+------------------------+')
     logger.write('')
+    logger.write('Running on '+('%8d' % logger.size)+' MPI processes')
+    logger.write('')
 
     if (len(sys.argv) > 2):
         logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
