@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(0,'/work/n02/n02/eike/PyOP2')
 import os
 import math
 import xml.etree.cElementTree as ET
