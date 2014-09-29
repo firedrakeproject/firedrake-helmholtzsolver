@@ -110,6 +110,7 @@ if (__name__ == '__main__'):
                       param_multigrid):
             param.read_from_file(parameter_filename)
 
+    logger.write('*** Parameters ***')
     for param in (param_output,
                   param_grid,
                   param_mixed,

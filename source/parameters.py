@@ -18,7 +18,7 @@ class Parameters(object):
     def __str__(self):
         '''Convert to string representation.
         '''
-        s = ' Parameters: '+str(self.label)+'\n'
+        s = str(self.label)+':\n'
         for (key,value) in self._data.items():
             s += '     '+str(key)+' = '+str(value)+'\n'
         return s
