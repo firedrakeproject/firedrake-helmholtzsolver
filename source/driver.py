@@ -115,7 +115,7 @@ if (__name__ == '__main__'):
                   param_mixed,
                   param_pressure,
                   param_multigrid):
-        param.show()
+        logger.write(str(param))
         
     # ------------------------------------------------------
 

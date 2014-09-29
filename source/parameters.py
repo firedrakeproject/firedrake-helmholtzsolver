@@ -15,13 +15,13 @@ class Parameters(object):
         self._data = data
         self.logger = Logger()
 
-    def show(self):
-        '''Print parameters to screen.
+    def __str__(self):
+        '''Convert to string representation.
         '''
-        self.logger.write(' Parameters: '+str(self.label))
+        s = ' Parameters: '+str(self.label)+'\n'
         for (key,value) in self._data.items():
-            self.logger.write('     '+str(key)+' = '+str(value))
-        self.logger.write('')
+            s += '     '+str(key)+' = '+str(value)+'\n'
+        return s
 
     def __getitem__(self,key):
         '''Get the value for a specific key.
