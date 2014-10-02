@@ -221,7 +221,7 @@ class hpMultigrid(object):
         Project a function in the lower order space onto the higher order space
     
         :arg phi_low: Function in lower order space
-        :arg phi_hight: Resulting function in lower order space
+        :arg phi_high: Resulting function in higher order space
         '''
         L = self.psi*phi_low*self.dx
         solve(self.a_mass == L,phi_high)
