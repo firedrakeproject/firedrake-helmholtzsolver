@@ -267,7 +267,7 @@ class Jacobi_HigherOrder(Jacobi):
                   idx[2] = 6+localidx[icell];
                   for (int ell=0;ell<3;++ell) {
                     int ell_lumped = ell;
-                    if (ell > 2) {
+                    if (ell > 1) {
                       ell_lumped += icell;
                     }
                     // Work out index to use in lumped mass matrix
