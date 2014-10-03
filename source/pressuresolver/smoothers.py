@@ -87,8 +87,8 @@ class Jacobi(object):
             self.divide_by_Ddiag(r)
             # Update phi
             if ( (i ==0) and (initial_phi_is_zero) ):
-                phi.assign(r)
                 r *= self.mu_relax
+                phi.assign(r)
             else:
                 phi.assign(phi+self.mu_relax*r)
 
