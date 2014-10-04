@@ -38,7 +38,7 @@ module load fdrake-build-env
 module load fdrake-python-env
 
 export FIREDRAKE_FFC_KERNEL_CACHE_DIR=$WORK/firedrake-cache
-export PYOP2_LAZY=1
+export PYOP2_LAZY=0
 export PYOP2_BACKEND_COMPILER=gnu
 export PYOP2_SIMD_ISA=avx
 export PYOP2_CACHE_DIR=$WORK/pyop2-cache
