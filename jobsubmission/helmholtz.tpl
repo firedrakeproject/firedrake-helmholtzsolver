@@ -65,6 +65,8 @@ date | tee -a $LOGFILE
 echo | tee -a $LOGFILE
 echo Running helmholtz 2>&1  | tee -a $LOGFILE
 echo | tee -a $LOGFILE
+echo "PBS_JOBID = ${PBS_JOBID}" 2>&1  | tee -a $LOGFILE
+echo | tee -a $LOGFILE
 
 aprun -n %(ptotal)d -N %(ppn)d -S %(pnuma)d python ${HELMHOLTZSOURCEDIR}/driver.py %(parameterfile)s 2>&1  | tee -a $LOGFILE
 
