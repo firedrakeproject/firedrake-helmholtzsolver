@@ -57,6 +57,9 @@ class KSPMonitor(object):
             s += '    iter             rnrm   rnrm/rnrm_0       rho'
             self.logger.write(s)
         self.t_start = time.clock()
+        self.rnorm = 1.0
+        self.rnorm0 = 1.0
+        self.rnorm_old = 1.0
         return self
     
     def __exit__(self,*exc):
