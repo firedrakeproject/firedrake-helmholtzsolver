@@ -96,6 +96,7 @@ class PETScSolver(object):
         self.phi = Function(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
+        self.dx = self.V_pressure._mesh._dx
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -144,8 +145,8 @@ class PETScSolver(object):
         self.v.assign(0.0)
 
         # RHS
-        Mr_phi = assemble(self.psi*r_phi*dx)
-        Mr_u = assemble(dot(self.w,r_u)*dx)
+        Mr_phi = assemble(self.psi*r_phi*self.dx)
+        Mr_u = assemble(dot(self.w,r_u)*self.dx)
 
         with Mr_phi.dat.vec_ro as v:
             self.rhs.array[:self.ndof_phi] = v.array[:]
@@ -181,8 +182,8 @@ class PETScSolver(object):
         a_outer = (  psi_mixed*phi_mixed \
                    + self.omega*psi_mixed*div(u_mixed) \
                    + inner(w_mixed,u_mixed) \
-                   - self.omega*div(w_mixed)*phi_mixed)*dx
-        L = (psi_mixed*r_phi + inner(w_mixed,r_u))*dx
+                   - self.omega*div(w_mixed)*phi_mixed)*self.dx
+        L = (psi_mixed*r_phi + inner(w_mixed,r_u))*self.dx
         solve(a_outer == L,v_mixed,
               solver_parameters={'ksp_type':'cg',
                                  'pc_type':'fieldsplit',
@@ -209,11 +210,12 @@ class MixedOperator(object):
         self.u_tmp = Function(self.V_velocity)
         self.Mr_phi_tmp = Function(self.V_pressure)
         self.Mr_u_tmp = Function(self.V_velocity)
+        self.dx = self.V_pressure._mesh._dx
 
     def apply(self,phi,u,Mr_phi,Mr_u):
-        assemble((self.psi*phi + self.omega*self.psi*div(u))*dx,
+        assemble((self.psi*phi + self.omega*self.psi*div(u))*self.dx,
                  tensor=Mr_phi)
-        assemble((self.omega*div(self.w)*phi - inner(self.w,u))*dx,
+        assemble((self.omega*div(self.w)*phi - inner(self.w,u))*self.dx,
                   tensor=Mr_u)
 
     def mult(self,mat,x,y):
@@ -299,6 +301,7 @@ class MixedPreconditioner(object):
         self.P_u_tmp = Function(self.V_velocity)
         self.ndof_phi = self.V_pressure.dof_dset.size
         self.diagonal_only = diagonal_only
+        self.dx = self.V_pressure._mesh._dx
         
     def solve(self,R_phi,R_u,phi,u):
         '''Schur complement proconditioner for mixed system.
@@ -341,13 +344,15 @@ class MixedPreconditioner(object):
             self.velocity_mass_matrix.divide(self.dMinvMr_u)
             self.F_pressure.assign(R_phi + \
                                    self.omega * \
-                                     assemble(self.psi*div(self.dMinvMr_u)*dx))
+                                   assemble(self.psi * \
+                                            div(self.dMinvMr_u) * \
+                                            self.dx))
             # Solve for pressure correction
             phi.assign(0.0)
             self.pressure_solver.solve(self.F_pressure,phi)
             # Calculate for corresponding velocity
             # u = (M_u^{lumped})^{-1}*(-R_u + omega*grad(phi))
-            grad_dphi = assemble(div(self.w)*phi*dx)
+            grad_dphi = assemble(div(self.w)*phi*self.dx)
             u.assign(-R_u + self.omega * grad_dphi)
             self.velocity_mass_matrix.divide(u)
 
