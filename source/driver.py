@@ -18,8 +18,7 @@ import sys
 ##########################################################
 # M A I N
 ##########################################################
-if (__name__ == '__main__'):
-   
+def main(parameter_filename=None):
     # Create parallel logger
     logger = mpi_utils.Logger()
 
@@ -29,14 +28,6 @@ if (__name__ == '__main__'):
     logger.write('')
     logger.write('Running on '+('%8d' % logger.size)+' MPI processes')
     logger.write('')
-
-    if (len(sys.argv) > 2):
-        logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
-        sys.exit(1)
-    if (len(sys.argv) == 2):
-        parameter_filename = sys.argv[1]
-    else:
-        parameter_filename = None
 
     # ------------------------------------------------------
     # --- User defined Parameters --------------------------
@@ -328,4 +319,19 @@ if (__name__ == '__main__'):
         DFile_phi = File(os.path.join(param_output['output_dir'],
                                       'pressure.pvd'))
         DFile_phi << phi
+
+##########################################################
+# Call main program
+##########################################################
+if (__name__ == '__main__'):
+    # Create parallel logger
+    logger = mpi_utils.Logger()
+    if (len(sys.argv) > 2):
+        logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
+        sys.exit(1)
+    parameter_filename = None
+    if (len(sys.argv) == 2):
+        parameter_filename = sys.argv[1]
+    main(parameter_filename)
+
 
