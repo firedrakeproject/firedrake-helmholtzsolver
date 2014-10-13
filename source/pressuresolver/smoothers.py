@@ -295,6 +295,7 @@ class Jacobi_HigherOrder(Jacobi):
                      local_facet_idx_dat(op2.READ),
                      self.velocity_mass_matrix.data_inv.dat(op2.READ,facetdofmap),
                      self.D_diag_inv.dat(op2.INC,celldofmap))
+        omega2.remove_from_namespace()
         # * Step 4 *
         # invert local 3x3 matrix
         kernel_inv3x3mat = '''{
