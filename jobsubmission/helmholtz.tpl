@@ -37,7 +37,10 @@ module load firedrake
 module load fdrake-build-env
 module load fdrake-python-env
 
+export PETSC_DIR=/work/n02/n02/eike/git_workspace/petsc
+export PETSC_ARCH=cray-gnu-shared
 export FIREDRAKE_FFC_KERNEL_CACHE_DIR=$WORK/firedrake-cache
+export PYOP2_DEBUG=1
 export PYOP2_LAZY=0
 export PYOP2_BACKEND_COMPILER=gnu
 export PYOP2_SIMD_ISA=avx
@@ -46,6 +49,7 @@ export LD_LIBRARY_PATH=$ANACONDA_LIB:$LD_LIBRARY_PATH
 export FDRAKEWORK=${WORK}/git_workspace/
 export PYTHONPATH=$FDRAKEWORK/firedrake-bench:${PYTHONPATH}
 export PYTHONPATH=$FDRAKEWORK/pybench:${PYTHONPATH}
+export PYTHONPATH=$FDRAKEWORK/petsc4py/build/lib.linux-x86_64-2.7:${PYTHONPATH}
 export PYTHONPATH=$FDRAKEWORK/PyOP2:${PYTHONPATH}
 export PYTHONPATH=$FDRAKEWORK/firedrake:${PYTHONPATH}
 export PYTHONPATH=$HELMHOLTZSOURCEDIR:${PYTHONPATH}
