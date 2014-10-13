@@ -18,13 +18,15 @@ if (__name__ == '__main__'):
     parameterfilename = rundir+'/parameters.in'
     jobscriptfilename = rundir+'/helmholtz.pbs'
 
-    param = HelmholtzParameters()
+    param = HelmholtzParameters('parameters.in')
     with open(parameterfilename,'w') as parameterfile:
         print >> parameterfile, str(param)
 
     # Create job script
     job = Jobscript(jobname='helmholtz',
+                    nodes=1,
                     ppn=4,
+                    queue='debug',
                     parameterfilename=parameterfilename)
     job.save_to_file(jobscriptfilename)
 
