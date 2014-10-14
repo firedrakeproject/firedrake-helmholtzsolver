@@ -22,7 +22,6 @@ WORKDIR=$PBS_O_WORKDIR/%(jobname)s_${PBS_JOBID}
 mkdir -p $WORKDIR
 
 cp $0 $WORKDIR/jobscript.pbs
-cp %(parameterfile)s $WORKDIR
 
 cd $WORKDIR
 
@@ -40,7 +39,8 @@ module load fdrake-python-env
 export PETSC_DIR=/work/n02/n02/eike/git_workspace/petsc
 export PETSC_ARCH=cray-gnu-shared
 export FIREDRAKE_FFC_KERNEL_CACHE_DIR=$WORK/firedrake-cache
-export PYOP2_DEBUG=1
+export PYOP2_PRINT_SUMMARY=1
+export PYOP2_DEBUG=0
 export PYOP2_LAZY=0
 export PYOP2_BACKEND_COMPILER=gnu
 export PYOP2_SIMD_ISA=avx
@@ -73,7 +73,7 @@ echo | tee -a $LOGFILE
 echo "PBS_JOBID = ${PBS_JOBID}" 2>&1  | tee -a $LOGFILE
 echo | tee -a $LOGFILE
 
-aprun -n %(ptotal)d -N %(ppn)d -S %(pnuma)d python ${HELMHOLTZSOURCEDIR}/driver.py %(parameterfile)s 2>&1  | tee -a $LOGFILE
+%(apruncmd)s
 
 echo -n Finished at | tee -a $LOGFILE
 date | tee -a $LOGFILE

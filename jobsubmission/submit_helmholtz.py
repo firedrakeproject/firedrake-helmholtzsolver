@@ -23,9 +23,10 @@ if (__name__ == '__main__'):
         print >> parameterfile, str(param)
 
     # Create job script
-    job = Jobscript(jobname='helmholtz',
+    job = Jobscript('helmholtz.tpl',
+                    jobname='helmholtz',
                     nodes=1,
-                    ppn=4,
+                    ppn=1,
                     queue='debug',
                     parameterfilename=parameterfilename)
     job.save_to_file(jobscriptfilename)
