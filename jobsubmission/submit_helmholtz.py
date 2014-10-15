@@ -23,7 +23,7 @@ if (__name__ == '__main__'):
         print >> parameterfile, str(param)
 
     # Create job script
-    job = Jobscript('helmholtz.tpl',
+    job = Jobscript('jobscript_helmholtz.tpl',
                     jobname='helmholtz',
                     nodes=1,
                     ppn=1,

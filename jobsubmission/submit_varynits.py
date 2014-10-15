@@ -121,7 +121,7 @@ if (__name__ == '__main__'):
                                   mass_lumping_list,
                                   higher_order_list)
     # Create job script
-    job = Jobscript('varynits.tpl',
+    job = Jobscript('jobscript_varynits.tpl',
                     jobname='varynits',
                     nodes=1,
                     ppn=1,
