@@ -1,6 +1,7 @@
 from firedrake import *
 from lumpedmass import *
 import xml.etree.cElementTree as ET
+from pyop2.profiling import timed_function
 
 class Operator(object):
     '''Schur complement operator with lumped velocity mass matrix.
@@ -56,6 +57,7 @@ class Operator(object):
         e.set("velocity_space",v_str)
         self.velocity_mass_matrix.add_to_xml(e,'velocity_mass_matrix')
 
+    @timed_function("apply_pressure_operator")
     def apply(self,phi):
         '''Apply operator.
 
