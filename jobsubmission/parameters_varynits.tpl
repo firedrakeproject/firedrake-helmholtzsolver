@@ -30,7 +30,7 @@ Mixed system:
 # Pressure solve parameters
 ################################################################################ 
 Pressure solve:
-    ksp_type = richardson           # KSP type for PETSc solver
+    ksp_type = %(inner_solver)s           # KSP type for PETSc solver
     lump_mass  = %(lump_mass)s      # Lump mass in Helmholtz operator in pressure space
     tolerance = 1.E-14              # tolerance
     maxiter = %(maxiter_inner)d     # maximal number of iterations

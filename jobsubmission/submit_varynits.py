@@ -36,7 +36,8 @@ def create_parameterfile(rundir,
         os.mkdir(parameterdirectory)
     d = {'higher_order':asBoolStr(higher_order),
          'lump_mass':asBoolStr(mass_lumping),
-         'maxiter_inner':nits}
+         'maxiter_inner':nits,
+         'inner_solver':solver}
     with open('parameters_varynits.tpl') as templatefile:
         template = templatefile.read()
     with open(parameterfilename,'w') as parameterfile:
@@ -125,6 +126,8 @@ if (__name__ == '__main__'):
                     jobname='varynits',
                     nodes=1,
                     ppn=1,
-                    queue='debug',
+                    walltime_hours=6,
+                    walltime_minutes=0,
+                    queue='standard',
                     apruncmd=runcmd)
     job.save_to_file(jobscriptfilename)
