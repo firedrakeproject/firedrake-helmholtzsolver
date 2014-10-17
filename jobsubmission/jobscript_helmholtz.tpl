@@ -40,7 +40,8 @@ module load fdrake-python-env
 export PETSC_DIR=/work/n02/n02/eike/git_workspace/petsc
 export PETSC_ARCH=cray-gnu-shared
 export FIREDRAKE_FFC_KERNEL_CACHE_DIR=$WORK/firedrake-cache
-export PYOP2_DEBUG=1
+export PYOP2_DEBUG=0
+export PYOP2_NO_FORK_AVAILABLE=1
 export PYOP2_LAZY=0
 export PYOP2_BACKEND_COMPILER=gnu
 export PYOP2_SIMD_ISA=avx
