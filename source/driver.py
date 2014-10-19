@@ -14,6 +14,7 @@ from parameters import Parameters
 from pressuresolver import ksp_monitor
 from mpi4py import MPI
 import sys
+from pyop2.profiling import timed_region
 
 ##########################################################
 # M A I N
@@ -306,7 +307,10 @@ def main(parameter_filename=None):
     r_u.assign(0.0)
 
     # Solve and return both pressure and velocity field
-    phi, w = helmholtz_solver.solve(r_phi,r_u)
+    with timed_region("PETSc solve"):
+        phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
+    with timed_region("matrix-free solve"):
+        phi, w = helmholtz_solver.solve(r_phi,r_u)
     conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
     mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
 
