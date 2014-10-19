@@ -13,7 +13,6 @@ import profile_wrapper
 from parameters import Parameters
 from pressuresolver import ksp_monitor
 from mpi4py import MPI
-import sys
 
 ##########################################################
 # M A I N
