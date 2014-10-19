@@ -14,6 +14,7 @@ from parameters import Parameters
 from pressuresolver import ksp_monitor
 from mpi4py import MPI
 from pyop2 import profiling
+from pyop2.profiling import timed_region
 
 ##########################################################
 # M A I N
@@ -49,8 +50,12 @@ def main(parameter_filename=None):
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
+        # Solve using the PETSc split solver?
+        {'use_petscsplitsolver':False,     
+        # Use the matrix-free solver
+        'use_matrixfreesolver':True,
         # KSP type for PETSc solver
-        {'ksp_type':'gmres',
+        'ksp_type':'gmres',
         # Use higher order discretisation?
         'higher_order':False,
         # Lump mass matrix in Schur complement substitution
@@ -306,7 +311,12 @@ def main(parameter_filename=None):
     r_u.assign(0.0)
 
     # Solve and return both pressure and velocity field
-    phi, w = helmholtz_solver.solve(r_phi,r_u)
+    with timed_region("PETSc solve"):
+        if (param_mixed['use_petscsplitsolver']):
+            phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
+    with timed_region("matrix-free solve"):
+        if (param_mixed['use_matrixfreesolver']):
+            phi, w = helmholtz_solver.solve(r_phi,r_u)
     conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
     mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
 

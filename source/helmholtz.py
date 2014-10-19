@@ -173,7 +173,7 @@ class PETScSolver(object):
         :arg r_u: right hand side for velocity equation, function in
             :math:`H(div)` space.
         '''
-        V_mixed = self.V_velocity*self.V_pressure
+        V_mixed = self.V_pressure*self.V_velocity
         psi_mixed, w_mixed = TestFunctions(V_mixed)
         phi_mixed, u_mixed = TrialFunctions(V_mixed)
         # Solve using PETSc solvers
@@ -185,12 +185,18 @@ class PETScSolver(object):
                    - self.omega*div(w_mixed)*phi_mixed)*self.dx
         L = (psi_mixed*r_phi + inner(w_mixed,r_u))*self.dx
         solve(a_outer == L,v_mixed,
-              solver_parameters={'ksp_type':'cg',
+              solver_parameters={'ksp_view':True,
+                                 'ksp_monitor':True,
+                                 'ksp_rtol':self.tolerance,
+                                 'ksp_type':'cg',
                                  'pc_type':'fieldsplit',
                                  'pc_fieldsplit_type':'schur',
                                  'pc_fieldsplit_schur_fact_type':'FULL',
-                                 'fieldsplit_P0_ksp_type':'cg',
-                                 'fieldsplit_RT0_ksp_type':'cg'})
+                                 'fieldsplit_0_ksp_type':'cg',
+                                 'fieldsplit_0_pc_type':'hypre',
+                                 'fieldsplit_0_hypre_type':'boomeramg',
+                                 'fieldsplit_1_ksp_type':'cg',
+                                 'fieldsplit_1_pc_type':'jacobi'})
         return v_mixed.split()
 
 class MixedOperator(object):
