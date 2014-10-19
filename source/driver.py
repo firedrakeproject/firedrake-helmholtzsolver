@@ -13,6 +13,7 @@ import profile_wrapper
 from parameters import Parameters
 from pressuresolver import ksp_monitor
 from mpi4py import MPI
+from pyop2 import profiling
 
 ##########################################################
 # M A I N
@@ -318,6 +319,7 @@ def main(parameter_filename=None):
         DFile_phi = File(os.path.join(param_output['output_dir'],
                                       'pressure.pvd'))
         DFile_phi << phi
+    profiling.summary()
 
 ##########################################################
 # Call main program
