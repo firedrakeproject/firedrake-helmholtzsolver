@@ -1,4 +1,11 @@
 ################################################################################ 
+# General parameters
+################################################################################
+General: 
+    use_petscsplitsolver = True    # Solve using the PETSc split solver?
+    use_matrixfreesolver = True     # Use the matrix-free solver
+
+################################################################################ 
 # Output parameters
 ################################################################################ 
 Output:
@@ -17,8 +24,6 @@ Grid:
 # Mixed system parameters
 ################################################################################ 
 Mixed system:
-    use_petscsplitsolver = True    # Solve using the PETSc split solver?
-    use_matrixfreesolver = True     # Use the matrix-free solver
     ksp_type = gmres                # KSP type for PETSc solver
     higher_order = False            # Use higher order discretisation?
     lump_mass = True                # Lump mass matrix in Schur complement substitution

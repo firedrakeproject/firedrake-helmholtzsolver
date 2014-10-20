@@ -35,6 +35,13 @@ def main(parameter_filename=None):
     # --- User defined Parameters --------------------------
     # ------------------------------------------------------
 
+    # General parameters
+    param_general = Parameters('General',
+        # Solve using the PETSc split solver?
+        {'use_petscsplitsolver':False,     
+        # Use the matrix-free solver
+        'use_matrixfreesolver':True})
+
     # Output parameters
     param_output = Parameters('Output',
         # Directory for output
@@ -51,12 +58,8 @@ def main(parameter_filename=None):
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
-        # Solve using the PETSc split solver?
-        {'use_petscsplitsolver':False,     
-        # Use the matrix-free solver
-        'use_matrixfreesolver':True,
         # KSP type for PETSc solver
-        'ksp_type':'gmres',
+        {'ksp_type':'gmres',
         # Use higher order discretisation?
         'higher_order':False,
         # Lump mass matrix in Schur complement substitution
@@ -99,7 +102,8 @@ def main(parameter_filename=None):
         'n_coarsesmooth':1})
 
     if parameter_filename:
-        for param in (param_output,
+        for param in (param_general,
+                      param_output,
                       param_grid,
                       param_mixed,
                       param_pressure,
@@ -109,7 +113,8 @@ def main(parameter_filename=None):
             param.broadcast(logger.comm)
 
     logger.write('*** Parameters ***')
-    for param in (param_output,
+    for param in (param_general,
+                  param_output,
                   param_grid,
                   param_mixed,
                   param_pressure,
@@ -335,14 +340,14 @@ def main(parameter_filename=None):
     r_u.assign(0.0)
     # Solve and return both pressure and velocity field
     with timed_region("PETSc solve"):
-        if (param_mixed['use_petscsplitsolver']):
+        if (param_general['use_petscsplitsolver']):
             phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
 
     # Matrix-free solver
     r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
     r_u.assign(0.0)
     with timed_region("matrix-free solve"):
-        if (param_mixed['use_matrixfreesolver']):
+        if (param_general['use_matrixfreesolver']):
             phi, w = helmholtz_solver.solve(r_phi,r_u)
     conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
     mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
