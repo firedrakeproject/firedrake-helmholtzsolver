@@ -39,6 +39,7 @@ class Operator(object):
         self.res_tmp = Function(self.V_pressure)
         self.dx = self.V_pressure.mesh()._dx
         self.omega = omega
+        self.omega2 = Constant(omega**2)
         self.velocity_mass_matrix = velocity_mass_matrix
 
     def add_to_xml(self,parent,function):
@@ -75,7 +76,7 @@ class Operator(object):
         BT_B_phi = assemble(self.psi*div(B_phi)*self.dx)
         # Calculate action of pressure mass matrix
         M_phi = assemble(self.psi*phi*self.dx)
-        return assemble(M_phi + self.omega**2*BT_B_phi)
+        return assemble(M_phi + self.omega2*BT_B_phi)
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
