@@ -192,6 +192,7 @@ class PETScSolver(object):
                                  'pc_type':'fieldsplit',
                                  'pc_fieldsplit_type':'schur',
                                  'pc_fieldsplit_schur_fact_type':'FULL',
+                                 'pc_fieldsplit_schur_precondition': 'selfp',
                                  'fieldsplit_0_ksp_type':'cg',
                                  'fieldsplit_0_pc_type':'jacobi',
                                  'fieldsplit_1_ksp_type':'cg',
