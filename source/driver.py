@@ -20,6 +20,7 @@ from pyop2.profiling import timed_region
 # M A I N
 ##########################################################
 def main(parameter_filename=None):
+    warmup_run = True
     # Create parallel logger
     logger = mpi_utils.Logger()
 
@@ -306,14 +307,40 @@ def main(parameter_filename=None):
 
 
     # Right hand side function
-    r_phi = Function(V_pressure).project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
+    r_phi = Function(V_pressure)
     r_u = Function(V_velocity)
-    r_u.assign(0.0)
 
+    # Warm up run
+    if (warmup_run):
+        logger.write('Warmup...')
+        stdout_save = sys.stdout
+        with timed_region("warmup"):
+            with open(os.devnull,'w') as sys.stdout:
+                if (param_mixed['use_petscsplitsolver']):
+                    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
+                    r_u.assign(0.0)
+                    phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
+                if (param_mixed['use_matrixfreesolver']):
+                    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
+                    r_u.assign(0.0)
+                    phi, w = helmholtz_solver.solve(r_phi,r_u)
+        sys.stdout = stdout_save
+        # Reset timers
+        profiling.reset_timers()
+        logger.write('...done')
+        logger.write('')
+
+    # PETSc split solver
+    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
+    r_u.assign(0.0)
     # Solve and return both pressure and velocity field
     with timed_region("PETSc solve"):
         if (param_mixed['use_petscsplitsolver']):
             phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
+
+    # Matrix-free solver
+    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
+    r_u.assign(0.0)
     with timed_region("matrix-free solve"):
         if (param_mixed['use_matrixfreesolver']):
             phi, w = helmholtz_solver.solve(r_phi,r_u)
