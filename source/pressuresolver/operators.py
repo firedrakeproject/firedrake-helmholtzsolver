@@ -77,7 +77,7 @@ class Operator(object):
 
         :arg phi: Pressure field :math:`phi` to apply the operator to
         '''
-        with timed_region('apply_pressiure_operator_'+self.timer_label):
+        with timed_region('apply_pressure_operator_'+self.timer_label):
             # Calculate action of B
             B_phi = assemble(div(self.w)*phi*self.dx)
             # divide by lumped velocity mass matrix
