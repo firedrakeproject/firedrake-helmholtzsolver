@@ -48,7 +48,8 @@ class PETScSolver(object):
                  tolerance=1.E-6):
         self.ksp_type = ksp_type
         self.logger = Logger()
-        self.omega = omega
+        self.omega_numerical = omega
+        self.omega = Constant(omega)
         self.maxiter = maxiter
         self.tolerance = tolerance
         self.V_pressure = V_pressure
@@ -71,7 +72,7 @@ class PETScSolver(object):
         op.setType(op.Type.PYTHON)
         op.setPythonContext(MixedOperator(self.V_pressure,
                                           self.V_velocity,
-                                          self.omega))
+                                          omega))
         op.setUp()
 
         self.ksp = PETSc.KSP()
@@ -114,7 +115,7 @@ class PETScSolver(object):
         e.set("pressure_space",v_str)
         self.pressure_solver.add_to_xml(e,"pressure_solver")
         e.set("ksp_type",str(self.ksp.getType()))
-        e.set("omega",('%e' % self.omega))
+        e.set("omega",('%e' % self.omega_numerical))
         e.set("maxiter",str(self.maxiter))
         e.set("tolerance",str(self.tolerance))
         e.set("schur_diagonal_only",str(self.schur_diagonal_only))
@@ -208,7 +209,7 @@ class MixedOperator(object):
     def __init__(self,V_pressure,V_velocity,omega):
         self.V_pressure = V_pressure
         self.V_velocity = V_velocity
-        self.omega = omega
+        self.omega = Constant(omega)
         self.psi = TestFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
         self.ndof_phi = self.V_pressure.dof_dset.size
@@ -300,7 +301,7 @@ class MixedPreconditioner(object):
         self.dMinvMr_u = Function(self.V_velocity)
         self.psi = TestFunction(self.V_pressure)
         self.w = TestFunction(self.V_velocity)
-        self.omega = self.pressure_solver.operator.omega
+        self.omega = Constant(self.pressure_solver.operator.omega)
         self.phi_tmp = Function(self.V_pressure)
         self.u_tmp = Function(self.V_velocity)
         self.P_phi_tmp = Function(self.V_pressure)
