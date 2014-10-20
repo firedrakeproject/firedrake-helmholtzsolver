@@ -63,7 +63,7 @@ export XDG_CONFIG_HOME=''
 # MPI (man intro_mpi)
 export MPICH_NEMESIS_ASYNC_PROGRESS=MC
 export MPICH_MAX_THREAD_SAFETY=multiple
-export MPICH_CPUMASK_DISPLAY=1
+export MPICH_CPUMASK_DISPLAY=0
 
 echo -n Started at | tee -a $LOGFILE
 date | tee -a $LOGFILE
