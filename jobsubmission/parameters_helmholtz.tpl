@@ -1,7 +1,8 @@
 ################################################################################ 
 # General parameters
 ################################################################################
-General: 
+General:
+    warmup_run = True              # Carry out warmup run? 
     use_petscsplitsolver = True    # Solve using the PETSc split solver?
     use_matrixfreesolver = True     # Use the matrix-free solver
 

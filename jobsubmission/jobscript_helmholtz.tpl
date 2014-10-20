@@ -27,7 +27,6 @@ cp %(parameterfile)s $WORKDIR
 cd $WORKDIR
 
 LOGFILE=output.log
-LOGFILE_WARMUP=output_warmup.log
 
 module swap PrgEnv-cray PrgEnv-gnu
 module unload python
@@ -74,9 +73,6 @@ echo Running helmholtz 2>&1  | tee -a $LOGFILE
 echo | tee -a $LOGFILE
 echo "PBS_JOBID = ${PBS_JOBID}" 2>&1  | tee -a $LOGFILE
 echo | tee -a $LOGFILE
-
-# Dummy run
-aprun -n %(ptotal)d -N %(ppn)d -S %(pnuma)d python ${HELMHOLTZSOURCEDIR}/driver.py %(parameterfile)s 2>&1  | tee -a $LOGFILE_WARMUP
 
 aprun -n %(ptotal)d -N %(ppn)d -S %(pnuma)d python ${HELMHOLTZSOURCEDIR}/driver.py %(parameterfile)s 2>&1  | tee -a $LOGFILE
 

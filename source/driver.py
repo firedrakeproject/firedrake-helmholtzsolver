@@ -20,7 +20,6 @@ from pyop2.profiling import timed_region
 # M A I N
 ##########################################################
 def main(parameter_filename=None):
-    warmup_run = True
     # Create parallel logger
     logger = mpi_utils.Logger()
 
@@ -37,8 +36,10 @@ def main(parameter_filename=None):
 
     # General parameters
     param_general = Parameters('General',
+        # Carry out a warmup solve?
+        {'warmup_run':True,     
         # Solve using the PETSc split solver?
-        {'use_petscsplitsolver':False,     
+        'use_petscsplitsolver':False,     
         # Use the matrix-free solver
         'use_matrixfreesolver':True})
 
@@ -316,16 +317,16 @@ def main(parameter_filename=None):
     r_u = Function(V_velocity)
 
     # Warm up run
-    if (warmup_run):
+    if (param_general['warmup_run']):
         logger.write('Warmup...')
         stdout_save = sys.stdout
         with timed_region("warmup"):
             with open(os.devnull,'w') as sys.stdout:
-                if (param_mixed['use_petscsplitsolver']):
+                if (param_general['use_petscsplitsolver']):
                     r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
                     r_u.assign(0.0)
                     phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
-                if (param_mixed['use_matrixfreesolver']):
+                if (param_general['use_matrixfreesolver']):
                     r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
                     r_u.assign(0.0)
                     phi, w = helmholtz_solver.solve(r_phi,r_u)
