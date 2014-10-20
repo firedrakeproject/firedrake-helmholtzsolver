@@ -1,7 +1,8 @@
 from firedrake import *
 from lumpedmass import *
 import xml.etree.cElementTree as ET
-from pyop2.profiling import timed_function
+from pyop2.profiling import timed_function, timed_region
+from mpi4py import MPI
 
 class Operator(object):
     '''Schur complement operator with lumped velocity mass matrix.
@@ -41,6 +42,14 @@ class Operator(object):
         self.omega = omega
         self.omega2 = Constant(omega**2)
         self.velocity_mass_matrix = velocity_mass_matrix
+        ncells = MPI.COMM_WORLD.allreduce(self.V_pressure.mesh().cell_set.size)
+        if (type(self.velocity_mass_matrix) is LumpedMassRT0):
+            self.timer_label = 'DG0_'
+        elif (type(self.velocity_mass_matrix) is LumpedMassBDFM1):
+            self.timer_label = 'DG1_'
+        else:
+            self.timer_label = ''
+        self.timer_label += str(ncells)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -68,14 +77,15 @@ class Operator(object):
 
         :arg phi: Pressure field :math:`phi` to apply the operator to
         '''
-        # Calculate action of B
-        B_phi = assemble(div(self.w)*phi*self.dx)
-        # divide by lumped velocity mass matrix
-        self.velocity_mass_matrix.divide(B_phi)
-        # Calculate action of B^T
-        BT_B_phi = assemble(self.psi*div(B_phi)*self.dx)
-        # Calculate action of pressure mass matrix
-        M_phi = assemble(self.psi*phi*self.dx)
+        with timed_region('apply_pressiure_operator_'+self.timer_label):
+            # Calculate action of B
+            B_phi = assemble(div(self.w)*phi*self.dx)
+            # divide by lumped velocity mass matrix
+            self.velocity_mass_matrix.divide(B_phi)
+            # Calculate action of B^T
+            BT_B_phi = assemble(self.psi*div(B_phi)*self.dx)
+            # Calculate action of pressure mass matrix
+            M_phi = assemble(self.psi*phi*self.dx)
         return assemble(M_phi + self.omega2*BT_B_phi)
 
     def mult(self,mat,x,y):
