@@ -1,5 +1,5 @@
 from firedrake import *
-import sys, petsc4py
+import os, sys, petsc4py
 import numpy as np
 from pressuresolver.mpi_utils import Logger
 import xml.etree.cElementTree as ET
@@ -185,9 +185,10 @@ class PETScSolver(object):
                    + inner(w_mixed,u_mixed) \
                    - self.omega*div(w_mixed)*phi_mixed)*self.dx
         L = (psi_mixed*r_phi + inner(w_mixed,r_u))*self.dx
+        show_output = not (sys.stdout.name == os.devnull)
         solve(a_outer == L,v_mixed,
-              solver_parameters={'ksp_view':True,
-                                 'ksp_monitor':True,
+              solver_parameters={'ksp_view':show_output,
+                                 'ksp_monitor':show_output,
                                  'ksp_rtol':self.tolerance,
                                  'ksp_type':'cg',
                                  'pc_type':'fieldsplit',
