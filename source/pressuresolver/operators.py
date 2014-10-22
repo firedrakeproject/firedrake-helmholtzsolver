@@ -51,6 +51,13 @@ class Operator(object):
             self.timer_label = ''
         self.timer_label += str(ncells)
 
+        self.B_phi_form = div(self.w)*self.phi_tmp*self.dx
+        self.B_phi = Function(self.V_velocity)
+        self.BT_B_phi_form = self.psi*div(self.B_phi)*self.dx
+        self.M_phi_form = self.psi*self.phi_tmp*self.dx
+        self.M_phi = Function(self.V_pressure)
+        self.BT_B_phi = Function(self.V_pressure)
+
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
 
@@ -79,14 +86,15 @@ class Operator(object):
         '''
         with timed_region('apply_pressure_operator_'+self.timer_label):
             # Calculate action of B
-            B_phi = assemble(div(self.w)*phi*self.dx)
+            self.phi_tmp.assign(phi)
+            assemble(self.B_phi_form, tensor=self.B_phi)
             # divide by lumped velocity mass matrix
-            self.velocity_mass_matrix.divide(B_phi)
+            self.velocity_mass_matrix.divide(self.B_phi)
             # Calculate action of B^T
-            BT_B_phi = assemble(self.psi*div(B_phi)*self.dx)
+            assemble(self.BT_B_phi_form, tensor=self.BT_B_phi)
             # Calculate action of pressure mass matrix
-            M_phi = assemble(self.psi*phi*self.dx)
-        return assemble(M_phi + self.omega2*BT_B_phi)
+            assemble(self.M_phi_form, tensor=self.M_phi)
+        return assemble(self.M_phi + self.omega2*self.BT_B_phi)
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
