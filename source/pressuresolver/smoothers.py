@@ -242,61 +242,90 @@ class Jacobi_HigherOrder(Jacobi):
         # Loop over edges and on each edge add the 3x3 matrix
         # omega^2 B_{ie} (M_u^*)^{-1} B^T_{ei} to the cells i which 
         # are adjacent to this edge
-        kernel_code = '''void build_diagonal(double **bdiv,
-                                             unsigned int *localidx,
-                                             double **Mulumpedinv,
-                                             double **ddiag) {
-            /* ************************************************ *
-             *   P A R A M E T E R S
-             * bdiv:        3x9 divergence matrix on each cell
-             * localidx:    local index of edge e on each 
-             *              cell to which we redirect
-             * Mulumpedinv: inverse of lumped mass matrix
-             * ddiag:       3x3 matrix in each cell
-             * ************************************************ */
-            // Loop over indirection map, i.e. the two cells 
-            // adjacent to the edge
-            for (int icell=0;icell<2;++icell) {
-              // Loop over row- and column- indices j,k to
-              // calculate the entries Ddiag_{jk} of the matrix Ddiag
-              for (int j=0;j<3;++j) {
-                for (int k=0;k<3;++k) {
-                  // Work out the three indices for which B_{ie} does
-                  // not vanish on this cell
-                  int idx[3];
-                  idx[0] = 2*localidx[icell];
-                  idx[1] = 2*localidx[icell]+1;
-                  idx[2] = 6+localidx[icell];
-                  for (int ell=0;ell<3;++ell) {
-                    int ell_lumped = ell;
-                    if (ell > 1) {
-                      ell_lumped += icell;
-                    }
-                    // Work out index to use in lumped mass matrix
-                    ddiag[icell][3*j+k] += omega2 
-                                         * bdiv[icell][9*j+idx[ell]]
-                                         * Mulumpedinv[0][ell_lumped]
-                                         * bdiv[icell][9*k+idx[ell]];
-                }
-              }
-            }
-          }
-        }'''
-
-        kernel = op2.Kernel(kernel_code,'build_diagonal')
         omega2 = op2.Const(1, self.operator.omega**2,
                            name="omega2", dtype=float)
-        facetset = V_RT0.dof_dset.set
-        facetdofmap = self.velocity_mass_matrix.facet2dof_map_facets
-        celldofmap = op2.Map(facetset,V_DG0.dof_dset.set,2,
-            V_DG0.interior_facet_node_map().values_with_halo)
-        local_facet_idx_dat = op2.Dat(facetset**2,
-            self.mesh.interior_facets.local_facet_dat.data_ro_with_halos)
-        op2.par_loop(kernel,facetset,
-                     bdiv_dat.dat(op2.READ,celldofmap),
-                     local_facet_idx_dat(op2.READ),
-                     self.velocity_mass_matrix.data_inv.dat(op2.READ,facetdofmap),
-                     self.D_diag_inv.dat(op2.INC,celldofmap))
+        if (type(self.velocity_mass_matrix) is LumpedMassDiagonal):
+            kernel_code = '''void build_diagonal(double **bdiv,
+                                                 double **Mulumpedinv,
+                                                 double **ddiag) {
+                /* ************************************************ *
+                 *   P A R A M E T E R S
+                 * bdiv:        3x9 divergence matrix on each cell
+                 * Mulumpedinv: inverse of lumped mass matrix
+                 * ddiag:       3x3 matrix in each cell
+                 * ************************************************ */
+                // Loop over velocity dofs i
+                for (int i=0;i<9;++i) {
+                  double tmp = omega2*Mulumpedinv[0][i];
+                  // Loop over pressure dofs (j,k)
+                  for (int j=0;j<3;++j) {
+                    for (int k=0;k<3;++k) {
+                      ddiag[0][3*j+k] += tmp * bdiv[0][9*j+i] * bdiv[0][9*k+i];
+                    }
+                  }  
+                }
+            }'''
+            kernel = op2.Kernel(kernel_code,'build_diagonal')
+            op2.par_loop(kernel,
+                         bdiv_dat.cell_set,
+                         bdiv_dat.dat(op2.READ,bdiv_dat.cell_node_map()),
+                         self.velocity_mass_matrix.data_inv.dat(op2.READ,
+                           self.velocity_mass_matrix.data_inv.cell_node_map()),
+                         self.D_diag_inv.dat(op2.INC,
+                           self.D_diag_inv.cell_node_map()))
+        else:
+            kernel_code = '''void build_diagonal(double **bdiv,
+                                                 unsigned int *localidx,
+                                                 double **Mulumpedinv,
+                                                 double **ddiag) {
+              /* ************************************************ *
+               *   P A R A M E T E R S
+               * bdiv:        3x9 divergence matrix on each cell
+               * localidx:    local index of edge e on each 
+               *              cell to which we redirect
+               * Mulumpedinv: inverse of lumped mass matrix
+               * ddiag:       3x3 matrix in each cell
+               * ************************************************ */
+              // Loop over indirection map, i.e. the two cells 
+              // adjacent to the edge
+              for (int icell=0;icell<2;++icell) {
+                // Loop over row- and column- indices j,k to
+                // calculate the entries Ddiag_{jk} of the matrix Ddiag
+                for (int j=0;j<3;++j) {
+                  for (int k=0;k<3;++k) {
+                    // Work out the three indices for which B_{ie} does
+                    // not vanish on this cell
+                    int idx[3];
+                    idx[0] = 2*localidx[icell];
+                    idx[1] = 2*localidx[icell]+1;
+                    idx[2] = 6+localidx[icell];
+                    for (int ell=0;ell<3;++ell) {
+                      int ell_lumped = ell;
+                      if (ell > 1) {
+                        ell_lumped += icell;
+                      }
+                      // Work out index to use in lumped mass matrix
+                      ddiag[icell][3*j+k] += omega2 
+                                           * bdiv[icell][9*j+idx[ell]]
+                                           * Mulumpedinv[0][ell_lumped]
+                                           * bdiv[icell][9*k+idx[ell]];
+                    }
+                  }
+                }
+              }
+            }'''
+            kernel = op2.Kernel(kernel_code,'build_diagonal')
+            facetset = V_RT0.dof_dset.set
+            facetdofmap = self.velocity_mass_matrix.facet2dof_map_facets
+            celldofmap = op2.Map(facetset,V_DG0.dof_dset.set,2,
+                V_DG0.interior_facet_node_map().values_with_halo)
+            local_facet_idx_dat = op2.Dat(facetset**2,
+                self.mesh.interior_facets.local_facet_dat.data_ro_with_halos)
+            op2.par_loop(kernel,facetset,
+                         bdiv_dat.dat(op2.READ,celldofmap),
+                         local_facet_idx_dat(op2.READ),
+                         self.velocity_mass_matrix.data_inv.dat(op2.READ,facetdofmap),
+                         self.D_diag_inv.dat(op2.INC,celldofmap))
         omega2.remove_from_namespace()
         # * Step 4 *
         # invert local 3x3 matrix
