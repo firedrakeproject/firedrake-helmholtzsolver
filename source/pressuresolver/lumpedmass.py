@@ -165,7 +165,7 @@ class LumpedMassDiagonal(LumpedMass):
         u = TestFunction(self.V_velocity)
         v = TrialFunction(self.V_velocity)
         # Build local stencil of full mass matrix
-        mass = dot(u,v)*dx
+        mass = dot(u,v)*self.dx
         mass_kernel = compile_form(mass, 'mass')[0][6]
         mass_matrix = Function(V_cells, val=op2.Dat(V_cells.node_set**(nlocaldof**2)))
         op2.par_loop(mass_kernel,
