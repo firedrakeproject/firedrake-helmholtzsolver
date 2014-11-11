@@ -27,7 +27,8 @@ Grid:
 Mixed system:
     ksp_type = gmres                # KSP type for PETSc solver
     higher_order = False            # Use higher order discretisation?
-    lump_mass = True                # Lump mass matrix in Schur complement substitution
+    mass_matrix  = lump_SBR         # velocity mass matrix in Schur complement substitution
+                                    # (can be 'full','lump_SBR' or 'lump_diag')
     schur_diagonal_only = False     # Use diagonal only in Schur complement preconditioner
     preconditioner = Multigrid      # Preconditioner to use: Multigrid or Jacobi (1-level method)
     tolerance = 1.E-5               # tolerance
@@ -39,7 +40,8 @@ Mixed system:
 ################################################################################ 
 Pressure solve:
     ksp_type = cg                   # KSP type for PETSc solver
-    lump_mass  = True               # Lump mass in Helmholtz operator in pressure space
+    mass_matrix  = lump_SBR         # velocity mass matrix in pressure operator 
+                                    # (can be 'full','lump_SBR' or 'lump_diag')
     tolerance = 1.E-14              # tolerance
     maxiter = 200                   # maximal number of iterations
     verbose = 1                     # verbosity level
@@ -48,7 +50,10 @@ Pressure solve:
 # Multigrid parameters
 ################################################################################ 
 Multigrid:
-    lump_mass = True                # Lump mass in multigrid
+    mass_matrix  = lump_SBR         # velocity mass matrix in multigrid operator
+                                    # (can be 'full','lump_SBR' or 'lump_diag')
+    mass_matrix_diag  = lump_SBR    # lumped velocity mass matrix in diagonal of multigrid operator
+                                    # (can be 'lump_SBR' or 'lump_diag')
     mu_relax = 1.0                  # multigrid smoother relaxation factor
     n_presmooth = 1                 # presmoothing steps
     n_postsmooth = 1                # postsmoothing steps

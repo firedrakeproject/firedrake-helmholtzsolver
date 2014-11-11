@@ -63,8 +63,9 @@ def main(parameter_filename=None):
         {'ksp_type':'gmres',
         # Use higher order discretisation?
         'higher_order':False,
-        # Lump mass matrix in Schur complement substitution
-        'lump_mass':True,
+        # Velocity mass matrix in Schur complement substitution
+        #   (can be 'lump_SBR', 'lump_diag' or 'full')
+        'mass_matrix':'lump_SBR',
         # Use diagonal only in Schur complement preconditioner
         'schur_diagonal_only':False,
         # Preconditioner to use: Multigrid or Jacobi (1-level method)
@@ -80,8 +81,9 @@ def main(parameter_filename=None):
     param_pressure = Parameters('Pressure solve',
         # KSP type for PETSc solver
         {'ksp_type':'cg',
-        # Lump mass in Helmholtz operator in pressure space
-        'lump_mass':True,
+        # Velocity mass matrix in Helmholtz operator in pressure space
+        #   (can be 'lump_SBR', 'lump_diag' or 'full')
+        'mass_matrix':'lump_SBR',
         # tolerance
         'tolerance':1.E-5,
         # maximal number of iterations
@@ -91,8 +93,12 @@ def main(parameter_filename=None):
     
     # Multigrid parameters
     param_multigrid = Parameters('Multigrid',
-        # Lump mass in multigrid
-        {'lump_mass':True,
+        # Velocity mass matrix in multigrid
+        #   (can be 'lump_SBR', 'lump_diag' or 'full')
+        {'mass_matrix':'lump_SBR',
+        # Velocity mass matrix in diagonal of multigrid operator
+        #   (can be 'lump_SBR' or 'lump_diag')
+        'mass_matrix_diag':'lump_SBR',
         # multigrid smoother relaxation factor
         'mu_relax':1.0,
         # presmoothing steps
@@ -155,20 +161,27 @@ def main(parameter_filename=None):
     if (param_mixed['higher_order']):
         V_pressure = FunctionSpace(mesh,'DG',1)
         V_velocity = FunctionSpace(mesh,'BDFM',2)
-        lumped_mass_fine = lumpedmass.LumpedMassBDFM1(V_velocity)
+        lumped_mass_fine_SBR = lumpedmass.LumpedMassBDFM1(V_velocity)
     else:
         V_pressure = FunctionSpace(mesh,'DG',0)
         V_velocity = FunctionSpace(mesh,'RT',1)
-        lumped_mass_fine = lumpedmass.LumpedMassRT0(V_velocity)
-    full_mass_fine = lumpedmass.FullMass(V_velocity)
+        lumped_mass_fine_SBR = lumpedmass.LumpedMassRT0(V_velocity)
 
-    lumped_mass_fine.test_kinetic_energy()
+    lumped_mass_fine_diag = lumpedmass.LumpedMassDiagonal(V_velocity)
+    full_mass_fine = lumpedmass.FullMass(V_velocity)
+    
+    logger.write('=== SBR mass lumping ===')
+    lumped_mass_fine_SBR.test_kinetic_energy()
+    logger.write('=== diagonal-only mass lumping ===')
+    lumped_mass_fine_diag.test_kinetic_energy()
     
     # Construct preconditioner
     if (param_mixed['preconditioner'] == 'Jacobi'):
         # Case 1: Jacobi
-        if (param_pressure['lump_mass']):
-            velocity_mass_matrix_operator = lumped_mass_fine
+        if (param_pressure['mass_matrix'] == 'lump_SBR'):
+            velocity_mass_matrix_operator = lumped_mass_fine_SBR
+        if (param_pressure['mass_matrix'] == 'lump_diag'):
+            velocity_mass_matrix_operator = lumped_mass_fine_diag
         else:
             velocity_mass_matrix_operator = full_mass_fine
         operator = operators.Operator(V_pressure,
@@ -188,9 +201,14 @@ def main(parameter_filename=None):
         V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
         V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
         # (ii) Lumped mass matrices
-        if (param_multigrid['lump_mass']):
+        if (param_multigrid['mass_matrix'] == 'lump_SBR'):
             mass_hierarchy = \
                 hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
+                                             zip(V_velocity_hierarchy))
+            lumped_mass_hierarchy = mass_hierarchy
+        elif (param_multigrid['mass_matrix'] == 'lump_diag'):
+            mass_hierarchy = \
+                hierarchy.HierarchyContainer(lumpedmass.LumpedMassDiagonal,
                                              zip(V_velocity_hierarchy))
             lumped_mass_hierarchy = mass_hierarchy
         else:                
@@ -232,8 +250,10 @@ def main(parameter_filename=None):
                                                 coarsegrid_solver)
         # For the higher-order case, also build an hp-multigrid instance
         if (param_mixed['higher_order']):
-            if (param_multigrid['lump_mass']):
-                velocity_mass_matrix_mg = lumped_mass_fine
+            if (param_multigrid['mass_matrix'] == 'lump_SBR'):
+                velocity_mass_matrix_mg = lumped_mass_fine_SBR
+            elif (param_multigrid['lump_mass'] == 'lump_diag'):
+                velocity_mass_matrix_mg = lumped_mass_fine_diag
             else:                
                 velocity_mass_matrix_mg = full_mass_fine
             # Constuct operator and smoothers
@@ -241,8 +261,12 @@ def main(parameter_filename=None):
                                              V_velocity,
                                              velocity_mass_matrix_mg,
                                              omega)
+            if (param_multigrid['mass_matrix_diag'] == 'lump_SBR'):
+                lumped_mass_multigrid_diag_fine = lumped_mass_fine_SBR
+            else:
+                lumped_mass_multigrid_diag_fine = lumped_mass_fine_diag
             higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator_mg,
-                lumped_mass_fine,
+                lumped_mass_multigrid_diag_fine,
                 mu_relax=param_multigrid['mu_relax'],
                 n_smooth=param_multigrid['n_presmooth'])
             higherorder_postsmoother = higherorder_presmoother
@@ -261,8 +285,10 @@ def main(parameter_filename=None):
     pressure_ksp_monitor = ksp_monitor.KSPMonitor('pressure',
                                                   verbose=param_pressure['verbose'])
 
-    if (param_pressure['lump_mass']):
-        velocity_mass_matrix_op = lumped_mass_fine
+    if (param_pressure['mass_matrix'] == 'lump_SBR'):
+        velocity_mass_matrix_op = lumped_mass_fine_SBR
+    elif (param_pressure['mass_matrix'] == 'lump_diag'):
+        velocity_mass_matrix_op = lumped_mass_fine_diag
     else:                
         velocity_mass_matrix_op = full_mass_fine
 
@@ -282,8 +308,10 @@ def main(parameter_filename=None):
 
     # Specify the lumped mass matrix to use in the Schur-complement
     # substitution
-    if (param_mixed['lump_mass']):
-        velocity_mass_matrix_schursub = lumped_mass_fine
+    if (param_mixed['mass_matrix'] == 'lump_SBR'):
+        velocity_mass_matrix_schursub = lumped_mass_fine_SBR
+    elif (param_mixed['mass_matrix'] == 'lump_diag'):
+        velocity_mass_matrix_schursub = lumped_mass_fine_diag
     else:
         velocity_mass_matrix_schursub = full_mass_fine
 
