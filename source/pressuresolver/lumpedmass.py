@@ -1,7 +1,9 @@
 import os
+import math
 import numpy as np
 from mpi4py import MPI
 from firedrake import *
+from firedrake.ffc_interface import compile_form
 import xml.etree.cElementTree as ET
 
 class FullMass(object):
@@ -134,6 +136,100 @@ class LumpedMass(object):
         '''
         self._matmul(self.data_inv,u)
 
+class LumpedMassDiagonal(LumpedMass):
+    '''Lumped velocity mass matrix with diagonal entries of full mass matrix.
+    
+    This class constructs a diagonal lumped velocity mass matrix :math:`M_u^*` 
+    in any velocity space and provides methods for multiplying and dividing 
+    velocity functions by this matrix. Internally the mass matrix is represented 
+    as a velocity field.
+
+    The entries of this diagonal matrix are the diagonal entries of the full
+    velocity mass matrix, i.e. 
+
+    .. math::
+        
+        (M_u^*)_{ii} = (M_u)_{ii}
+
+
+    :arg V_velocity: Velocity space, has to be a :math:`RT0` space.
+    '''
+    def __init__(self,V_velocity,test=False):
+        super(LumpedMassDiagonal,self).__init__(V_velocity)
+        self.test = test
+        self.diagonal_matrix = True
+        # Number of local dofs per cell
+        nlocaldof = self.V_velocity.cell_node_map().arity
+        V_cells = FunctionSpace(self.mesh,'DG',0)
+        self.data = Function(self.V_velocity)
+        u = TestFunction(self.V_velocity)
+        v = TrialFunction(self.V_velocity)
+        # Build local stencil of full mass matrix
+        mass = dot(u,v)*dx
+        mass_kernel = compile_form(mass, 'mass')[0][6]
+        mass_matrix = Function(V_cells, val=op2.Dat(V_cells.node_set**(nlocaldof**2)))
+        op2.par_loop(mass_kernel,
+                     mass_matrix.cell_set,
+                     mass_matrix.dat(op2.INC, mass_matrix.cell_node_map()[op2.i[0]]),
+                    self.mesh.coordinates.dat(op2.READ,
+                        self.mesh.coordinates.cell_node_map(),
+                        flatten=True),
+                    self.mesh.cell_orientations().dat(op2.READ,
+                        self.mesh.cell_orientations().cell_node_map(),
+                        flatten=True),
+                    self.mesh.coordinates.dat(op2.READ,
+                        self.mesh.coordinates.cell_node_map(),
+                        flatten=True))
+
+        assemble_diag_kernel = '''void assemble_diag(double **mass_matrix,
+                                                     double **lumped_mass_matrix) {
+          for (int i=0; i<%(nlocaldof)d; ++i) {
+            lumped_mass_matrix[i][0] += mass_matrix[0][(%(nlocaldof)d+1)*i];
+          }
+        }'''
+
+        assemble_diag_kernel = op2.Kernel(assemble_diag_kernel % {'nlocaldof':nlocaldof},
+                                          'assemble_diag')
+        op2.par_loop(assemble_diag_kernel,
+                     mass_matrix.cell_set,
+                     mass_matrix.dat(op2.READ, mass_matrix.cell_node_map()),
+                     self.data.dat(op2.INC, self.data.cell_node_map()))
+
+        if (self.test):
+            v = assemble(mass).M.values
+            diff = 0.0
+            for i,x in enumerate(self.data.dat.data):
+                diff += (x-v[i][i])**2
+            diff = math.sqrt(diff)
+            comm = MPI.COMM_WORLD
+            if (comm.Get_rank() == 0):
+                print '||(M_u-M_U^*)_{diag}||_2 = '+('%8.4e' % diff)
+
+
+        # Construct point-wise inverse
+        self.data_inv = Function(self.V_velocity)
+        kernel_inv = '*data_inv = 1./(*data);'
+        par_loop(kernel_inv,direct,
+                 {'data_inv':(self.data_inv,WRITE),
+                  'data':(self.data,READ)})
+
+    def get(self):
+        '''Return velocity space representation of mass matrix.'''
+        return self.data
+
+    def _matmul(self,m,u):
+        '''Multiply by diagonal matrix
+
+        In-place multiply a velocity field by a diagonal matrix, which 
+        is either the lumped mass matrix or its inverse.
+
+        :arg m: block-diagonal matrix to multiply with
+        :arg u: velocity field to multiply (will be modified in-place)
+        '''
+        kernel = '(*u) *= (*m);'
+        par_loop(kernel,direct,
+                 {'u':(u,RW),
+                  'm':(m,READ)})
 
 class LumpedMassRT0(LumpedMass):
     '''Lumped velocity mass matrix.
