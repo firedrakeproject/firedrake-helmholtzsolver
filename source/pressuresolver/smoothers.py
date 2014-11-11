@@ -205,7 +205,7 @@ class Jacobi_HigherOrder(Jacobi):
         # * Step 1 *
         # Use UFL to build mass matrix and store in a 
         # 3x3 matrix on each cell
-        mass = psi*phi*dx
+        mass = psi*phi*self.dx
         mass_kernel = compile_form(mass, 'mass')[0][6]
         self.D_diag_inv = Function(V_DG0, val=op2.Dat(V_DG0.node_set**(3*3)))
         op2.par_loop(mass_kernel,self.D_diag_inv.cell_set,
@@ -222,7 +222,7 @@ class Jacobi_HigherOrder(Jacobi):
         # * Step 2 *
         # Use UFL to build divergence matrix and store it as a
         # 3x9 matrix on each cell.
-        bdiv = div(w)*phi*dx
+        bdiv = div(w)*phi*self.dx
         bdiv_kernel = compile_form(bdiv, 'bdiv')[0][6]
         bdiv_dat = Function(V_DG0, val=op2.Dat(V_DG0.node_set**(3*9)))
         op2.par_loop(bdiv_kernel,bdiv_dat.cell_set,
