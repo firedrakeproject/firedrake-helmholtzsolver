@@ -252,7 +252,7 @@ def main(parameter_filename=None):
         if (param_mixed['higher_order']):
             if (param_multigrid['mass_matrix'] == 'lump_SBR'):
                 velocity_mass_matrix_mg = lumped_mass_fine_SBR
-            elif (param_multigrid['lump_mass'] == 'lump_diag'):
+            elif (param_multigrid['mass_matrix'] == 'lump_diag'):
                 velocity_mass_matrix_mg = lumped_mass_fine_diag
             else:                
                 velocity_mass_matrix_mg = full_mass_fine
