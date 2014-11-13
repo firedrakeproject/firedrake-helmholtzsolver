@@ -1,0 +1,206 @@
+\documentclass[10pt]{article}
+\usepackage[cm]{fullpage}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\newcommand{\Uspace}{\mathbb{U}}
+\newcommand{\Vspace}{\mathbb{V}}
+\newcommand{\Wspace}{\mathbb{W}}
+\newcommand{\Hdiv}{\texttt{HDiv}}
+\newcommand{\Hcurl}{\texttt{HCurl}}
+\renewcommand{\vec}[1]{\boldsymbol{#1}}
+\newcommand{\zhat}{\hat{\vec{z}}}
+\newcommand{\ddt}[1]{\frac{\partial #1}{\partial t}}
+\newcommand{\ddtdisc}[1]{\frac{{#1}^{(t+\Delta t)}-{#1}^{(t)}}{\Delta t}}
+\newcommand{\tavg}[1]{\frac{{#1}^{(t+\Delta t)}+{#1}^{(t)}}{2}}
+\title{Matrix-free 3d solver for linear gravity wave test case}
+\date{\today}
+\author{Eike Hermann M\"{u}ller, Department of Mathematical Sciences, University of Bath}
+\begin{document}
+\maketitle
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Problem formulation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Continuous equations}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Consider the following linear gravity wave problem \cite{McRae2014}
+\begin{xalignat}{3}
+   \ddt{\vec{u}} &= \nabla p + b \zhat, &
+   \ddt{p} &= -c^2 \nabla\cdot \vec{u}, &
+   \ddt{b} &= -N^2\vec{u}\cdot\zhat.
+\label{eqn:ContinuousEquations}
+\end{xalignat}
+We assume that both the speed of sound $c$ and the buoyancy frequency $N$ are constant and enforce the condition $\vec{u}\cdot\vec{n}=0$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Finite element discretisation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\paragraph{Function spaces.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+We have the following de Rham complexes in one, two and three dimensions:
+\begin{xalignat}{3}
+  \Vspace_0 \overset{\partial_z}{\rightarrow}\Vspace_1,&
+  &\Uspace_0 \overset{\nabla^{\perp}}{\rightarrow}
+\Uspace_1 \overset{\nabla\cdot}{\rightarrow}\Uspace_2, &
+  &\Wspace_0 \overset{\nabla}{\rightarrow} \Wspace_1 \overset{\nabla\times}{\rightarrow} \Wspace_2\overset{\nabla\cdot}{\rightarrow} \Wspace_3
+\end{xalignat}
+with
+\begin{equation}
+ \begin{aligned}
+  \Wspace_0 &= \Uspace_0\otimes\Vspace_0,\\
+  \Wspace_1 &= \Hcurl(\Uspace_1\otimes\Vspace_0)\oplus
+\Hcurl(\Uspace_0\otimes\Vspace_1),\\
+  \Wspace_2 &= \Hdiv(\Uspace_2\otimes\Vspace_0)\oplus
+\Hdiv(\Uspace_1\otimes\Vspace_1),\\
+  \Wspace_3 &= \Uspace_2\otimes\Uspace_1,
+ \end{aligned}
+\end{equation}
+Also denote $\Wspace_2^0$ denoting the space of all functions in $\Wspace_2$ which satisfy the boundary condition $\vec{u}\cdot\vec{n}=0$. We write $\Wspace_2^v \equiv \Uspace_2\otimes\Vspace_0$ for the vertical component of the velocity space. Then the fields in (\ref{eqn:ContinuousEquations}) live in the following spaces:
+\begin{xalignat}{3}
+  \vec{u} &\in \Wspace_2^0,&
+  b &\in \Wspace_2^v, &
+  p &\in \Wspace_3.
+\end{xalignat}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\paragraph{Discrete equations.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Multiply with basis functions and use the implicit midpoint rule:
+\begin{equation}
+ \begin{aligned}
+  &\langle\vec{w},\ddtdisc{\vec{u}}\rangle
+  - \langle\nabla\cdot\vec{w},\tavg{p}\rangle
+  - \langle\vec{w},\tavg{b}\zhat\rangle = 0\\[1ex]
+  &\langle\phi,\ddtdisc{p}\rangle
+  +c^2 \langle\phi,\nabla\cdot\tavg{\vec{u}}\rangle
+  = 0\\[1ex]
+  &\langle\gamma,\ddtdisc{b}\rangle
+  + N^2\langle\gamma,\tavg{\vec{u}}\cdot\zhat\rangle
+  = 0
+ \end{aligned}
+\end{equation}
+Define $\delta p\equiv p^{(t+\Delta t)}-p^{(t)}$, $p_0\equiv p^{(t)}$ etc. and note that $\tavg{p}=\frac{\delta p}{2}+p_0$ to obtain an equation for the increments
+\begin{equation}
+ \begin{aligned}
+  &\langle\vec{w},\delta\vec{u}\rangle
+  - \langle\nabla\cdot\vec{w},\delta p\rangle
+  - \langle\vec{w},\delta b\zhat\rangle
+  = \Delta t \langle\nabla\cdot\vec{w},p_0\rangle
+  + \Delta t \langle\vec{w},b_0\zhat\rangle
+  \equiv r_u
+ \\[1ex]
+  &\langle\phi,\delta p\rangle
+  +c^2 \langle\phi,\nabla\cdot\delta\vec{u}\rangle
+  = -\Delta tc^2\langle\phi,\nabla\cdot\vec{u}_0\rangle
+  \equiv r_\phi
+  \\[1ex]
+  &\langle\gamma,\delta b\rangle
+  + N^2\langle\gamma,\delta\vec{u}\cdot\zhat\rangle
+  = -\Delta t N^2\langle\gamma,\vec{u}_0\cdot\zhat\rangle
+  \equiv r_b\label{eqn:Increments}
+ \end{aligned}
+\end{equation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\paragraph{Matrix formulation.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+By introducing the mass matrices
+\begin{xalignat}{3}
+  \left(M_u\right)_{ij} &\equiv \langle \vec{w}_i\cdot\vec{w}_j\rangle,&
+  \left(M_p\right)_{ij} &\equiv \langle \phi_i,\phi_j\rangle, &
+  \left(M_b\right)_{ij} &\equiv \langle \gamma_i,\gamma_j \rangle
+\end{xalignat}
+and the derivative- and projection operators
+\begin{xalignat}{2}
+  \left(D^T\right)_{ij} &\equiv \langle\nabla\cdot\vec{w}_i,\phi_j\rangle, &
+  \left(Q\right)_{ij} &\equiv \langle\vec{w}_i,\gamma_j\zhat\rangle,
+\end{xalignat}
+equation (\ref{eqn:Increments}) can be written as a matrix equation for the dof-vectors $\vec{U}$ (velocity), $\vec{P}$ (pressure) and $\vec{B}$ (buoyancy):
+\begin{equation}
+\begin{pmatrix}
+  M_u & 
+    -\frac{\Delta t}{2}D^T & 
+    -\frac{\Delta t}{2}Q\\[1ex]
+  \frac{\Delta t}{2}c^2D & M_p & 0\\[1ex]
+  \frac{\Delta t}{2}N^2Q^T & 0 & M_b
+\end{pmatrix}
+\begin{pmatrix}
+  \vec{U}\\[1ex]\vec{P}\\[1ex]\vec{B}
+\end{pmatrix}
+=
+\begin{pmatrix}
+  \vec{R}_u\\[1ex]\vec{R}_p\\[1ex]\vec{R}_b
+\end{pmatrix}.
+\end{equation}
+Use the third equation to eliminate the buoyancy  $\vec{B}=M_b^{-1}\vec{R}_b-\frac{\Delta t}{2}N^2M_b^{-1} Q^T\vec{U}$ and insert it into the velocity equation to obtain a mixed system for pressure and velocity:
+\begin{equation}
+  A\begin{pmatrix}\vec{P}\\[1ex]\vec{U}\end{pmatrix}
+  \equiv
+  \begin{pmatrix}
+   M_p & \frac{\Delta t}{2}c^2 D \\[1ex]
+   -\frac{\Delta t}{2}D^T & \tilde{M}_u
+  \end{pmatrix}
+  \begin{pmatrix}\vec{P}\\[1ex]\vec{U}\end{pmatrix}
+ =
+\begin{pmatrix}\vec{R}_p\\[1ex]\tilde{\vec{R}}_u\end{pmatrix}
+\qquad\text{with}\quad 
+\tilde{M}_u \equiv M_u + \omega^2_N QM_b^{-1}Q^T
+\quad\text{and}\quad \omega_N \equiv \frac{\Delta t}{2}N\label{eqn:PressureVelocitySystem}
+\end{equation}
+In the absence of orography, $Q=Q^T=M_b$. In any case, both $M_b$ and $\tilde{M}_u$ are well conditioned, so can be inverted with a small number of Richardson- or CG- iterations.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Schur complement Preconditioner}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+The inverse of the operator $A$ in (\ref{eqn:PressureVelocitySystem}) is given by
+\begin{equation}
+  A^{-1} = 
+\begin{pmatrix}
+  1 & 0 \\[1ex]
+  \frac{\Delta t}{2}\tilde{M}_u^{-1} D^T & 1
+\end{pmatrix}
+\begin{pmatrix}
+  H^{-1} & 0 \\[1ex] 0 & \tilde{M}_u^{-1}
+\end{pmatrix}
+\begin{pmatrix}
+  1 & -\frac{\Delta t}{2}D\tilde{M}_u^{-1} \\[1ex]
+  0 & 1
+\end{pmatrix}
+\end{equation}
+with the (positive-definite) ``Helmholtz'' operator
+\begin{equation}
+  H \equiv M_p + \omega_c^2 D\tilde{M}_u^{-1} D^T
+\qquad\text{where}\quad \omega_c \equiv \frac{\Delta t}{2}c.
+\end{equation}
+Precondition this operator with a similar operator $\hat{H}$ which only contains the vertical couplings, i.e. assume that $p\in \Uspace_2\otimes \Vspace_1$, $\vec{u}\in \Hdiv(\Uspace_2\otimes\Vspace_0)$. Denote the basis functions of $\Uspace_2$ as $\sigma_i(\vec{x})$, the basis functions of $\Vspace_0$ as $\alpha_k(\vec{x})$ and the basis functions of $\Vspace_1$ as $\beta_k(\vec{x})$. Then we have
+\begin{equation}
+  \hat{H} = M_{\phi} + \frac{\omega_c^2}{1+\omega_N^2}D_z\left(M^*_{u}\right)^{-1} D_z^T
+\label{eqn:Preconditioner}
+\end{equation}
+where we defined\footnote{the notation is a bit sloppy, the velocity space os vector-valued, so the correct contravariant Piola transfroms have to be included}
+\begin{equation}
+ \begin{aligned}
+   \left(M_\phi\right)_{ij,k\ell} &\equiv 
+   \int \sigma_i(\vec{x})\sigma_j(\vec{x})
+   \beta_k(\vec{x})\beta_\ell(\vec{x})
+   \;d\vec{x}\\[1ex]
+   \left(M^*_{u}\right)_{ij,k\ell} &\equiv 
+   \int \sigma_i(\vec{x})\sigma_j(\vec{x})
+   \alpha_k(\vec{x})\alpha_\ell(\vec{x})
+   \;d\vec{x}\\[1ex]
+   \left(D_z^T\right)_{ij,k\ell} &\equiv 
+   \int \sigma_i(\vec{x})\sigma_j(\vec{x})
+   (\partial_z\alpha_k(\vec{x}))\beta_\ell(\vec{x})
+   \;d\vec{x}.
+ \end{aligned}
+\end{equation}
+Here $i,j$ are the indices of the horizontal dofs in one horizontal cell (since $\Uspace_2$ is a DG space, there will be no couplings between different columns) and $k,\ell$ the indices of \textit{all} $\Vspace_0$ or $\Vspace_1$ dofs in one column.   Denoting the dof-vector in a column as $\vec{X}$, we have, for example
+\begin{equation}
+  \left(A\vec{X}\right)_{ik} \equiv \sum_{j\ell} A_{ij,k\ell} X_{j\ell}.
+\end{equation}
+The products of two matrices in (\ref{eqn:Preconditioner}) are defined as
+\begin{equation}
+  \left(AB\right)_{ij,k\ell} \equiv \sum_{r,s} A_{ir,ks}B_{rj,s\ell}
+\end{equation}
+While $M_u^*$ is a sparse, block-banded matrix, the inverse $M_u^*$ is dense and has the be approximated somehow (maybe using a SPAI?).
+\bibliographystyle{plain}
+\bibliography{GravityWaves}
+\end{document}
