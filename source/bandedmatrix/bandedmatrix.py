@@ -1,7 +1,7 @@
 import fractions
 import math
 
-class BGMatric(object):
+class BandedMatrix(object):
     def __init__(self,n_to,n_from,ind_n_to,ind_n_from,gamma_m,gamma_p,alpha,beta):
         '''Generalised block banded matrix.
 
