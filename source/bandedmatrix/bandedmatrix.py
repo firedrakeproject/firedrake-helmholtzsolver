@@ -39,7 +39,12 @@ class BandedMatrix(object):
                            'SELF_gamma_p':self.gamma_p,
                            'SELF_alpha':self.alpha,
                            'SELF_beta':self.beta,
-                           'SELF_bandwidth':self.bandwidth}
+                           'SELF_bandwidth':self.bandwidth,
+                           'SELF_FROM_table':self.ind_from.maptable(),
+                           'SELF_TO_table':self.ind_to.maptable(),
+                           'SELF_ndof_h_from':self.ind_from.ndof_h(),
+                           'SELF_ndof_h_to':self.ind_to.ndof_h()
+                          }
     
     def _divide_by_gcd(self):
         '''If alpha and beta have a gcd > 1, divide by this.
@@ -57,8 +62,8 @@ class BandedMatrix(object):
             :arg u: Vector to multiply
             :arg v: Resulting vector
         '''
-        ind_dict = {'IND_FROM_map':self.ind_from.map('ell','i','perm'),
-                    'IND_TO_map':self.ind_from.map('k','i','perm')}
+        ind_dict = {'IND_FROM_map':self.ind_from.('ell','i'),
+                    'IND_TO_map':self.ind_to.map('k','i')}
         kernel_code = '''void axpy(double **data,
                                    double **u,
                                    double **v) {
@@ -66,9 +71,11 @@ class BandedMatrix(object):
           const double beta = %(SELF_beta)d;
           const int gamma_m = %(SELF_gamma_m)d;
           const int gamma_p = %(SELF_gamma_p)d;
-          const int ndof_h_from = %(IND_FROM_ndof_h)d;
-          const int ndof_h_to = %(IND_TO_ndof_h)d;
+          const int ndof_h_from = %(SELF_FROM_ndof_h)d;
+          const int ndof_h_to = %(SELF_TO_ndof_h)d;
           const int bandwidth = %(SELF_bandwidth)d;
+          %(SELF_FROM_map)s;
+          %(SELF_TO_map)s;
           for (int k=0;k<%(SELF_n_to)d;++k) {
             double s[ndof_h_to];
             int ell_m = int(ceil(alpha*k-gamma_p)/beta);
@@ -89,9 +96,11 @@ class BandedMatrix(object):
             }
           }
         }'''
-
-        
-    
+        kernel = op2.Kernel(kernel_code,'axpy')
+        op2.par_loop(kernel,
+                     self.data(op2.READ,cell->DG0),
+                     u.dat(op2.READ,???),
+                     v.dat(op2.INC,???))
 
     def multiply(self,other,result=None):
         '''Calculate matrix product self*other.
