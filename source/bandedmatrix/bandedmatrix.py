@@ -2,7 +2,7 @@ import fractions
 import math
 
 class BandedMatrix(object):
-    def __init__(self,n_to,n_from,ind_n_to,ind_n_from,gamma_m,gamma_p,alpha,beta):
+    def __init__(self,n_row,n_col,ind_n_row,ind_n_col,gamma_m,gamma_p,alpha,beta):
         '''Generalised block banded matrix.
 
         :math:`n_{to}\times n_{from}` matrix over the field of dense :math:`n_h \times n_h` 
@@ -12,15 +12,15 @@ class BandedMatrix(object):
             :math::
                 -\gamma_- \le \alpha k - \beta \ell \le \gamma_+
         
-            :arg n_to: Number of rows
-            :arg n_from: Number of columns
+            :arg n_row: Number of rows
+            :arg n_col: Number of columns
             :arg gamma_m: band-parameter :math:`\gamma_-`
             :arg gamma_p: band-parameter :math:`\gamma_+`
             :arg alpha: band-parameter :math:`\alpha`
             :arg beta: band-parameter :math:`\beta`
         '''
-        self.n_to = n_to
-        self.n_from = n_from
+        self.n_row = n_row
+        self.n_col = n_col
         self.gamma_m = gamma_m
         self.gamma_p = gamma_p
         self.beta = beta
@@ -28,22 +28,22 @@ class BandedMatrix(object):
         # Bandwidth
         self.bandwidth = 1+int(math.ceil((self.gamma_h+self.g)/float(self.beta)))
         self._divide_by_gcd()
-        self.is_square = (self.n_to == self.n_from)
+        self.is_square = (self.n_row == self.n_col)
         self.is_sparsity_symmetric = ( (self.is_square) and \
                                        (self.alpha == self.beta) and \
                                        (self.gamma_m == self.gamma_p) )
         self.lu_decomposed = False
-        self.param_dict = {'SELF_n_to':self.n_to,
-                           'SELF_n_from':self.n_from,
+        self.param_dict = {'SELF_n_row':self.n_row,
+                           'SELF_n_col':self.n_col,
                            'SELF_gamma_m':self.gamma_m,
                            'SELF_gamma_p':self.gamma_p,
                            'SELF_alpha':self.alpha,
                            'SELF_beta':self.beta,
                            'SELF_bandwidth':self.bandwidth,
-                           'SELF_FROM_table':self.ind_from.maptable(),
-                           'SELF_TO_table':self.ind_to.maptable(),
-                           'SELF_ndof_h_from':self.ind_from.ndof_h(),
-                           'SELF_ndof_h_to':self.ind_to.ndof_h()
+                           'SELF_COL_table':self.ind_col.maptable(),
+                           'SELF_ROW_table':self.ind_row.maptable(),
+                           'SELF_ndof_h_col':self.ind_col.ndof_h(),
+                           'SELF_ndof_h_row':self.ind_row.ndof_h()
                           }
     
     def _divide_by_gcd(self):
@@ -62,8 +62,8 @@ class BandedMatrix(object):
             :arg u: Vector to multiply
             :arg v: Resulting vector
         '''
-        ind_dict = {'IND_FROM_map':self.ind_from.('ell','i'),
-                    'IND_TO_map':self.ind_to.map('k','i')}
+        ind_dict = {'IND_COL_map':self.ind_col.('ell','i'),
+                    'IND_ROW_map':self.ind_row.map('k','i')}
         kernel_code = '''void axpy(double **data,
                                    double **u,
                                    double **v) {
@@ -71,28 +71,28 @@ class BandedMatrix(object):
           const double beta = %(SELF_beta)d;
           const int gamma_m = %(SELF_gamma_m)d;
           const int gamma_p = %(SELF_gamma_p)d;
-          const int ndof_h_from = %(SELF_FROM_ndof_h)d;
-          const int ndof_h_to = %(SELF_TO_ndof_h)d;
+          const int ndof_h_col = %(SELF_COL_ndof_h)d;
+          const int ndof_h_row = %(SELF_ROW_ndof_h)d;
           const int bandwidth = %(SELF_bandwidth)d;
-          %(SELF_FROM_map)s;
-          %(SELF_TO_map)s;
-          for (int k=0;k<%(SELF_n_to)d;++k) {
-            double s[ndof_h_to];
+          %(SELF_COL_map)s;
+          %(SELF_ROW_map)s;
+          for (int k=0;k<%(SELF_n_row)d;++k) {
+            double s[ndof_h_row];
             int ell_m = int(ceil(alpha*k-gamma_p)/beta);
             int ell_p = int(ceil(alpha*k+gamma_m)/beta);
-            for (int i=0;i<ndof_h_to;++i) {
+            for (int i=0;i<ndof_h_row;++i) {
               s[i]=0.0;
             }
-            for (int ell=max(0,ell_m);ell<min(%(SELF_n_from)d,ell_p);++ell) {
-              for (int i=0;i<ndof_h_to;++i) {
-                for (int j=0;j<ndof_h_from;++j) {
-                  s[i] += data[0][ndof_h_from*ndof_h_to*(bandwidth*k+(ell-ell_-))+j]
-                        * u[0][%(IND_FROM_map)s];
+            for (int ell=max(0,ell_m);ell<min(%(SELF_n_col)d,ell_p);++ell) {
+              for (int i=0;i<ndof_h_row;++i) {
+                for (int j=0;j<ndof_h_col;++j) {
+                  s[i] += data[0][ndof_h_col*ndof_h_row*(bandwidth*k+(ell-ell_-))+j]
+                        * u[0][%(IND_COL_map)s];
                 }
               }
             }
-            for (int i=0;i<ndof_h_to;++i) {
-              v[0][%(IND_TO_map)s] += s[i];
+            for (int i=0;i<ndof_h_row;++i) {
+              v[0][%(IND_ROW_map)s] += s[i];
             }
           }
         }'''
@@ -112,10 +112,10 @@ class BandedMatrix(object):
             :arg result: resulting matrix
         '''
         # Check that matrices can be multiplied
-        assert (self.n_from == other.n_to)
+        assert (self.n_col == other.n_row)
         if (result):
-            assert(result.n_to == self.n_to)
-            assert(result.n_from = other.n_from)
+            assert(result.n_row == self.n_row)
+            assert(result.n_col = other.n_col)
         pass
 
     def add(self,other,result=None):
@@ -127,11 +127,11 @@ class BandedMatrix(object):
             :arg other: matrix to mass
             :arg result: resulting matrix
         '''
-        assert(self.n_to == other.n_to)
-        assert(self.n_from == other.n_from)
+        assert(self.n_row == other.n_row)
+        assert(self.n_col == other.n_col)
         if (result):
-            assert(result.n_to == self.n_to)
-            assert(result.n_from = self.n_from)
+            assert(result.n_row == self.n_row)
+            assert(result.n_col = self.n_col)
         pass
 
     def scale(self,alpha):
