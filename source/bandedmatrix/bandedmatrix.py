@@ -1,8 +1,9 @@
 import fractions
 import math
+from ufl import HDiv
 from firedrake import *
 from firedrake.ffc_interface import compile_form
-from cellindirection import *
+from firedrake.fiat_utils import *
 
 class BandedMatrix(object):
     def __init__(self,fs_row,fs_col,gamma_m=None,gamma_p=None):
@@ -27,33 +28,26 @@ class BandedMatrix(object):
         self._mesh = fs_row.mesh()
         self._ncelllayers = self._mesh.layers-1
         self._hostmesh = self._mesh._old_mesh
-        self._ind_row = CellIndirection(self._fs_row)
-        self._ind_col = CellIndirection(self._fs_col)
-        self._n_row = ( self._ind_row.ndof_cell*self._ncelllayers \
-                      + self._ind_row.ndof_bottom_facet*(self._ncelllayers+1) ) \
-                      / self._ind_row.horiz_extent
-        self._n_col = ( self._ind_col.ndof_cell*self._ncelllayers \
-                      + self._ind_col.ndof_bottom_facet*(self._ncelllayers+1) ) \
-                      / self._ind_col.horiz_extent
+        self._ndof_cell_row, self._ndof_bottom_facet_row = self._get_ndof_cell(self._fs_row)
+        self._ndof_cell_col, self._ndof_bottom_facet_col = self._get_ndof_cell(self._fs_col)
+        self._ndof_row = self._ndof_cell_row+2*self._ndof_bottom_facet_row
+        self._ndof_col = self._ndof_cell_col+2*self._ndof_bottom_facet_col
+        self._n_row = self._ndof_cell_row*self._ncelllayers \
+                    + self._ndof_bottom_facet_row*(self._ncelllayers+1)
+        self._n_col = self._ndof_cell_col*self._ncelllayers \
+                    + self._ndof_bottom_facet_col*(self._ncelllayers+1)
         
-        self._gamma_m = (self._ind_row.ndof / self._ind_row.horiz_extent - 1) \
-                      * (self._ind_col.ndof_cell+self._ind_col.ndof_bottom_facet) \
-                      / self._ind_col.horiz_extent
-        self._gamma_p = (self._ind_col.ndof / self._ind_col.horiz_extent - 1) \
-                      * (self._ind_row.ndof_cell+self._ind_row.ndof_bottom_facet) \
-                      / self._ind_row.horiz_extent
+        self._gamma_m = (self._ndof_row-1)*(self._ndof_cell_col+self._ndof_bottom_facet_col)
+        self._gamma_p = (self._ndof_col-1)*(self._ndof_cell_row+self._ndof_bottom_facet_row)
         if (gamma_m):
             self._gamma_m = max(self._gamma_m,gamma_m)
         if (gamma_p):
             self._gamma_p = max(self._gamma_p,gamma_p)
-        self._alpha = self._ind_col.ndof / self._ind_col.horiz_extent
-        self._beta  = self._ind_row.ndof / self._ind_row.horiz_extent
-        print self._alpha, self._beta, self._gamma_m, self._gamma_p
+        self._alpha = self._ndof_col
+        self._beta  = self._ndof_row
         self._divide_by_gcd()
         self._Vcell = FunctionSpace(self._hostmesh,'DG',0)
-        self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row *
-                                                   self._ind_row.horiz_extent * 
-                                                   self._ind_col.horiz_extent))
+        self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row))
         self._lu_decomposed = False
         self._param_dict = {'n_row':self._n_row,
                             'n_col':self._n_col,
@@ -63,10 +57,10 @@ class BandedMatrix(object):
                             'beta':self._beta,
                             'bandwidth':self.bandwidth,
                             'ncelllayers':self._ncelllayers,
-                            'indirectiontable_row':self._ind_row.maptable(),
-                            'indirectiontable_col':self._ind_col.maptable(),
-                            'horiz_extent_col':self._ind_col.horiz_extent,
-                            'horiz_extent_row':self._ind_row.horiz_extent}
+                            'ndof_cell_row':self._ndof_cell_row,
+                            'ndof_facet_row':self._ndof_bottom_facet_row,
+                            'ndof_cell_col':self._ndof_cell_col,
+                            'ndof_facet_col':self._ndof_bottom_facet_col}
 
     @property
     def fs_row(self):
@@ -124,6 +118,24 @@ class BandedMatrix(object):
             self._beta /= gcd
             self._gamma_m /= gcd
             self._gamma_p /=gcd
+    
+    def _get_ndof_cell(self, fs):
+        """Count the number of dofs associated with (tdom-1,n) in a function space
+
+        :arg fs: the function space to inspect for the element dof
+        ordering.
+        """
+        ufl_ele = fs.ufl_element()
+        # Unwrap non HDiv'd element if necessary
+        if isinstance(ufl_ele, HDiv):
+            ele = ufl_ele._element
+        else:
+            ele = ufl_ele
+        tdim = ele.cell().topological_dimension()
+        element = fiat_from_ufl_element(ele)
+        ndof_cell = len(element.entity_dofs()[(tdim-1, 1)][0])
+        ndof_bottom_facet = len(element.entity_dofs()[(tdim-1, 0)][0])
+        return ndof_cell, ndof_bottom_facet
 
     def assemble_ufl_form(self,ufl_form):
         '''Assemble the matrix form a UFL form.
@@ -149,62 +161,36 @@ class BandedMatrix(object):
         
     def _assemble_lma(self,lma):
         param_dict = {'SELF_'+x:y for (x,y) in self._param_dict.iteritems()}
-        ind_dict = {'IND_map_row':,
-                    'IND_map_col':self._ind_col.ki_to_local_index('ell_local','j'),
-                    'IND_nrow':self._ind_row.ndof,
-                    'IND_ncol':self._ind_col.ndof,
-                    'IND_ndof_cell_row':self._ind_row.ndof_cell,
-                    'IND_ndof_facet_row':self._ind_row.ndof_bottom_facet,
-                    'IND_ndof_cell_col':self._ind_col.ndof_cell,
-                    'IND_ndof_facet_col':self._ind_col.ndof_bottom_facet}
         kernel_code = ''' void assemble_lma(double **lma,
                                             double **A) {
           const int alpha = %(SELF_alpha)d;
           const double beta = %(SELF_beta)d;
           const int gamma_p = %(SELF_gamma_p)d;
           const int bandwidth = %(SELF_bandwidth)d;
-          const int horiz_extent_col = %(SELF_horiz_extent_col)d;
-          const int horiz_extent_row = %(SELF_horiz_extent_row)d;
-          const int vert_extent_cell_row = %(IND_ndof_cell_row)d/horiz_extent_row;
-          const int vert_extent_facet_row = %(IND_ndof_facet_row)d/horiz_extent_row;
-          const int vert_extent_cell_col = %(IND_ndof_cell_col)d/horiz_extent_col;
-          const int vert_extent_facet_col = %(IND_ndof_facet_col)d/horiz_extent_col;
-          // Create indirection tables
-          // row map: (k_local,i) -> nu(k_local,i)
-          %(SELF_indirectiontable_row)s;
-          // column map: (ell_local,j) -> nu(ell_local,j)
-          %(SELF_indirectiontable_col)s;
+          const int ndof_cell_row = %(SELF_ndof_cell_row)d;
+          const int ndof_facet_row = %(SELF_ndof_facet_row)d;
+          const int ndof_cell_col = %(SELF_ndof_cell_col)d;
+          const int ndof_facet_col = %(SELF_ndof_facet_col)d;
+          const int ndof_row = ndof_cell_row + 2*ndof_facet_row;
+          const int ndof_col = ndof_cell_col + 2*ndof_facet_col;
           double *layer_lma = lma[0];
-          // Loop over vertical layers
           for (int celllayer=0;celllayer<%(SELF_ncelllayers)d;++celllayer) {
             // Loop over local vertical dofs in row space
-            for (int k_local=0;
-                 k_local<(vert_extent_cell_row+2*vert_extent_facet_row);
-                 ++k_local) {
+            for (int k_local=0;k_local<ndof_row;++k_local) {
               // Loop over local vertical dofs in column space
-              for (int ell_local=0;
-                   ell_local<(vert_extent_cell_col+2*vert_extent_facet_col);
-                   ++ell_local) {
+              for (int ell_local=0;ell_local<ndof_col;++ell_local) {
                 // Work out global vertical indices (for accessing A)
-                int k = celllayer*(vert_extent_cell_row+vert_extent_facet_row)+k_local;
-                int ell = celllayer*(vert_extent_cell_col+vert_extent_facet_col)+ell_local;
+                int k = celllayer*(ndof_cell_row+ndof_facet_row)+k_local;
+                int ell = celllayer*(ndof_cell_col+ndof_facet_col)+ell_local;
                 int ell_m = (int) ceil((alpha*k-gamma_p)/beta);
-                // Loop over horizontal indices in row space
-                for (int i=0;i<horiz_extent_row;++i) {
-                  // Loop over horizontal indices in column space
-                  for (int j=0;j<horiz_extent_col;++j) {
-                    A[0][horiz_extent_col*horiz_extent_row*(bandwidth*k+(ell-ell_m))+(i*horiz_extent_col+j)]
-                      += layer_lma[%(IND_map_row)s * (%(IND_ncol)d)+%(IND_map_col)s];
-                  }
-                }
+                A[0][bandwidth*k+(ell-ell_m)] += layer_lma[k_local * ndof_col + ell_local];
               }
             }
             // point to next vertical layer
-            layer_lma += (%(IND_nrow)d) * (%(IND_ncol)d);
+            layer_lma += ndof_row * ndof_col;
           }
         }'''
         self._data.zero()
-        param_dict.update(ind_dict)
         kernel_code = kernel_code % param_dict
         kernel = op2.Kernel(kernel_code,'assemble_lma',cpp=True)
         op2.par_loop(kernel,
@@ -220,8 +206,6 @@ class BandedMatrix(object):
         '''
         assert(u.function_space() == self._fs_col)
         assert(v.function_space() == self._fs_row)
-        ind_dict = {'IND_map_row':self._ind_row.ki_to_index('k','i'),
-                    'IND_map_col':self._ind_col.ki_to_index('ell','j')}
         param_dict = {'SELF_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = '''void axpy(double **A,
                                    double **u,
@@ -230,41 +214,20 @@ class BandedMatrix(object):
           const double beta = %(SELF_beta)d;
           const int gamma_m = %(SELF_gamma_m)d;
           const int gamma_p = %(SELF_gamma_p)d;
-          const int horiz_extent_col = %(SELF_horiz_extent_col)d;
-          const int horiz_extent_row = %(SELF_horiz_extent_row)d;
           const int bandwidth = %(SELF_bandwidth)d;
-          // Create indirection tables
-          // row map: (k,i) -> nu(k,i)
-          %(SELF_indirectiontable_row)s;
-          // column map: (ell,j) -> nu(ell,j)
-          %(SELF_indirectiontable_col)s;
           // Loop over matrix rows
           for (int k=0;k<%(SELF_n_row)d;++k) {
-            double s[%(SELF_horiz_extent_row)d];
+            double s = 0;
             // Work out column loop bounds
             int ell_m = (int) ceil((alpha*k-gamma_p)/beta);
             int ell_p = (int) ceil((alpha*k+gamma_m)/beta);
-            for (int i=0;i<horiz_extent_row;++i) {
-              s[i]=0.0;
-            }
             // Loop over columns
-            for (int ell=std::max(0,ell_m);ell<std::min(%(SELF_n_col)d,ell_p);++ell) {
-              // Calculate s_i += \sum_j [A_{kl}]_{ij}
-              for (int i=0;i<horiz_extent_row;++i) {
-                for (int j=0;j<horiz_extent_col;++j) {
-                  s[i] += A[0][horiz_extent_col*horiz_extent_row*(bandwidth*k+(ell-ell_m)) 
-                               +(i*horiz_extent_col+j)]
-                        * u[0][%(IND_map_col)s];
-                }
-              }
+            for (int ell=std::max(0,ell_m);ell<std::min(%(SELF_n_col)d,ell_p+1);++ell) {
+               s += A[0][bandwidth*k+(ell-ell_m)] * u[0][ell];
             }
-            // Update [v_k]_i += s_i = \sum_{l,j} [A_{kl}]_{ij} [u_l]_j
-            for (int i=0;i<horiz_extent_row;++i) {
-              v[0][%(IND_map_row)s] += s[i];
-            }
+            v[0][k] += s;
           }
         }'''
-        param_dict.update(ind_dict)
         kernel_code = kernel_code % param_dict
         kernel = op2.Kernel(kernel_code,'axpy',cpp=True)
         op2.par_loop(kernel,
