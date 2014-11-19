@@ -1,6 +1,7 @@
 import fractions
 import math
 from firedrake import *
+from firedrake.ffc_interface import compile_form
 from cellindirection import *
 
 class BandedMatrix(object):
@@ -35,18 +36,19 @@ class BandedMatrix(object):
                       + self._ind_col.ndof_bottom_facet*(self._ncelllayers+1) ) \
                       / self._ind_col.horiz_extent
         
-        self._gamma_m = self._ind_row.ndof \
+        self._gamma_m = (self._ind_row.ndof / self._ind_row.horiz_extent - 1) \
                       * (self._ind_col.ndof_cell+self._ind_col.ndof_bottom_facet) \
-                      / (self._ind_row.horiz_extent * self._ind_col.horiz_extent )
-        self._gamma_p = self._ind_col.ndof \
+                      / self._ind_col.horiz_extent
+        self._gamma_p = (self._ind_col.ndof / self._ind_col.horiz_extent - 1) \
                       * (self._ind_row.ndof_cell+self._ind_row.ndof_bottom_facet) \
-                      / (self._ind_col.horiz_extent * self._ind_row.horiz_extent )
+                      / self._ind_row.horiz_extent
         if (gamma_m):
             self._gamma_m = max(self._gamma_m,gamma_m)
         if (gamma_p):
             self._gamma_p = max(self._gamma_p,gamma_p)
         self._alpha = self._ind_col.ndof / self._ind_col.horiz_extent
         self._beta  = self._ind_row.ndof / self._ind_row.horiz_extent
+        print self._alpha, self._beta, self._gamma_m, self._gamma_p
         self._divide_by_gcd()
         self._Vcell = FunctionSpace(self._hostmesh,'DG',0)
         self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row *
@@ -60,6 +62,7 @@ class BandedMatrix(object):
                             'alpha':self._alpha,
                             'beta':self._beta,
                             'bandwidth':self.bandwidth,
+                            'ncelllayers':self._ncelllayers,
                             'indirectiontable_row':self._ind_row.maptable(),
                             'indirectiontable_col':self._ind_col.maptable(),
                             'horiz_extent_col':self._ind_col.horiz_extent,
@@ -122,6 +125,93 @@ class BandedMatrix(object):
             self._gamma_m /= gcd
             self._gamma_p /=gcd
 
+    def assemble_ufl_form(self,ufl_form):
+        '''Assemble the matrix form a UFL form.
+
+            :arg ufl_form: UFL form to assemble
+        '''
+        compiled_form = compile_form(ufl_form, 'ufl_form')[0]
+        kernel = compiled_form[6]
+        coords = compiled_form[3]
+        coefficients = compiled_form[4]
+        arguments = ufl_form.arguments()
+        assert len(arguments) == 2, 'Not a bilinear form'
+        nrow = arguments[0].cell_node_map().arity
+        ncol = arguments[1].cell_node_map().arity
+        V_lma = FunctionSpace(self._mesh,'DG',0)
+        lma = Function(V_lma, val=op2.Dat(V_lma.node_set**(nrow*ncol)))
+        args = [lma.dat(op2.INC, lma.cell_node_map()[op2.i[0]]), 
+                coords.dat(op2.READ, coords.cell_node_map(), flatten=True)]
+        for c in coefficients:
+            args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
+        op2.par_loop(kernel,lma.cell_set, *args)
+        self._assemble_lma(lma)
+        
+    def _assemble_lma(self,lma):
+        param_dict = {'SELF_'+x:y for (x,y) in self._param_dict.iteritems()}
+        ind_dict = {'IND_map_row':,
+                    'IND_map_col':self._ind_col.ki_to_local_index('ell_local','j'),
+                    'IND_nrow':self._ind_row.ndof,
+                    'IND_ncol':self._ind_col.ndof,
+                    'IND_ndof_cell_row':self._ind_row.ndof_cell,
+                    'IND_ndof_facet_row':self._ind_row.ndof_bottom_facet,
+                    'IND_ndof_cell_col':self._ind_col.ndof_cell,
+                    'IND_ndof_facet_col':self._ind_col.ndof_bottom_facet}
+        kernel_code = ''' void assemble_lma(double **lma,
+                                            double **A) {
+          const int alpha = %(SELF_alpha)d;
+          const double beta = %(SELF_beta)d;
+          const int gamma_p = %(SELF_gamma_p)d;
+          const int bandwidth = %(SELF_bandwidth)d;
+          const int horiz_extent_col = %(SELF_horiz_extent_col)d;
+          const int horiz_extent_row = %(SELF_horiz_extent_row)d;
+          const int vert_extent_cell_row = %(IND_ndof_cell_row)d/horiz_extent_row;
+          const int vert_extent_facet_row = %(IND_ndof_facet_row)d/horiz_extent_row;
+          const int vert_extent_cell_col = %(IND_ndof_cell_col)d/horiz_extent_col;
+          const int vert_extent_facet_col = %(IND_ndof_facet_col)d/horiz_extent_col;
+          // Create indirection tables
+          // row map: (k_local,i) -> nu(k_local,i)
+          %(SELF_indirectiontable_row)s;
+          // column map: (ell_local,j) -> nu(ell_local,j)
+          %(SELF_indirectiontable_col)s;
+          double *layer_lma = lma[0];
+          // Loop over vertical layers
+          for (int celllayer=0;celllayer<%(SELF_ncelllayers)d;++celllayer) {
+            // Loop over local vertical dofs in row space
+            for (int k_local=0;
+                 k_local<(vert_extent_cell_row+2*vert_extent_facet_row);
+                 ++k_local) {
+              // Loop over local vertical dofs in column space
+              for (int ell_local=0;
+                   ell_local<(vert_extent_cell_col+2*vert_extent_facet_col);
+                   ++ell_local) {
+                // Work out global vertical indices (for accessing A)
+                int k = celllayer*(vert_extent_cell_row+vert_extent_facet_row)+k_local;
+                int ell = celllayer*(vert_extent_cell_col+vert_extent_facet_col)+ell_local;
+                int ell_m = (int) ceil((alpha*k-gamma_p)/beta);
+                // Loop over horizontal indices in row space
+                for (int i=0;i<horiz_extent_row;++i) {
+                  // Loop over horizontal indices in column space
+                  for (int j=0;j<horiz_extent_col;++j) {
+                    A[0][horiz_extent_col*horiz_extent_row*(bandwidth*k+(ell-ell_m))+(i*horiz_extent_col+j)]
+                      += layer_lma[%(IND_map_row)s * (%(IND_ncol)d)+%(IND_map_col)s];
+                  }
+                }
+              }
+            }
+            // point to next vertical layer
+            layer_lma += (%(IND_nrow)d) * (%(IND_ncol)d);
+          }
+        }'''
+        self._data.zero()
+        param_dict.update(ind_dict)
+        kernel_code = kernel_code % param_dict
+        kernel = op2.Kernel(kernel_code,'assemble_lma',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     lma.dat(op2.READ,lma.cell_node_map()),
+                     self._data(op2.INC,self._Vcell.cell_node_map()))
+
     def axpy(self,u,v):
         '''axpy Matrix-vector mutiplication :math:`v\mapsto v+Au`
 
@@ -144,9 +234,9 @@ class BandedMatrix(object):
           const int horiz_extent_row = %(SELF_horiz_extent_row)d;
           const int bandwidth = %(SELF_bandwidth)d;
           // Create indirection tables
-          // row map: (ell,j) -> nu(ell,j)
+          // row map: (k,i) -> nu(k,i)
           %(SELF_indirectiontable_row)s;
-          // column map: (k,i) -> nu(k,i)
+          // column map: (ell,j) -> nu(ell,j)
           %(SELF_indirectiontable_col)s;
           // Loop over matrix rows
           for (int k=0;k<%(SELF_n_row)d;++k) {
@@ -162,7 +252,8 @@ class BandedMatrix(object):
               // Calculate s_i += \sum_j [A_{kl}]_{ij}
               for (int i=0;i<horiz_extent_row;++i) {
                 for (int j=0;j<horiz_extent_col;++j) {
-                  s[i] += A[0][horiz_extent_col*horiz_extent_row*(bandwidth*k+(ell-ell_m))+j]
+                  s[i] += A[0][horiz_extent_col*horiz_extent_row*(bandwidth*k+(ell-ell_m)) 
+                               +(i*horiz_extent_col+j)]
                         * u[0][%(IND_map_col)s];
                 }
               }
