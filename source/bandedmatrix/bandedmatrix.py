@@ -37,14 +37,14 @@ class BandedMatrix(object):
         self._n_col = self._ndof_cell_col*self._ncelllayers \
                     + self._ndof_bottom_facet_col*(self._ncelllayers+1)
         
-        self._gamma_m = (self._ndof_row-1)*(self._ndof_cell_col+self._ndof_bottom_facet_col)
-        self._gamma_p = (self._ndof_col-1)*(self._ndof_cell_row+self._ndof_bottom_facet_row)
+        self._gamma_m = (self._ndof_col-1)*(self._ndof_cell_row+self._ndof_bottom_facet_row)
+        self._gamma_p = (self._ndof_row-1)*(self._ndof_cell_col+self._ndof_bottom_facet_col)
         if (gamma_m):
             self._gamma_m = max(self._gamma_m,gamma_m)
         if (gamma_p):
             self._gamma_p = max(self._gamma_p,gamma_p)
-        self._alpha = self._ndof_col
-        self._beta  = self._ndof_row
+        self._alpha = self._ndof_cell_col+self._ndof_bottom_facet_col
+        self._beta  = self._ndof_cell_row+self._ndof_bottom_facet_row
         self._divide_by_gcd()
         self._Vcell = FunctionSpace(self._hostmesh,'DG',0)
         self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row))
