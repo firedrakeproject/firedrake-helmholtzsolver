@@ -84,10 +84,11 @@ class CellIndirection(object):
 
     def ki_to_local_index(self, k, i):
         """Return a C string mapping k and i to a cell-local dof index"""
-        return "(%(name)s[(%(k)s %% %(nv)d) + %(i)s])" % {'k': k,
+        return "(%(name)s[(%(k)s %% %(nv)d)*%(nd)d + %(i)s])" % {'k': k,
                                                           'i': i,
                                                           'name': self.name,
-                                                          'nv': self.vert_extent}
+                                                          'nv': self.vert_extent,
+                                                          'nd': self.horiz_extent}
     def ki_to_index(self, k, i):
         """Return a C string mapping k and i to a dof index"""
         return "(((%(k)s / %(nv)d) * %(nd)d) + %(local_idx)s)" % \
