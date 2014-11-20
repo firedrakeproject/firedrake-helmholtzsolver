@@ -160,30 +160,30 @@ class BandedMatrix(object):
         self._assemble_lma(lma)
         
     def _assemble_lma(self,lma):
-        param_dict = {'SELF_'+x:y for (x,y) in self._param_dict.iteritems()}
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = ''' void assemble_lma(double **lma,
                                             double **A) {
-          const int alpha = %(SELF_alpha)d;
-          const double beta = %(SELF_beta)d;
-          const int gamma_p = %(SELF_gamma_p)d;
-          const int bandwidth = %(SELF_bandwidth)d;
-          const int ndof_cell_row = %(SELF_ndof_cell_row)d;
-          const int ndof_facet_row = %(SELF_ndof_facet_row)d;
-          const int ndof_cell_col = %(SELF_ndof_cell_col)d;
-          const int ndof_facet_col = %(SELF_ndof_facet_col)d;
+          const int alpha = %(A_alpha)d;
+          const double beta = %(A_beta)d;
+          const int gamma_p = %(A_gamma_p)d;
+          const int bandwidth = %(A_bandwidth)d;
+          const int ndof_cell_row = %(A_ndof_cell_row)d;
+          const int ndof_facet_row = %(A_ndof_facet_row)d;
+          const int ndof_cell_col = %(A_ndof_cell_col)d;
+          const int ndof_facet_col = %(A_ndof_facet_col)d;
           const int ndof_row = ndof_cell_row + 2*ndof_facet_row;
           const int ndof_col = ndof_cell_col + 2*ndof_facet_col;
           double *layer_lma = lma[0];
-          for (int celllayer=0;celllayer<%(SELF_ncelllayers)d;++celllayer) {
+          for (int celllayer=0;celllayer<%(A_ncelllayers)d;++celllayer) {
             // Loop over local vertical dofs in row space
-            for (int k_local=0;k_local<ndof_row;++k_local) {
+            for (int i_local=0;i_local<ndof_row;++i_local) {
               // Loop over local vertical dofs in column space
-              for (int ell_local=0;ell_local<ndof_col;++ell_local) {
+              for (int j_local=0;j_local<ndof_col;++j_local) {
                 // Work out global vertical indices (for accessing A)
-                int k = celllayer*(ndof_cell_row+ndof_facet_row)+k_local;
-                int ell = celllayer*(ndof_cell_col+ndof_facet_col)+ell_local;
-                int ell_m = (int) ceil((alpha*k-gamma_p)/beta);
-                A[0][bandwidth*k+(ell-ell_m)] += layer_lma[k_local * ndof_col + ell_local];
+                int i = celllayer*(ndof_cell_row+ndof_facet_row)+i_local;
+                int j = celllayer*(ndof_cell_col+ndof_facet_col)+j_local;
+                int j_m = (int) ceil((alpha*i-gamma_p)/beta);
+                A[0][bandwidth*i+(j-j_m)] += layer_lma[i_local * ndof_col + j_local];
               }
             }
             // point to next vertical layer
@@ -191,8 +191,7 @@ class BandedMatrix(object):
           }
         }'''
         self._data.zero()
-        kernel_code = kernel_code % param_dict
-        kernel = op2.Kernel(kernel_code,'assemble_lma',cpp=True)
+        kernel = op2.Kernel(kernel_code % param_dict,'assemble_lma',cpp=True)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      lma.dat(op2.READ,lma.cell_node_map()),
@@ -206,30 +205,29 @@ class BandedMatrix(object):
         '''
         assert(u.function_space() == self._fs_col)
         assert(v.function_space() == self._fs_row)
-        param_dict = {'SELF_'+x:y for (x,y) in self._param_dict.iteritems()}
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = '''void axpy(double **A,
                                    double **u,
                                    double **v) {
-          const int alpha = %(SELF_alpha)d;
-          const double beta = %(SELF_beta)d;
-          const int gamma_m = %(SELF_gamma_m)d;
-          const int gamma_p = %(SELF_gamma_p)d;
-          const int bandwidth = %(SELF_bandwidth)d;
+          const int alpha = %(A_alpha)d;
+          const double beta = %(A_beta)d;
+          const int gamma_m = %(A_gamma_m)d;
+          const int gamma_p = %(A_gamma_p)d;
+          const int bandwidth = %(A_bandwidth)d;
           // Loop over matrix rows
-          for (int k=0;k<%(SELF_n_row)d;++k) {
+          for (int i=0;i<%(A_n_row)d;++i) {
             double s = 0;
             // Work out column loop bounds
-            int ell_m = (int) ceil((alpha*k-gamma_p)/beta);
-            int ell_p = (int) ceil((alpha*k+gamma_m)/beta);
+            int j_m = (int) ceil((alpha*i-gamma_p)/beta);
+            int j_p = (int) floor((alpha*i+gamma_m)/beta);
             // Loop over columns
-            for (int ell=std::max(0,ell_m);ell<std::min(%(SELF_n_col)d,ell_p+1);++ell) {
-               s += A[0][bandwidth*k+(ell-ell_m)] * u[0][ell];
+            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+               s += A[0][bandwidth*i+(j-j_m)] * u[0][j];
             }
-            v[0][k] += s;
+            v[0][i] += s;
           }
         }'''
-        kernel_code = kernel_code % param_dict
-        kernel = op2.Kernel(kernel_code,'axpy',cpp=True)
+        kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
