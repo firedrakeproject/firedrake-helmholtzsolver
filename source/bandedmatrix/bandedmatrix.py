@@ -49,6 +49,8 @@ class BandedMatrix(object):
         self._Vcell = FunctionSpace(self._hostmesh,'DG',0)
         self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row))
         self._lu_decomposed = False
+        self._nodemap_row = self._get_nodemap(self._fs_row)
+        self._nodemap_col = self._get_nodemap(self._fs_col)
         self._param_dict = {'n_row':self._n_row,
                             'n_col':self._n_col,
                             'gamma_m':self._gamma_m,
@@ -60,7 +62,14 @@ class BandedMatrix(object):
                             'ndof_cell_row':self._ndof_cell_row,
                             'ndof_facet_row':self._ndof_bottom_facet_row,
                             'ndof_cell_col':self._ndof_cell_col,
-                            'ndof_facet_col':self._ndof_bottom_facet_col}
+                            'ndof_facet_col':self._ndof_bottom_facet_col,
+                            'nodemap_row':'{%s}' % ', '.join('%d' % o for o in self._nodemap_row),
+                            'nodemap_col':'{%s}' % ', '.join('%d' % o for o in self._nodemap_col),
+                            'n_nodemap_row':len(self._nodemap_row),
+                            'n_nodemap_col':len(self._nodemap_col)}
+
+    def _get_nodemap(self,fs):
+        return fs.cell_node_map().values[0]
 
     @property
     def fs_row(self):
@@ -173,6 +182,8 @@ class BandedMatrix(object):
           const int ndof_facet_col = %(A_ndof_facet_col)d;
           const int ndof_row = ndof_cell_row + 2*ndof_facet_row;
           const int ndof_col = ndof_cell_col + 2*ndof_facet_col;
+          const int nodemap_row[%(A_n_nodemap_row)d] = %(A_nodemap_row)s;
+          const int nodemap_col[%(A_n_nodemap_col)d] = %(A_nodemap_col)s;
           double *layer_lma = lma[0];
           for (int celllayer=0;celllayer<%(A_ncelllayers)d;++celllayer) {
             // Loop over local vertical dofs in row space
@@ -180,8 +191,8 @@ class BandedMatrix(object):
               // Loop over local vertical dofs in column space
               for (int j_local=0;j_local<ndof_col;++j_local) {
                 // Work out global vertical indices (for accessing A)
-                int i = celllayer*(ndof_cell_row+ndof_facet_row)+i_local;
-                int j = celllayer*(ndof_cell_col+ndof_facet_col)+j_local;
+                int i = celllayer*(ndof_cell_row+ndof_facet_row)+nodemap_row[i_local];
+                int j = celllayer*(ndof_cell_col+ndof_facet_col)+nodemap_col[j_local];
                 int j_m = (int) ceil((alpha*i-gamma_p)/beta);
                 A[0][bandwidth*i+(j-j_m)] += layer_lma[i_local * ndof_col + j_local];
               }
