@@ -255,17 +255,6 @@ class BandedMatrix(object):
                      u.dat(op2.READ,u.cell_node_map()),
                      v.dat(op2.INC,v.cell_node_map()))
 
-    def global_matrix(self):
-        g = {}
-        for (icol,mat) in enumerate(self._data):
-            g[icol] = np.zeros((self._n_row,self._n_col))
-            for i in range(self._n_row):
-                j_p = math.ceil((self.alpha*i-self.gamma_p)/self.beta)
-                j_m = math.ceil((self.alpha*i+self.gamma_m)/self.beta)
-                for j in range(max(j_p,0),min(self._n_col,j_p+1)):
-                    g[icol][i][j] = mat[self.bandwidth*i+(j-j+m)]
-        return global_matrix
-
     def matmul(self,other,result=None):
         '''Calculate matrix product self*other.
 
@@ -352,7 +341,6 @@ class BandedMatrix(object):
         if (result):
             assert(result.n_row == self.n_row)
             assert(result.n_col == self.n_col)
-        pass
 
     def scale(self,alpha):
         '''Scale all entries by a factor, i.e. calculate :math:`\alpha A`.
