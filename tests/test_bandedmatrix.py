@@ -90,6 +90,38 @@ def test_derivative_action(W2_vert,W3):
     f = assemble(action(form, u))
     assert np.allclose(norm(assemble(f - v)), 0.0)
 
+def test_matmul(W2_vert,W3):
+
+    u = Function(W2_vert)
+    v = Function(W3)
+    v_tmp = Function(W3)
+
+    u.project(Expression(('x[0]*x[1] + 10*x[1]', 'x[1] - x[0] / 10')))
+    v.assign(0)
+
+    mat_A = BandedMatrix(v.function_space(),v.function_space())
+    mat_B = BandedMatrix(v.function_space(),u.function_space())
+
+    phi = TestFunction(W3)
+    psi = TrialFunction(W3)
+    w = TrialFunction(W2_vert)
+
+    form_A = phi*psi*dx
+    form_B = phi*div(w)*dx
+    mat_A.assemble_ufl_form(form_A)
+    mat_B.assemble_ufl_form(form_B)
+    mat_C = mat_A.matmul(mat_B)
+
+    #mat_B.axpy(u, v_tmp)
+    #mat_A.axpy(v_tmp, v)
+
+    mat_C.axpy(u, v)
+
+    f_u = assemble(action(form_B, u))
+    f_v = assemble(action(form_A, f_u))
+
+    assert np.allclose(norm(assemble(f_v - v)), 0.0)
+
 if __name__ == '__main__':
     import os
     pytest.main(os.path.abspath(__file__))
