@@ -9,16 +9,22 @@ class BandedMatrix(object):
     def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None):
         '''Generalised block banded matrix.
 
-        :math:`n_{row}\times n_{col}` matrix over the field of dense
-        :math:`n^{(h)}_{row} \times n^{(h)}_{col}` 
-        matrices with entries only for row-indices :math:`k` and column 
-        index :math:`\ell` for which
+        :math:`n_{row}\\times n_{col}` matrix with entries only for 
+        row-indices :math:`i` and column indices :math:`j` for which satisfy
 
             :math::
-                -\gamma_- \le \alpha k - \beta \ell \le \gamma_+
+                -\gamma_- \le \\alpha i - \\beta j \le \gamma_+
+
+        Internally the matrix is stored in a sparse format as an array 
+        :math:`\overline{A}` of length :math:`n_{row}BW` with the bandwidth BW defined 
+        as :math:`BW=1+\lceil((\gamma_++\gamma_-)/\\beta)\\rceil`. Element :math:`A_{ij}`
+        can be accessed as :math:`A_{ij}=\overline{A}_{BW\cdot i+(j-j_-(i))}` where
+        :math:`j_-(i) = \lceil((\\alpha i-\gamma_+)/\\beta)\`rceil`.
         
             :arg fs_row: Row function space
             :arg fs_col: Column function space
+            :arg alpha: Parameter :math:`alpha`
+            :arg beta: Parameter :math:`beta`
             :arg gamma_m: Lower bound :math:`\gamma_-`
             :arg gamma_p: Upper bound :math:`\gamma_+`
         '''
@@ -55,6 +61,7 @@ class BandedMatrix(object):
             self._beta  = self._ndof_cell_row+self._ndof_bottom_facet_row
         self._divide_by_gcd()
         self._Vcell = FunctionSpace(self._hostmesh,'DG',0)
+        # Data array
         self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row))
         self._data.zero()
         self._lu_decomposed = False
@@ -78,6 +85,7 @@ class BandedMatrix(object):
                             'n_nodemap_col':len(self._nodemap_col)}
 
     def _get_nodemap(self,fs):
+        '''Return node map of first base cell in the extruded mesh.'''
         return fs.cell_node_map().values[0]
 
     @property
@@ -158,6 +166,10 @@ class BandedMatrix(object):
     def assemble_ufl_form(self,ufl_form):
         '''Assemble the matrix form a UFL form.
 
+        In each cell of the extruded mesh, build the local matrix stencil associated
+        with the UFL form. Then call _assemble_lma() to loop over all cells and assemble 
+        into the banded matrix.
+
             :arg ufl_form: UFL form to assemble
         '''
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
@@ -179,6 +191,7 @@ class BandedMatrix(object):
 
         
     def _assemble_lma(self,lma):
+        '''Assemble the matrix from the LMA storage format.'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = ''' void assemble_lma(double **lma,
                                             double **A) {
@@ -256,13 +269,14 @@ class BandedMatrix(object):
                      v.dat(op2.INC,v.cell_node_map()))
 
     def matmul(self,other,result=None):
-        '''Calculate matrix product self*other.
+        '''Calculate matrix product :math:`C=AB`.
 
-        If result is None, allocate a new matrix, otherwise write data to
-        already allocated matrix.
+        Multiply this matrix by the banded matrix :math:`B` from the right and store the
+        result in the matrix :math:`C`. If result is None, allocate a new matrix, otherwise 
+        write data to already allocated matrix. 
 
-            :arg other: matrix to multiply
-            :arg result: resulting matrix
+            :arg other: matrix :math:`B` to multiply with
+            :arg result: resulting matrix :math:`C`
         '''
         # Check that matrices can be multiplied
         assert (self._n_col == other._n_row)
@@ -327,14 +341,15 @@ class BandedMatrix(object):
         return result
 
     def matadd(self,other,omega=1.0,result=None):
-        '''Calculate matrix sum self+omega*other.
+        '''Calculate matrix sum :math:A+\omega B.
 
-        If result is None, allocate a new matrix, otherwise write data to
-        already allocated matrix.
+        Add the banded matrix :math:`\omega B` to this matrix and store the result in the 
+        banded matrix :math:`C`. If result is None, allocate a new matrix, otherwise write 
+        data to already allocated matrix.
 
-            :arg other: matrix to mass
-            :arg alpha: scaling factor
-            :arg result: resulting matrix
+            :arg other: matrix :math:`B` to add
+            :arg omega: real scaling factor :math:`\omega`
+            :arg result: resulting matrix :math:`C`
         '''
         assert(self._n_row == other._n_row)
         assert(self._n_col == other._n_col)
