@@ -112,15 +112,50 @@ def test_matmul(W2_vert,W3):
     mat_B.assemble_ufl_form(form_B)
     mat_C = mat_A.matmul(mat_B)
 
-    #mat_B.axpy(u, v_tmp)
-    #mat_A.axpy(v_tmp, v)
-
     mat_C.axpy(u, v)
 
     f_u = assemble(action(form_B, u))
     f_v = assemble(action(form_A, f_u))
 
     assert np.allclose(norm(assemble(f_v - v)), 0.0)
+
+def test_matadd(W2_vert,W3):
+
+    u = Function(W3)
+    v = Function(W3)
+    v_tmp = Function(W3)
+
+    u.project(Expression('x[0]*x[1] + 10*x[1]'))
+    v.assign(0)
+
+    mat_M = BandedMatrix(W3,W3)
+    mat_D = BandedMatrix(W3,W2_vert)
+    mat_DT = BandedMatrix(W2_vert,W3)
+
+    phi = TestFunction(W3)
+    psi = TrialFunction(W3)
+    w = TrialFunction(W2_vert)
+    w2 = TestFunction(W2_vert)
+
+    form_M = phi*psi*dx
+    form_D = phi*div(w)*dx
+    form_DT = div(w2)*psi*dx
+
+    omega = 2.0
+
+    mat_M.assemble_ufl_form(form_M)
+    mat_D.assemble_ufl_form(form_D)
+    mat_DT.assemble_ufl_form(form_DT)
+
+    # Calculate H = M + omega*D*DT
+    mat_H = mat_M.matadd(mat_D.matmul(mat_DT),omega=omega)
+
+    mat_H.axpy(u, v)
+
+    f = assemble(action(form_M, u)) \
+      + omega*assemble(action(form_D,assemble(action(form_DT, u))))
+
+    assert np.allclose(norm(assemble(f - v)), 0.0)
 
 if __name__ == '__main__':
     import os

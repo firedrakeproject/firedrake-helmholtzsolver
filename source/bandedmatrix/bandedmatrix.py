@@ -326,8 +326,8 @@ class BandedMatrix(object):
                      result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
-    def add(self,other,alpha=1.0,result=None):
-        '''Calculate matrix sum self+alpha*other.
+    def matadd(self,other,omega=1.0,result=None):
+        '''Calculate matrix sum self+omega*other.
 
         If result is None, allocate a new matrix, otherwise write data to
         already allocated matrix.
@@ -336,19 +336,69 @@ class BandedMatrix(object):
             :arg alpha: scaling factor
             :arg result: resulting matrix
         '''
-        assert(self.n_row == other.n_row)
-        assert(self.n_col == other.n_col)
+        assert(self._n_row == other._n_row)
+        assert(self._n_col == other._n_col)
+        assert(self.alpha == other.alpha)
+        assert(self.beta == other.beta)
+        gamma_m = max(self.gamma_m,other.gamma_m)
+        gamma_p = max(self.gamma_p,other.gamma_p)
         if (result):
-            assert(result.n_row == self.n_row)
-            assert(result.n_col == self.n_col)
-
-    def scale(self,alpha):
-        '''Scale all entries by a factor, i.e. calculate :math:`\alpha A`.
-
-            :arg alpha: scaling factor
-        '''
-        pass
-
+            assert(result._n_row == self._n_row)
+            assert(result._n_col == self._n_col)
+            assert(result.alpha == self.alpha)
+            assert(result.beta == self.beta)
+            assert(result.gamma_m >= gamma_m)
+            assert(result.gamma_p >= gamma_p)
+        else:
+            result = BandedMatrix(self._fs_row,other._fs_col,
+                                  alpha=self.alpha,beta=self.beta,
+                                  gamma_m=gamma_m,gamma_p=gamma_p)
+        param_dict = {}
+        for label, matrix in zip(('A','B','C'),(self,other,result)):
+            param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
+        param_dict.update({'omega':omega})
+        kernel_code = '''void matadd(double **A,
+                                     double **B,
+                                     double **C) {
+          const int alpha_A = %(A_alpha)d;
+          const double beta_A = %(A_beta)d;
+          const int gamma_m_A = %(A_gamma_m)d;
+          const int gamma_p_A = %(A_gamma_p)d;
+          const int bandwidth_A = %(A_bandwidth)d;
+          const int alpha_B = %(B_alpha)d;
+          const double beta_B = %(B_beta)d;
+          const int gamma_m_B = %(B_gamma_m)d;
+          const int gamma_p_B = %(B_gamma_p)d;
+          const int bandwidth_B = %(B_bandwidth)d;
+          const int alpha_C = %(C_alpha)d;
+          const double beta_C = %(C_beta)d;
+          const int gamma_m_C = %(C_gamma_m)d;
+          const int gamma_p_C = %(C_gamma_p)d;
+          const int bandwidth_C = %(C_bandwidth)d;
+          const double omega = %(omega)f;
+          for (int i=0;i<%(C_n_row)d;++i) {
+            int j_m_C = (int) ceil((alpha_C*i-gamma_p_C)/beta_C);
+            int j_p_C = (int) floor((alpha_C*i+gamma_m_C)/beta_C);
+            int j_m_A = (int) ceil((alpha_A*i-gamma_p_A)/beta_A);
+            int j_p_A = (int) floor((alpha_A*i+gamma_m_A)/beta_A);
+            int j_m_B = (int) ceil((alpha_B*i-gamma_p_B)/beta_B);
+            int j_p_B = (int) floor((alpha_B*i+gamma_m_B)/beta_B);
+            for (int j=std::max(0,j_m_A);j<std::min(%(A_n_col)d,j_p_A+1);++j) {
+              C[0][bandwidth_C*i+(j-j_m_C)] += A[0][bandwidth_A*i+(j-j_m_A)];
+            }
+            for (int j=std::max(0,j_m_B);j<std::min(%(B_n_col)d,j_p_B+1);++j) {
+              C[0][bandwidth_C*i+(j-j_m_C)] += omega*B[0][bandwidth_B*i+(j-j_m_B)];
+            }
+          }
+        }'''
+        kernel = op2.Kernel(kernel_code % param_dict, 'matadd',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     other._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        return result
+            
     def lu_decompose(self):
         '''Construct LU decomposition :math:`A=LU` on the fly.
 
