@@ -6,6 +6,7 @@ import pytest
 
 @pytest.fixture
 def mesh():
+    '''Create 1+1 dimensional mesh by extruding a circle.'''
     D = 0.1
     nlayers=2
     ncells=3
@@ -20,6 +21,13 @@ def mesh():
 
 @pytest.fixture
 def finite_elements():
+    '''Create finite elements of horizontal and vertical function spaces.
+
+    :math:`U_1` = horizontal H1 space
+    :math:`U_2` = horizontal L2 space
+    :math:`V_0` = vertical H1 space
+    :math:`V_1` = vertical L2 space
+    '''
     # Finite elements
 
     # Horizontal elements
@@ -34,6 +42,13 @@ def finite_elements():
 
 @pytest.fixture
 def W2_vert(finite_elements,mesh):
+    '''HDiv space for vertical velocity component.
+            
+    Build vertical velocity space :math:`W_2^{v} = Hdiv(U_2\otimes V_0)`
+    
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
 
     U1, U2, V0, V1 = finite_elements
 
@@ -46,6 +61,13 @@ def W2_vert(finite_elements,mesh):
 
 @pytest.fixture
 def W3(finite_elements,mesh):
+    '''L2 pressure space.
+            
+    Build pressure space :math:`W_3 = Hdiv(U_2\otimes V_1)`
+
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
 
     U1, U2, V0, V1 = finite_elements
 
@@ -56,42 +78,66 @@ def W3(finite_elements,mesh):
     return W3
     
 def test_mass_action(W3):
+    '''Test mass matrix action.
+
+    Calculate the action of the :math:`W_3` mass matrix on a :math:`W_3` field both using
+    the banded matrix class and UFL; compare the results.
+
+    :arg W3: L2 pressure function space
+    '''
     u = Function(W3)
     v = Function(W3)
 
     u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
     v.assign(0)
 
-    mat = BandedMatrix(v.function_space(),u.function_space())
-    phi = TestFunction(W3)
-    psi = TrialFunction(W3)
-    form = phi*psi*dx
+    mat = BandedMatrix(W3,W3)
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+    form = phi_test*phi_trial*dx
     mat.assemble_ufl_form(form)
 
     mat.axpy(u, v)
 
-    f = assemble(action(form, u))
-    assert np.allclose(norm(assemble(f - v)), 0.0)
+    v_ufl = assemble(action(form, u))
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
 def test_derivative_action(W2_vert,W3):
+    '''Test weak derivative action.
+
+    Calculate the action of the :math:`W_2 \\rightarrow W_3` weak derivative both using
+    the banded matrix class and UFL; compare the results.
+
+    :arg W2_vert: L2 pressure function space
+    :arg W3: HDiv space for vertical velocity component
+    '''
     u = Function(W2_vert)
     v = Function(W3)
 
     u.project(Expression(('x[0]*x[1] + 10*x[1]', 'x[1] - x[0] / 10')))
     v.assign(0)
 
-    mat = BandedMatrix(v.function_space(),u.function_space())
-    phi = TestFunction(W3)
-    w = TrialFunction(W2_vert)
-    form = phi*div(w)*dx
+    mat = BandedMatrix(W3,W2_vert)
+    phi_test = TestFunction(W3)
+    w_trial = TrialFunction(W2_vert)
+    form = phi_test*div(w_trial)*dx
     mat.assemble_ufl_form(form)
     mat.axpy(u, v)
   
-    f = assemble(action(form, u))
-    assert np.allclose(norm(assemble(f - v)), 0.0)
+    v_ufl = assemble(action(form, u))
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
 def test_matmul(W2_vert,W3):
+    '''Test matrix multiplication.
+    
+    Assemble banded matrices for the :math:`W_3` mass matrix and the 
+    :math:`W_2\\rightarrow W_3` weak derivative and multiply these banded matrices to
+    obtain a new banded matrix. Apply this matrix to a :math:`W_2` field and compare to
+    the result of doing the same operation in UFL.
 
+    :arg W2_vert: L2 pressure function space
+    :arg W3: HDiv space for vertical velocity component
+    '''
     u = Function(W2_vert)
     v = Function(W3)
     v_tmp = Function(W3)
@@ -99,27 +145,37 @@ def test_matmul(W2_vert,W3):
     u.project(Expression(('x[0]*x[1] + 10*x[1]', 'x[1] - x[0] / 10')))
     v.assign(0)
 
-    mat_A = BandedMatrix(v.function_space(),v.function_space())
-    mat_B = BandedMatrix(v.function_space(),u.function_space())
+    mat_M = BandedMatrix(W3,W3)
+    mat_D = BandedMatrix(W3,W2_vert)
 
-    phi = TestFunction(W3)
-    psi = TrialFunction(W3)
-    w = TrialFunction(W2_vert)
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+    w_trial = TrialFunction(W2_vert)
 
-    form_A = phi*psi*dx
-    form_B = phi*div(w)*dx
-    mat_A.assemble_ufl_form(form_A)
-    mat_B.assemble_ufl_form(form_B)
-    mat_C = mat_A.matmul(mat_B)
+    form_M = phi_test*phi_trial*dx
+    form_D = phi_test*div(w_trial)*dx
+    mat_M.assemble_ufl_form(form_M)
+    mat_D.assemble_ufl_form(form_D)
 
-    mat_C.axpy(u, v)
+    mat_MD = mat_M.matmul(mat_D)
 
-    f_u = assemble(action(form_B, u))
-    f_v = assemble(action(form_A, f_u))
+    mat_MD.axpy(u, v)
 
-    assert np.allclose(norm(assemble(f_v - v)), 0.0)
+    v_ufl = assemble(action(form_M,assemble(action(form_D, u))))
+
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
 def test_matadd(W2_vert,W3):
+    '''Test matrix addition.
+    
+    Assemble banded matrices for the :math:`W_3` mass matrix :math:`M` and the 
+    :math:`W_2\\rightarrow W_3` weak derivative :math:`D`. Calculate the sum 
+    :math:`H = M+omega D D^T`, apply it to a field in :math:`W3` and compare to
+    the result of doing the same operation in UFL.
+
+    :arg W2_vert: L2 pressure function space
+    :arg W3: HDiv space for vertical velocity component
+    '''
 
     u = Function(W3)
     v = Function(W3)
@@ -132,14 +188,14 @@ def test_matadd(W2_vert,W3):
     mat_D = BandedMatrix(W3,W2_vert)
     mat_DT = BandedMatrix(W2_vert,W3)
 
-    phi = TestFunction(W3)
-    psi = TrialFunction(W3)
-    w = TrialFunction(W2_vert)
-    w2 = TestFunction(W2_vert)
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+    w_test = TestFunction(W2_vert)
+    w_trial = TrialFunction(W2_vert)
 
-    form_M = phi*psi*dx
-    form_D = phi*div(w)*dx
-    form_DT = div(w2)*psi*dx
+    form_M = phi_test*phi_trial*dx
+    form_D = phi_test*div(w_trial)*dx
+    form_DT = div(w_test)*phi_trial*dx
 
     omega = 2.0
 
@@ -152,11 +208,14 @@ def test_matadd(W2_vert,W3):
 
     mat_H.axpy(u, v)
 
-    f = assemble(action(form_M, u)) \
-      + omega*assemble(action(form_D,assemble(action(form_DT, u))))
+    v_ufl = assemble(action(form_M, u)) \
+          + omega*assemble(action(form_D,assemble(action(form_DT, u))))
 
-    assert np.allclose(norm(assemble(f - v)), 0.0)
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
+##############################################################
+# M A I N
+##############################################################
 if __name__ == '__main__':
     import os
     pytest.main(os.path.abspath(__file__))
