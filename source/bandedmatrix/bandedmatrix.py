@@ -6,7 +6,7 @@ from firedrake.ffc_interface import compile_form
 from firedrake.fiat_utils import *
 
 class BandedMatrix(object):
-    def __init__(self,fs_row,fs_col,gamma_m=None,gamma_p=None):
+    def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None):
         '''Generalised block banded matrix.
 
         :math:`n_{row}\times n_{col}` matrix over the field of dense
@@ -37,17 +37,26 @@ class BandedMatrix(object):
         self._n_col = self._ndof_cell_col*self._ncelllayers \
                     + self._ndof_bottom_facet_col*(self._ncelllayers+1)
         
-        self._gamma_m = (self._ndof_col-1)*(self._ndof_cell_row+self._ndof_bottom_facet_row)
-        self._gamma_p = (self._ndof_row-1)*(self._ndof_cell_col+self._ndof_bottom_facet_col)
         if (gamma_m):
-            self._gamma_m = max(self._gamma_m,gamma_m)
+            self._gamma_m = gamma_m
+        else:
+            self._gamma_m = (self._ndof_col-1)*(self._ndof_cell_row+self._ndof_bottom_facet_row)
         if (gamma_p):
-            self._gamma_p = max(self._gamma_p,gamma_p)
-        self._alpha = self._ndof_cell_col+self._ndof_bottom_facet_col
-        self._beta  = self._ndof_cell_row+self._ndof_bottom_facet_row
+            self._gamma_p = gamma_p
+        else:
+            self._gamma_p = (self._ndof_row-1)*(self._ndof_cell_col+self._ndof_bottom_facet_col)
+        if (alpha):
+            self._alpha = alpha
+        else:
+            self._alpha = self._ndof_cell_col+self._ndof_bottom_facet_col
+        if (beta):
+            self._beta = beta
+        else:
+            self._beta  = self._ndof_cell_row+self._ndof_bottom_facet_row
         self._divide_by_gcd()
         self._Vcell = FunctionSpace(self._hostmesh,'DG',0)
         self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row))
+        self._data.zero()
         self._lu_decomposed = False
         self._nodemap_row = self._get_nodemap(self._fs_row)
         self._nodemap_col = self._get_nodemap(self._fs_col)
@@ -167,6 +176,7 @@ class BandedMatrix(object):
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma.cell_set, *args)
         self._assemble_lma(lma)
+
         
     def _assemble_lma(self,lma):
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
@@ -245,7 +255,18 @@ class BandedMatrix(object):
                      u.dat(op2.READ,u.cell_node_map()),
                      v.dat(op2.INC,v.cell_node_map()))
 
-    def multiply(self,other,result=None):
+    def global_matrix(self):
+        g = {}
+        for (icol,mat) in enumerate(self._data):
+            g[icol] = np.zeros((self._n_row,self._n_col))
+            for i in range(self._n_row):
+                j_p = math.ceil((self.alpha*i-self.gamma_p)/self.beta)
+                j_m = math.ceil((self.alpha*i+self.gamma_m)/self.beta)
+                for j in range(max(j_p,0),min(self._n_col,j_p+1)):
+                    g[icol][i][j] = mat[self.bandwidth*i+(j-j+m)]
+        return global_matrix
+
+    def matmul(self,other,result=None):
         '''Calculate matrix product self*other.
 
         If result is None, allocate a new matrix, otherwise write data to
@@ -255,35 +276,75 @@ class BandedMatrix(object):
             :arg result: resulting matrix
         '''
         # Check that matrices can be multiplied
-        assert (self.n_col == other.n_row)
+        assert (self._n_col == other._n_row)
         if (result):
-            assert(result.n_row == self.n_row)
-            assert(result.n_col == other.n_col)
+            assert(result._n_row == self._n_row)
+            assert(result._n_col == other._n_col)
         else:
+            alpha = self.alpha * other.alpha
+            beta = self.beta * other.beta
             gamma_m = other.alpha * self.gamma_m + self.beta*other.gamma_m
             gamma_p = other.alpha * self.gamma_p + self.beta*other.gamma_p
-            result = BandedMatrix(self.fspace_row,other.fspace_col,
+            result = BandedMatrix(self._fs_row,other._fs_col,
+                                  alpha=alpha,beta=beta,
                                   gamma_m=gamma_m,gamma_p=gamma_p)
-        kernel_code = '''void malmul(double **A,
+
+        param_dict = {}
+        for label, matrix in zip(('A','B','C'),(self,other,result)):
+            param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
+        kernel_code = '''void matmul(double **A,
                                      double **B,
-                                     double **C) {          
+                                     double **C) {
           const int alpha_A = %(A_alpha)d;
           const double beta_A = %(A_beta)d;
           const int gamma_m_A = %(A_gamma_m)d;
           const int gamma_p_A = %(A_gamma_p)d;
-          const int horiz_extent_col_A = %(A_COL_horiz_extent)d;
-          const int horiz_extent_row_A = %(A_ROW_horiz_extent)d;
           const int bandwidth_A = %(A_bandwidth)d;
+          const int alpha_B = %(B_alpha)d;
+          const double beta_B = %(B_beta)d;
+          const int gamma_m_B = %(B_gamma_m)d;
+          const int gamma_p_B = %(B_gamma_p)d;
+          const int bandwidth_B = %(B_bandwidth)d;
+          const int alpha_C = %(C_alpha)d;
+          const double beta_C = %(C_beta)d;
+          const int gamma_m_C = %(C_gamma_m)d;
+          const int gamma_p_C = %(C_gamma_p)d;
+          const int bandwidth_C = %(C_bandwidth)d;
+          for (int i=0;i<%(C_n_row)d;++i) {
+            int j_m = (int) ceil((alpha_C*i-gamma_p_C)/beta_C);
+            int j_p = (int) floor((alpha_C*i+gamma_m_C)/beta_C);
+            int k_m = (int) ceil((alpha_A*i-gamma_p_A)/beta_A);
+            int k_p = (int) floor((alpha_A*i+gamma_m_A)/beta_A);
+            for (int j=std::max(0,j_m);j<std::min(%(C_n_col)d,j_p+1);++j) {
+              double s = 0.0;
+              for (int k=std::max(0,k_m);k<std::min(%(A_n_col)d,k_p+1);++k) {
+                if ( (ceil((alpha_B*k-gamma_p_B)/beta_B) <= j) &&
+                     (j <= floor((alpha_B*k+gamma_m_B)/beta_B)) ) {
+                  int j_m_B = (int) ceil((alpha_B*k-gamma_p_B)/beta_B);
+                  s += A[0][bandwidth_A*i+(k-k_m)]
+                     * B[0][bandwidth_B*k+(j-j_m_B)];
+                }
+              }
+              C[0][bandwidth_C*i+(j-j_m)] = s;
+            }
+          }
         }'''
+        kernel = op2.Kernel(kernel_code % param_dict, 'matmul',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     other._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
-    def add(self,other,result=None):
-        '''Calculate matrix sum self*other.
+    def add(self,other,alpha=1.0,result=None):
+        '''Calculate matrix sum self+alpha*other.
 
         If result is None, allocate a new matrix, otherwise write data to
         already allocated matrix.
 
             :arg other: matrix to mass
+            :arg alpha: scaling factor
             :arg result: resulting matrix
         '''
         assert(self.n_row == other.n_row)
