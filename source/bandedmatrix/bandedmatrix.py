@@ -195,10 +195,6 @@ class BandedMatrix(object):
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = ''' void assemble_lma(double **lma,
                                             double **A) {
-          const int alpha = %(A_alpha)d;
-          const double beta = %(A_beta)d;
-          const int gamma_p = %(A_gamma_p)d;
-          const int bandwidth = %(A_bandwidth)d;
           const int ndof_cell_row = %(A_ndof_cell_row)d;
           const int ndof_facet_row = %(A_ndof_facet_row)d;
           const int ndof_cell_col = %(A_ndof_cell_col)d;
@@ -216,8 +212,8 @@ class BandedMatrix(object):
                 // Work out global vertical indices (for accessing A)
                 int i = celllayer*(ndof_cell_row+ndof_facet_row)+nodemap_row[i_local];
                 int j = celllayer*(ndof_cell_col+ndof_facet_col)+nodemap_col[j_local];
-                int j_m = (int) ceil((alpha*i-gamma_p)/beta);
-                A[0][bandwidth*i+(j-j_m)] += layer_lma[i_local * ndof_col + j_local];
+                int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+                A[0][%(A_bandwidth)d*i+(j-j_m)] += layer_lma[i_local * ndof_col + j_local];
               }
             }
             // point to next vertical layer
@@ -243,20 +239,15 @@ class BandedMatrix(object):
         kernel_code = '''void axpy(double **A,
                                    double **u,
                                    double **v) {
-          const int alpha = %(A_alpha)d;
-          const double beta = %(A_beta)d;
-          const int gamma_m = %(A_gamma_m)d;
-          const int gamma_p = %(A_gamma_p)d;
-          const int bandwidth = %(A_bandwidth)d;
           // Loop over matrix rows
           for (int i=0;i<%(A_n_row)d;++i) {
             double s = 0;
             // Work out column loop bounds
-            int j_m = (int) ceil((alpha*i-gamma_p)/beta);
-            int j_p = (int) floor((alpha*i+gamma_m)/beta);
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
             // Loop over columns
             for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
-               s += A[0][bandwidth*i+(j-j_m)] * u[0][j];
+               s += A[0][%(A_bandwidth)d*i+(j-j_m)] * u[0][j];
             }
             v[0][i] += s;
           }
@@ -298,37 +289,22 @@ class BandedMatrix(object):
         kernel_code = '''void matmul(double **A,
                                      double **B,
                                      double **C) {
-          const int alpha_A = %(A_alpha)d;
-          const double beta_A = %(A_beta)d;
-          const int gamma_m_A = %(A_gamma_m)d;
-          const int gamma_p_A = %(A_gamma_p)d;
-          const int bandwidth_A = %(A_bandwidth)d;
-          const int alpha_B = %(B_alpha)d;
-          const double beta_B = %(B_beta)d;
-          const int gamma_m_B = %(B_gamma_m)d;
-          const int gamma_p_B = %(B_gamma_p)d;
-          const int bandwidth_B = %(B_bandwidth)d;
-          const int alpha_C = %(C_alpha)d;
-          const double beta_C = %(C_beta)d;
-          const int gamma_m_C = %(C_gamma_m)d;
-          const int gamma_p_C = %(C_gamma_p)d;
-          const int bandwidth_C = %(C_bandwidth)d;
           for (int i=0;i<%(C_n_row)d;++i) {
-            int j_m = (int) ceil((alpha_C*i-gamma_p_C)/beta_C);
-            int j_p = (int) floor((alpha_C*i+gamma_m_C)/beta_C);
-            int k_m = (int) ceil((alpha_A*i-gamma_p_A)/beta_A);
-            int k_p = (int) floor((alpha_A*i+gamma_m_A)/beta_A);
+            int j_m = (int) ceil((%(C_alpha)d*i-%(C_gamma_p)d)/(1.0*%(C_beta)f));
+            int j_p = (int) floor((%(C_alpha)d*i+%(C_gamma_m)d)/(1.0*%(C_beta)f));
+            int k_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/(1.0*%(A_beta)f));
+            int k_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/(1.0*%(A_beta)f));
             for (int j=std::max(0,j_m);j<std::min(%(C_n_col)d,j_p+1);++j) {
               double s = 0.0;
               for (int k=std::max(0,k_m);k<std::min(%(A_n_col)d,k_p+1);++k) {
-                if ( (ceil((alpha_B*k-gamma_p_B)/beta_B) <= j) &&
-                     (j <= floor((alpha_B*k+gamma_m_B)/beta_B)) ) {
-                  int j_m_B = (int) ceil((alpha_B*k-gamma_p_B)/beta_B);
-                  s += A[0][bandwidth_A*i+(k-k_m)]
-                     * B[0][bandwidth_B*k+(j-j_m_B)];
+                if ( (ceil((%(B_alpha)d*k-%(B_gamma_p)d)/%(B_beta)f) <= j) &&
+                     (j <= floor((%(B_alpha)d*k+%(B_gamma_m)d)/(1.0*%(B_beta)f))) ) {
+                  int j_m_B = (int) ceil((%(B_alpha)d*k-%(B_gamma_p)d)/(1.0*%(B_beta)f));
+                  s += A[0][%(A_bandwidth)d*i+(k-k_m)]
+                     * B[0][%(B_bandwidth)d*k+(j-j_m_B)];
                 }
               }
-              C[0][bandwidth_C*i+(j-j_m)] = s;
+              C[0][%(C_bandwidth)d*i+(j-j_m)] = s;
             }
           }
         }'''
@@ -375,34 +351,18 @@ class BandedMatrix(object):
         kernel_code = '''void matadd(double **A,
                                      double **B,
                                      double **C) {
-          const int alpha_A = %(A_alpha)d;
-          const double beta_A = %(A_beta)d;
-          const int gamma_m_A = %(A_gamma_m)d;
-          const int gamma_p_A = %(A_gamma_p)d;
-          const int bandwidth_A = %(A_bandwidth)d;
-          const int alpha_B = %(B_alpha)d;
-          const double beta_B = %(B_beta)d;
-          const int gamma_m_B = %(B_gamma_m)d;
-          const int gamma_p_B = %(B_gamma_p)d;
-          const int bandwidth_B = %(B_bandwidth)d;
-          const int alpha_C = %(C_alpha)d;
-          const double beta_C = %(C_beta)d;
-          const int gamma_m_C = %(C_gamma_m)d;
-          const int gamma_p_C = %(C_gamma_p)d;
-          const int bandwidth_C = %(C_bandwidth)d;
-          const double omega = %(omega)f;
           for (int i=0;i<%(C_n_row)d;++i) {
-            int j_m_C = (int) ceil((alpha_C*i-gamma_p_C)/beta_C);
-            int j_p_C = (int) floor((alpha_C*i+gamma_m_C)/beta_C);
-            int j_m_A = (int) ceil((alpha_A*i-gamma_p_A)/beta_A);
-            int j_p_A = (int) floor((alpha_A*i+gamma_m_A)/beta_A);
-            int j_m_B = (int) ceil((alpha_B*i-gamma_p_B)/beta_B);
-            int j_p_B = (int) floor((alpha_B*i+gamma_m_B)/beta_B);
+            int j_m_C = (int) ceil((%(C_alpha)d*i-%(C_gamma_p)d)/%(C_beta)f);
+            int j_p_C = (int) floor((%(C_alpha)d*i+%(C_gamma_m)d)/%(C_beta)f);
+            int j_m_A = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p_A = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+            int j_m_B = (int) ceil((%(B_alpha)d*i-%(B_gamma_p)d)/%(B_beta)f);
+            int j_p_B = (int) floor((%(B_alpha)d*i+%(B_gamma_m)d)/%(B_beta)f);
             for (int j=std::max(0,j_m_A);j<std::min(%(A_n_col)d,j_p_A+1);++j) {
-              C[0][bandwidth_C*i+(j-j_m_C)] += A[0][bandwidth_A*i+(j-j_m_A)];
+              C[0][%(C_bandwidth)d*i+(j-j_m_C)] += A[0][%(A_bandwidth)d*i+(j-j_m_A)];
             }
             for (int j=std::max(0,j_m_B);j<std::min(%(B_n_col)d,j_p_B+1);++j) {
-              C[0][bandwidth_C*i+(j-j_m_C)] += omega*B[0][bandwidth_B*i+(j-j_m_B)];
+              C[0][%(C_bandwidth)d*i+(j-j_m_C)] += %(omega)f*B[0][%(B_bandwidth)d*i+(j-j_m_B)];
             }
           }
         }'''
