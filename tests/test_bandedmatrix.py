@@ -213,6 +213,33 @@ def test_matadd(W2_vert,W3):
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
+def test_mass_lu_solve(W3):
+    '''Test LU solver with mass matrix.
+
+    Invert the :math:`W_3` mass matrix on a :math:`W_3` for a given field and
+    check that the result is correct by multiplying back by the UFL form.
+
+    :arg W3: L2 pressure function space
+    '''
+    u = Function(W3)
+    v = Function(W3)
+
+    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+
+    mat = BandedMatrix(W3,W3)
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+    form = phi_test*phi_trial*dx
+    mat.assemble_ufl_form(form)
+
+    mat.lu_decompose()
+    v.assign(u)
+    mat.lu_solve(v)
+
+    v_ufl = assemble(action(form, v))
+
+    assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
+
 ##############################################################
 # M A I N
 ##############################################################

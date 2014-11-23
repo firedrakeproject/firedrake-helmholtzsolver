@@ -1,5 +1,6 @@
 import fractions
 import math
+import numpy as np
 from ufl import HDiv
 from firedrake import *
 from firedrake.ffc_interface import compile_form
@@ -83,6 +84,8 @@ class BandedMatrix(object):
                             'nodemap_col':'{%s}' % ', '.join('%d' % o for o in self._nodemap_col),
                             'n_nodemap_row':len(self._nodemap_row),
                             'n_nodemap_col':len(self._nodemap_col)}
+        self._lu = None
+        self._ipiv = None
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -381,8 +384,72 @@ class BandedMatrix(object):
             upper (U) factors of the factorisation, where L is
             assumened to have ones on the diagonal.
         ''' 
-        self.lu_decomposed = True
-        pass
+        # Number of super-diagonals (ku): gamma_m
+        # Number of sub-diagonals (kl): gamma_p
+        # Storage for LU decomposition is n_{row} * (1+ku+kl)+kl
+        # (see http://www.netlib.org/lapack/lug/node124.html and 
+        # documentation of DGBTRF http://phase.hpcc.jp/mirrors/netlib/lapack/double/dgbtrf.f)
+        # The LAPACKe C-interface to LAPACK is used, see
+        # http://www.netlib.org/lapack/lapacke.html
+        assert (self._n_row == self._n_col)
+        lda = self.bandwidth+self.gamma_p
+        if (not self._lu):
+            self._lu = op2.Dat(self._Vcell.node_set**(lda * self._n_row))
+            self._lu.zero()
+        if (not self._ipiv):
+            self._ipiv = op2.Dat(self._Vcell.node_set**(self._n_row),dtype=np.int32)
+        # Copy data into array which will be LU decomposed.
+        kernel_code = '''void lu_decompose(double **A,
+                                           double **LU,
+                                           int **ipiv) {
+          // Step 1: write to column-major LU matrix
+          for (int i=0;i<%(A_n_row)d;++i) {
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+              LU[0][%(A_bandwidth)d-1+(i-j)+(%(A_bandwidth)d+%(A_gamma_p)d)*j]
+                = A[0][%(A_bandwidth)d*i+(j-j_m)];
+            }
+          }
+          // Step 2: Call LAPACK's DGBTRF routine to LU decompose the matrix
+          LAPACKE_dgbtrf_work(LAPACK_COL_MAJOR,
+                              %(A_n_row)d,%(A_n_row)d,
+                              %(A_gamma_p)d,%(A_gamma_m)d,
+                              LU[0],%(A_bandwidth)d+%(A_gamma_p)d,ipiv[0]);
+        }'''
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel = op2.Kernel(kernel_code % param_dict, 'lu_decompose',
+                            cpp=True,
+                            headers=['#include "lapacke.h"'])
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     self._lu(op2.WRITE,self._Vcell.cell_node_map()),
+                     self._ipiv(op2.WRITE,self._Vcell.cell_node_map()))
+        self._lu_decomposed = True
 
-    def lu_solve(self):
-        assert(self._lu_decomposeed)
+    def lu_solve(self,u):
+        '''In-place LU solve for a field u.
+        
+        :arg u: Function to be solved for.
+        '''
+        assert(self._lu_decomposed)
+        kernel_code = '''void lu_solve(double **LU,
+                                       int **ipiv,
+                                       double **u) {
+          LAPACKE_dgbtrs_work(LAPACK_COL_MAJOR,'N',
+                              %(A_n_row)d,%(A_gamma_p)d,%(A_gamma_m)d,1,
+                              LU[0],%(A_bandwidth)d+%(A_gamma_p)d,ipiv[0],
+                              u[0],%(A_n_row)d);
+
+        }'''
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel = op2.Kernel(kernel_code % param_dict, 'lu_solve',
+                            cpp=True,
+                            headers=['#include "lapacke.h"'])
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._lu(op2.WRITE,self._Vcell.cell_node_map()),
+                     self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
+                     u.dat(op2.READ,u.cell_node_map()))
+        return u
