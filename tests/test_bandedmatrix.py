@@ -165,7 +165,62 @@ def test_matmul(W2_vert,W3):
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
-def test_matadd(W2_vert,W3):
+@pytest.fixture
+def omega():
+    return 2.0
+
+@pytest.fixture
+def form_M(W3):
+    '''UFL form for pressure mass matrix.'''
+    phi = TestFunction(W3)
+    psi = TrialFunction(W3)
+    return phi*psi*dx
+
+@pytest.fixture
+def form_D(W2_vert,W3):
+    '''UFL form for weak derivative matrix.'''
+    phi = TestFunction(W3)
+    w = TrialFunction(W2_vert)
+    return phi*div(w)*dx
+
+@pytest.fixture
+def form_DT(W2_vert,W3):
+    '''UFL form for transpose of weak derivative matrix.'''
+    w = TestFunction(W2_vert)
+    phi = TrialFunction(W3)
+    return div(w)*phi*dx
+
+@pytest.fixture
+def helmholtz_matrix(W2_vert,W3,form_M,form_D,form_DT,omega):
+    '''Build matrix for Helmholtz operator.
+
+    Calculate 
+
+    :math::
+        
+        H = M_{p} + \omega DD^T
+    
+    :arg W2_vert: HDiv space for vertical velocity component
+    :arg W3: L2 space for pressure
+    :arg form_M: UFL form for pressure mass matrix
+    :arg form_D: UFL form for weak derivative
+    :arg form_DT: UFL form for transpose of weak derivative
+    :arg omega: value of parameter omega
+    '''
+    mat_M = BandedMatrix(W3,W3)
+    mat_D = BandedMatrix(W3,W2_vert)
+    mat_DT = BandedMatrix(W2_vert,W3)
+
+    mat_M.assemble_ufl_form(form_M)
+    mat_D.assemble_ufl_form(form_D)
+    mat_DT.assemble_ufl_form(form_DT)
+
+    # Calculate H = M + omega*D*DT
+    mat_H = mat_M.matadd(mat_D.matmul(mat_DT),omega=omega)
+
+    return mat_H
+
+def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega):
     '''Test matrix addition.
     
     Assemble banded matrices for the :math:`W_3` mass matrix :math:`M` and the 
@@ -175,6 +230,10 @@ def test_matadd(W2_vert,W3):
 
     :arg W2_vert: L2 pressure function space
     :arg W3: HDiv space for vertical velocity component
+    :arg form_M: UFL form for pressure mass matrix
+    :arg form_D: UFL form for weak derivative
+    :arg form_DT: UFL form for transpose of weak derivative
+    :arg omega: value of parameter omega
     '''
 
     u = Function(W3)
@@ -184,27 +243,7 @@ def test_matadd(W2_vert,W3):
     u.project(Expression('x[0]*x[1] + 10*x[1]'))
     v.assign(0)
 
-    mat_M = BandedMatrix(W3,W3)
-    mat_D = BandedMatrix(W3,W2_vert)
-    mat_DT = BandedMatrix(W2_vert,W3)
-
-    phi_test = TestFunction(W3)
-    phi_trial = TrialFunction(W3)
-    w_test = TestFunction(W2_vert)
-    w_trial = TrialFunction(W2_vert)
-
-    form_M = phi_test*phi_trial*dx
-    form_D = phi_test*div(w_trial)*dx
-    form_DT = div(w_test)*phi_trial*dx
-
-    omega = 2.0
-
-    mat_M.assemble_ufl_form(form_M)
-    mat_D.assemble_ufl_form(form_D)
-    mat_DT.assemble_ufl_form(form_DT)
-
-    # Calculate H = M + omega*D*DT
-    mat_H = mat_M.matadd(mat_D.matmul(mat_DT),omega=omega)
+    mat_H = helmholtz_matrix
 
     mat_H.axpy(u, v)
 
@@ -213,13 +252,14 @@ def test_matadd(W2_vert,W3):
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
-def test_mass_lu_solve(W3):
+def test_mass_solve(W3,form_M):
     '''Test LU solver with mass matrix.
 
     Invert the :math:`W_3` mass matrix on a :math:`W_3` for a given field and
     check that the result is correct by multiplying back by the UFL form.
 
     :arg W3: L2 pressure function space
+    :arg form_M: pressure mass matrix
     '''
     u = Function(W3)
     v = Function(W3)
@@ -227,16 +267,42 @@ def test_mass_lu_solve(W3):
     u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
 
     mat = BandedMatrix(W3,W3)
-    phi_test = TestFunction(W3)
-    phi_trial = TrialFunction(W3)
-    form = phi_test*phi_trial*dx
-    mat.assemble_ufl_form(form)
+    mat.assemble_ufl_form(form_M)
 
-    mat.lu_decompose()
     v.assign(u)
+    mat.lu_decompose()
     mat.lu_solve(v)
 
-    v_ufl = assemble(action(form, v))
+    v_ufl = assemble(action(form_M, v))
+
+    assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
+
+def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega):
+    '''Test LU solver with the Helmholtz matrix.
+
+    Invert the helmholtz matrix on a :math:`W_3` for a given field and
+    check that the result is correct by multiplying back by the UFL form.
+
+    :arg W2_vert: L2 pressure function space
+    :arg W3: HDiv space for vertical velocity component
+    :arg form_M: UFL form for pressure mass matrix
+    :arg form_D: UFL form for weak derivative
+    :arg form_DT: UFL form for transpose of weak derivative
+    :arg omega: value of parameter omega
+    '''
+    u = Function(W3)
+    v = Function(W3)
+
+    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+
+    mat = helmholtz_matrix
+
+    v.assign(u)
+    mat.lu_decompose()
+    mat.lu_solve(v)
+
+    v_ufl = assemble(action(form_M, v)) \
+          + omega*assemble(action(form_D,assemble(action(form_DT, v))))
 
     assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
 
