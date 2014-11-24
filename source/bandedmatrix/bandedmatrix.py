@@ -451,5 +451,5 @@ class BandedMatrix(object):
                      self._hostmesh.cell_set,
                      self._lu(op2.WRITE,self._Vcell.cell_node_map()),
                      self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
-                     u.dat(op2.READ,u.cell_node_map()))
+                     u.dat(op2.RW,u.cell_node_map()))
         return u
