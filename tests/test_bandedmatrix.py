@@ -270,8 +270,7 @@ def test_mass_solve(W3,form_M):
     mat.assemble_ufl_form(form_M)
 
     v.assign(u)
-    mat.lu_decompose()
-    mat.lu_solve(v)
+    mat.solve(v)
 
     v_ufl = assemble(action(form_M, v))
 
@@ -298,8 +297,7 @@ def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT,
     mat = helmholtz_matrix
 
     v.assign(u)
-    mat.lu_decompose()
-    mat.lu_solve(v)
+    mat.solve(v)
 
     v_ufl = assemble(action(form_M, v)) \
           + omega*assemble(action(form_D,assemble(action(form_DT, v))))

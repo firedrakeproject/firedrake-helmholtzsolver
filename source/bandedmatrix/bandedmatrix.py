@@ -65,7 +65,7 @@ class BandedMatrix(object):
         # Data array
         self._data = op2.Dat(self._Vcell.node_set**(self.bandwidth * self._n_row))
         self._data.zero()
-        self._lu_decomposed = False
+        self._lu_version = None
         self._nodemap_row = self._get_nodemap(self._fs_row)
         self._nodemap_col = self._get_nodemap(self._fs_col)
         self._param_dict = {'n_row':self._n_row,
@@ -376,14 +376,26 @@ class BandedMatrix(object):
                      other._data(op2.READ,self._Vcell.cell_node_map()),
                      result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
+
+    def solve(self,u):
+        '''Solve in place.
+
+        Solve the equation :math:`Au=b` and replace function by result.
+
+        :arg u: RHS b and resulting function u
+        ''' 
+        # Check whether data has changed since last LU decomposition
+        if not (self._lu_version == self._data._version):
+            self._lu_decompose()
+        return self._lu_solve(u)
             
-    def lu_decompose(self):
+    def _lu_decompose(self):
         '''Construct LU decomposition :math:`A=LU` on the fly.
 
             Replace A by matrix which stores the lower (L) and
             upper (U) factors of the factorisation, where L is
             assumened to have ones on the diagonal.
-        ''' 
+        '''
         # Number of super-diagonals (ku): gamma_m
         # Number of sub-diagonals (kl): gamma_p
         # Storage for LU decomposition is n_{row} * (1+ku+kl)+kl
@@ -426,14 +438,13 @@ class BandedMatrix(object):
                      self._data(op2.READ,self._Vcell.cell_node_map()),
                      self._lu(op2.WRITE,self._Vcell.cell_node_map()),
                      self._ipiv(op2.WRITE,self._Vcell.cell_node_map()))
-        self._lu_decomposed = True
+        self._lu_version = self._data._version
 
-    def lu_solve(self,u):
+    def _lu_solve(self,u):
         '''In-place LU solve for a field u.
         
         :arg u: Function to be solved for.
         '''
-        assert(self._lu_decomposed)
         kernel_code = '''void lu_solve(double **LU,
                                        int **ipiv,
                                        double **u) {
