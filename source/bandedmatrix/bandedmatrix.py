@@ -44,19 +44,19 @@ class BandedMatrix(object):
         self._n_col = self._ndof_cell_col*self._ncelllayers \
                     + self._ndof_bottom_facet_col*(self._ncelllayers+1)
         
-        if (gamma_m):
+        if (gamma_m != None):
             self._gamma_m = gamma_m
         else:
             self._gamma_m = (self._ndof_col-1)*(self._ndof_cell_row+self._ndof_bottom_facet_row)
-        if (gamma_p):
+        if (gamma_p != None):
             self._gamma_p = gamma_p
         else:
             self._gamma_p = (self._ndof_row-1)*(self._ndof_cell_col+self._ndof_bottom_facet_col)
-        if (alpha):
+        if (alpha != None):
             self._alpha = alpha
         else:
             self._alpha = self._ndof_cell_col+self._ndof_bottom_facet_col
-        if (beta):
+        if (beta != None):
             self._beta = beta
         else:
             self._beta  = self._ndof_cell_row+self._ndof_bottom_facet_row
@@ -274,7 +274,7 @@ class BandedMatrix(object):
         '''
         # Check that matrices can be multiplied
         assert (self._n_col == other._n_row)
-        if (result):
+        if (result != None):
             assert(result._n_row == self._n_row)
             assert(result._n_col == other._n_col)
         else:
@@ -336,7 +336,7 @@ class BandedMatrix(object):
         assert(self.beta == other.beta)
         gamma_m = max(self.gamma_m,other.gamma_m)
         gamma_p = max(self.gamma_p,other.gamma_p)
-        if (result):
+        if (result != None):
             assert(result._n_row == self._n_row)
             assert(result._n_col == self._n_col)
             assert(result.alpha == self.alpha)
@@ -464,3 +464,80 @@ class BandedMatrix(object):
                      self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
                      u.dat(op2.RW,u.cell_node_map()))
         return u
+
+    def spai(self,gamma=None):
+        '''Calculate Sparse approximate inverse based on a fixed
+        sparsity pattern.
+
+        The matrix has to be square and symmetrically banded, i.e. the sparsity 
+        pattern is
+
+        :math::
+            -\gamma \le i-j \le \gamma
+
+        If no argument is passed, the sparsity pattern of the resulting matrix
+        is the same as that of the current matrix, otherwise it is the one
+        obtained by replacing :math:`\gamma \mapsto \gamma^{(M)}`.
+
+        For the description of the SPAI preconditioner, see Grote, Marcus J., and 
+        Thomas Huckle:
+        "Parallel preconditioning with sparse approximate inverses."
+        SIAM Journal on Scientific Computing 18.3 (1997): 838-853.
+
+        Documentation of LAPACK DGELS routine see e.g. 
+        http://www.netlib.no/netlib/lapack/double/dgels.f
+        
+        :arg gamma: Parameter :math:`\gamma^{(M)}` of the resulting matrix.
+        '''
+        assert self.is_sparsity_symmetric
+        gamma_M = gamma
+        if (gamma == None):
+            gamma_M = self.gamma_m
+        result = BandedMatrix(self._fs_row,self._fs_col,
+                              alpha=self.alpha,beta=self.beta,
+                              gamma_m=gamma_M,gamma_p=gamma_M)
+
+        kernel_code = '''void spai(double **A,
+                                   double **M) {
+          double Ahat[%(A_n_row)d*%(M_bandwidth)d];
+          double mhat[%(A_n_row)d];
+          for(int k=0;k<%(A_n_row)d;++k) {
+            int j_m = std::max(0,k-%(M_gamma_p)d);
+            int j_p = std::min(%(A_n_row)d-1,k+%(M_gamma_m)d);
+            int i_m = std::max(0,j_m-%(A_gamma_p)d);
+            int i_p = std::min(%(A_n_row)d-1,j_p+%(A_gamma_m)d);
+            // Number of rows and columns in local matrix Ahat
+            int n_row_hat = i_p-i_m+1;
+            int n_col_hat = j_p-j_m+1;
+            for (int i_hat=0;i_hat<n_row_hat;++i_hat) {
+              int i = i_hat+i_m;
+              for (int j_hat=0;j_hat<n_col_hat;++j_hat) {
+                int j = j_hat+j_m;
+                Ahat[i_hat+%(A_n_row)d*j_hat] 
+                  = A[0][%(A_bandwidth)d*i+(j-(i-%(A_gamma_p)d))];
+              }
+            }
+            for (int i_hat=0;i_hat<n_row_hat;++i_hat) {
+              mhat[i_hat] = ((i_hat+i_m)==k);
+            }
+            LAPACKE_dgels(LAPACK_COL_MAJOR,'N',n_row_hat,n_col_hat,1,
+                          Ahat,%(A_n_row)d,
+                          mhat,%(A_n_row)d);
+            for (int j_hat=0;j_hat<=n_col_hat;++j_hat) {
+              int j = j_hat+j_m;
+              M[0][%(M_bandwidth)d*j + (k-(j-%(M_gamma_p)d))] = mhat[j_hat];
+            }
+          }
+        }'''
+        param_dict = {}
+        for label, matrix in zip(('A','M'),(self,result)):
+            param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
+        kernel = op2.Kernel(kernel_code % param_dict, 'spai',
+                            cpp=True,
+                            headers=['#include "lapacke.h"'])
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        return result
+        

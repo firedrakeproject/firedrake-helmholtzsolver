@@ -8,7 +8,7 @@ import pytest
 def mesh():
     '''Create 1+1 dimensional mesh by extruding a circle.'''
     D = 0.1
-    nlayers=2
+    nlayers=4
     ncells=3
 
     host_mesh = CircleManifoldMesh(ncells)
@@ -303,6 +303,36 @@ def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT,
           + omega*assemble(action(form_D,assemble(action(form_DT, v))))
 
     assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
+
+def test_spai(W2_vert):
+    '''Test sparse approximate inverse of velocity mass matrix.
+
+    Calculate the sparse approximate inverse of the vertical velocity mass matrix
+    and check that it is reasonably close to the exact inverse.
+
+    :arg W2_vert: L2 pressure function space
+    '''
+
+    w = TestFunction(W2_vert)
+    u = TrialFunction(W2_vert)
+    form_Mu = dot(w,u)*dx
+
+    # Create unit matrix
+    mat_unit = BandedMatrix(W2_vert,W2_vert)
+    for icol in range(len(mat_unit._data.data)):
+        for i in range(mat_unit._n_row):
+            mat_unit._data.data[icol][mat_unit.bandwidth*i+mat_unit.gamma_m] = 1.0
+
+    mat_A = BandedMatrix(W2_vert,W2_vert)
+    mat_A.assemble_ufl_form(form_Mu)
+
+    mat_M = mat_A.spai(mat_A._n_row)
+
+    mat_AM = (mat_A.matmul(mat_M)).matadd(mat_unit,omega=-1.0)
+
+    nrm = np.linalg.norm(mat_AM._data.data)
+
+    assert np.allclose(mat_AM._data.data, 0.0)
 
 ##############################################################
 # M A I N
