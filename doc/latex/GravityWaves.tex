@@ -3,6 +3,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{hyperref}
 \usepackage{algorithm,algorithmic}
+\usepackage{graphicx}
 \newcommand{\Uspace}{\mathbb{U}}
 \newcommand{\Vspace}{\mathbb{V}}
 \newcommand{\Wspace}{\mathbb{W}}
@@ -24,17 +25,18 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Continuous equations}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Consider the following linear gravity wave problem \cite{McRae2014}
+Consider the following linear gravity wave problem \cite{McRae2014} for the pressure $p$, velocity $\vec{u}$ and buoyancy $b$:
 \begin{xalignat}{3}
    \ddt{\vec{u}} &= \nabla p + b \zhat, &
    \ddt{p} &= -c^2 \nabla\cdot \vec{u}, &
    \ddt{b} &= -N^2\vec{u}\cdot\zhat.
 \label{eqn:ContinuousEquations}
 \end{xalignat}
-We assume that both the speed of sound $c$ and the buoyancy frequency $N$ are constant and enforce the boundary condition
+For simplicity we assume that both the speed of sound $c$ and the buoyancy frequency $N$ are constant and enforce the boundary condition
 \begin{equation}
- \vec{u}\cdot\vec{n}=0.\label{eqn:BoundaryCondition}
+ \vec{u}\cdot\vec{n}=0\label{eqn:BoundaryCondition}
 \end{equation}
+at the upper and lower boundary of the atmosphere.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Finite element discretisation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -59,16 +61,25 @@ with
   \Wspace_3 &= \Uspace_2\otimes\Uspace_1.
  \end{aligned}
 \end{equation}
-Also denote $\Wspace_2^0$ denoting the space of all functions in $\Wspace_2$ which satisfy the boundary condition (\ref{eqn:BoundaryCondition}). We write $\Wspace_2^v \equiv \Uspace_2\otimes\Vspace_0$ for the vertical component of the velocity space. Then the fields in (\ref{eqn:ContinuousEquations}) live in the following spaces:
+$\Wspace_2^0$ denotes the space of all functions in $\Wspace_2$ which satisfy the boundary condition (\ref{eqn:BoundaryCondition}). We write $\Wspace_2^v \equiv \Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Wspace_2^v\equiv\Hdiv(\Uspace_1\otimes\Vspace_1)$ for the vertical and horizontal components of the velocity space, and the buoyancy lives in the space $\Wspace_2^b\equiv \Uspace_2\otimes\Vspace_0$. Note that $\Wspace_2^v=\Hdiv(\Wspace_2^b)$, so the function spaces have the same number of degrees of freedom but differ in how they are pulled back to the reference element. Then the fields in (\ref{eqn:ContinuousEquations}) live in the following spaces:
 \begin{xalignat}{3}
-  \vec{u} &\in \Wspace_2^0,&
-  b &\in \Wspace_2^v, &
+  \vec{u} &\in \Wspace_2^0=\Wspace_2^{v,0}\oplus\Wspace_2^{h,0},&
+  b &\in \Wspace_2^b, &
   p &\in \Wspace_3.
 \end{xalignat}
+For ease of notation, we will not make the boundary condition on $\vec{u}$ explicit in the following, and will write $\Wspace_2$ where it should really be $\Wspace_2^0$ etc.
+The lowest order function spaces are illustrated in Fig. \ref{fig:functionspaces}.
+\begin{figure}
+ \begin{center}
+  \includegraphics[width=0.6\linewidth]{functionspaces.pdf}
+ \end{center}
+ \caption{Function spaces at lowest order from left to right: $\Wspace_2$ (velocity), $\Wspace_2^v = \Hdiv(\Uspace_2\otimes\Vspace_0)$ (vertical component of velocity), $\Wspace_2^h=\Hdiv(\Uspace_1\otimes\Vspace_1)$ (horizontal/tangential component of velocity), $\Wspace_2^v=\Uspace_2\otimes\Vspace_0$ (buoyancy), $\Wspace_3$ (pressure).}
+\label{fig:functionspaces}
+\end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \paragraph{Discrete equations.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Multiply with basis functions and use the implicit midpoint rule:
+Multiply with test functions $\vec{w}\in \Wspace_2$, $\phi\in \Wspace_3$ and $\gamma\in\Wspace_2^b$ and use the implicit midpoint rule to discretise in time:
 \begin{equation}
  \begin{aligned}
   &\langle\vec{w},\ddtdisc{\vec{u}}\rangle
@@ -82,23 +93,23 @@ Multiply with basis functions and use the implicit midpoint rule:
   = 0
  \end{aligned}
 \end{equation}
-Define $\delta p\equiv p^{(t+\Delta t)}-p^{(t)}$, $p_0\equiv p^{(t)}$ etc. and note that $\tavg{p}=\frac{\delta p}{2}+p_0$ to obtain an equation for the increments
+Define $\delta p\equiv p^{(t+\Delta t)}-p^{(t)}$, $p_0\equiv p^{(t)}$ etc. and note that $\tavg{p}=\frac{\delta p}{2}+p_0$ to obtain a system of equations for the increments $\delta\vec{u}$, $\delta p$ and $\delta b$
 \begin{equation}
  \begin{aligned}
   &\langle\vec{w},\delta\vec{u}\rangle
-  - \langle\nabla\cdot\vec{w},\delta p\rangle
-  - \langle\vec{w},\delta b\zhat\rangle
+  - \frac{\Delta t}{2}\langle\nabla\cdot\vec{w},\delta p\rangle
+  - \frac{\Delta t}{2}\langle\vec{w},\delta b\zhat\rangle
   = \Delta t \langle\nabla\cdot\vec{w},p_0\rangle
   + \Delta t \langle\vec{w},b_0\zhat\rangle
   \equiv r_u
  \\[1ex]
   &\langle\phi,\delta p\rangle
-  +c^2 \langle\phi,\nabla\cdot\delta\vec{u}\rangle
+  +\frac{\Delta t}{2}c^2\langle\phi,\nabla\cdot\delta\vec{u}\rangle
   = -\Delta tc^2\langle\phi,\nabla\cdot\vec{u}_0\rangle
   \equiv r_\phi
   \\[1ex]
   &\langle\gamma,\delta b\rangle
-  + N^2\langle\gamma,\delta\vec{u}\cdot\zhat\rangle
+  + \frac{\Delta t }{2}N^2\langle\gamma,\delta\vec{u}\cdot\zhat\rangle
   = -\Delta t N^2\langle\gamma,\vec{u}_0\cdot\zhat\rangle
   \equiv r_b\label{eqn:Increments}
  \end{aligned}
@@ -108,16 +119,16 @@ Define $\delta p\equiv p^{(t+\Delta t)}-p^{(t)}$, $p_0\equiv p^{(t)}$ etc. and n
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 By introducing the mass matrices
 \begin{xalignat}{3}
-  \left(M_u\right)_{ij} &\equiv \langle \vec{w}_i\cdot\vec{w}_j\rangle,&
-  \left(M_p\right)_{ij} &\equiv \langle \phi_i,\phi_j\rangle, &
-  \left(M_b\right)_{ij} &\equiv \langle \gamma_i,\gamma_j \rangle
+  M_u:\Wspace_2\rightarrow\Wspace_2,\left(M_u\right)_{ij} &\equiv \langle \vec{w}_i\cdot\vec{w}_j\rangle,&
+  M_p:\Wspace_3\rightarrow\Wspace_3,\left(M_p\right)_{ij} &\equiv \langle \phi_i,\phi_j\rangle, &
+  M_b:\Wspace_2^b\rightarrow\Wspace_2^b,\left(M_b\right)_{ij} &\equiv \langle \gamma_i,\gamma_j \rangle
 \end{xalignat}
 and the derivative- and projection operators
 \begin{xalignat}{2}
-  \left(D^T\right)_{ij} &\equiv \langle\nabla\cdot\vec{w}_i,\phi_j\rangle, &
-  \left(Q\right)_{ij} &\equiv \langle\vec{w}_i,\gamma_j\zhat\rangle,
+  D:\Wspace_2\rightarrow \Wspace_3,\left(D\right)_{ij} &\equiv \langle\phi_i,\nabla\cdot\vec{w}_j\rangle, &
+  Q:\Wspace_2^b\rightarrow \Wspace_2,\left(Q\right)_{ij} &\equiv \langle\vec{w}_i,\gamma_j\zhat\rangle,
 \end{xalignat}
-equation (\ref{eqn:Increments}) can be written as a matrix equation for the dof-vectors $\vec{U}$ (velocity), $\vec{P}$ (pressure) and $\vec{B}$ (buoyancy):
+the system of equations (\ref{eqn:Increments}) can be written as a matrix equation for the dof-vectors $\vec{U}$ (velocity), $\vec{P}$ (pressure) and $\vec{B}$ (buoyancy):
 \begin{equation}
 \begin{pmatrix}
   M_u & 
@@ -131,10 +142,15 @@ equation (\ref{eqn:Increments}) can be written as a matrix equation for the dof-
 \end{pmatrix}
 =
 \begin{pmatrix}
-  \vec{R}_u\\[1ex]\vec{R}_p\\[1ex]\vec{R}_b
-\end{pmatrix}.
+  M_u\vec{R}_u\\[1ex]M_p\vec{R}_p\\[1ex]M_b\vec{R}_b
+\end{pmatrix}.\label{eqn:MixedSystem}
 \end{equation}
-Use the third equation to eliminate the buoyancy  $\vec{B}=M_b^{-1}\vec{R}_b-\frac{\Delta t}{2}N^2M_b^{-1} Q^T\vec{U}$ and insert it into the velocity equation to obtain a mixed system for pressure and velocity:
+Use the third equation to eliminate the buoyancy  \footnote{In the absence of orography this equation is satisfied pointwise, i.e. $\vec{B}=\vec{R}_b-\frac{\Delta t}{2}N^2\vec{U}$.}
+\begin{equation}
+\vec{B}=\vec{R}_b-\frac{\Delta t}{2}N^2M_b^{-1} Q^T\vec{U}
+\label{eqn:BuoyancyBacksubstitution}
+\end{equation}
+and insert it into the velocity equation to obtain a mixed system for pressure and velocity:
 \begin{equation}
   A\begin{pmatrix}\vec{P}\\[1ex]\vec{U}\end{pmatrix}
   \equiv
@@ -144,12 +160,17 @@ Use the third equation to eliminate the buoyancy  $\vec{B}=M_b^{-1}\vec{R}_b-\fr
   \end{pmatrix}
   \begin{pmatrix}\vec{P}\\[1ex]\vec{U}\end{pmatrix}
  =
-\begin{pmatrix}\vec{R}_p\\[1ex]\tilde{\vec{R}}_u\end{pmatrix}
+\begin{pmatrix}M_p\vec{R}_p\\[1ex]M_u\tilde{\vec{R}}_u\end{pmatrix}
 \qquad\text{with}\quad 
 \tilde{M}_u \equiv M_u + \omega^2_N QM_b^{-1}Q^T
 \quad\text{and}\quad \omega_N \equiv \frac{\Delta t}{2}N\label{eqn:PressureVelocitySystem}
 \end{equation}
-In the absence of orography, $Q=Q^T=M_b$. In any case, both $M_b$ and $\tilde{M}_u$ are well conditioned, so can be inverted with a small number of Richardson- or CG- iterations.
+We also have for the new RHS
+\begin{equation}
+  \tilde{\vec{R}}_u = \vec{R}_u+\frac{\Delta t}{2}M_u^{-1}Q\vec{R}_b.
+  \label{eqn:BuoyancyRHS}
+\end{equation}
+In the absence of orography, $Q=Q^T=M_b$. In any case, both $M_b$ and $\tilde{M}_u$ (and $M_u$) are well conditioned, so can be inverted with a small number of (unpreconditioned) Richardson- or CG- iterations.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Schur complement Preconditioner}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -166,83 +187,161 @@ The inverse of the operator $A$ in (\ref{eqn:PressureVelocitySystem}) is given b
 \begin{pmatrix}
   1 & -\frac{\Delta t}{2}D\tilde{M}_u^{-1} \\[1ex]
   0 & 1
-\end{pmatrix}
+\end{pmatrix}\label{eqn:SchurComplement}
 \end{equation}
 with the (positive-definite) ``Helmholtz'' operator
 \begin{equation}
   H \equiv M_p + \omega_c^2 D\tilde{M}_u^{-1} D^T
 \qquad\text{where}\quad \omega_c \equiv \frac{\Delta t}{2}c.
+  \label{eqn:HelmholtzOperator}
 \end{equation}
-Precondition this operator with a similar operator $\hat{H}$ in which we set $Q=Q_T=M_b$ neglect the couplings between $\Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Hdiv(\Uspace_1\otimes\Vspace_1)$ (these two statements would hold exactly in the absence of orography) and replace the inverses of the mass matrices in $\Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Hdiv(\Uspace_1\otimes\Vspace_1)$ by lumped mass matrices. Denote the basis functions of $\Uspace_1$ as $\tau_i(\vec{x})$, the basis functions of $\Uspace_2$ as $\sigma_i(\vec{x})$, the basis functions of $\Vspace_0$ as $\alpha_k(\vec{x})$ and the basis functions of $\Vspace_1$ as $\beta_k(\vec{x})$. Then we have
+To invert $H$, we can use another suitably preconditioned CG iteration.
+We precondition $H$ with a similar operator $\hat{H}$ in which we neglect the couplings between $\Wspace_2^v=\Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Wspace_2^v=\Hdiv(\Uspace_1\otimes\Vspace_1)$ [step (i)], set $Q=Q_T=M_b$ [step (ii)]  and approximate the inverses of the mass matrices in $\Wspace_2^v=\Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Wspace_2^h=\Hdiv(\Uspace_1\otimes\Vspace_1)$ by lumped mass matrices [step (iii)].
+The first two approximations are exact in the absence of orography.
+More explicitly, this series of approximations can be written down as follows:
+\begin{equation}
+ \begin{aligned}
+  D\tilde{M}_u^{-1}D^T&=
+\left(D_h,D_z\right)
+\begin{pmatrix}
+  \tilde{M}_{u,h} & \tilde{M}_{u,hz}\\
+  \tilde{M}_{u,hz}^{T} & \tilde{M}_{u,z}
+\end{pmatrix}^{-1}
+\begin{pmatrix}
+  D_h^T\\D_z^T
+\end{pmatrix}\\[1ex]
+&\overset{\text{step (i)}}{\approx}
+\left(D_h,D_z\right)
+\begin{pmatrix}
+  \tilde{M}_{u,h} & 0\\
+  0 & \tilde{M}_{u,z}
+\end{pmatrix}^{-1}
+\begin{pmatrix}
+  D_h^T\\D_z^T
+\end{pmatrix}
+=
+D_h\left(\tilde{M}_{u,h}\right)^{-1}D_h^T + 
+D_z \left(\tilde{M}_{u,z}\right)^{-1}D_z^T\\[1ex]
+&\overset{\text{step (ii)}}{\approx}
+D_h\left(M_{u,h}\right)^{-1}D_h^T + 
+\frac{1}{1+\omega_N^2}D_z \left(M_{u,z}\right)^{-1}D_z^T\\[1ex]
+&\overset{\text{step (iii)}}{\approx}
+D_h M_{u,h,\text{inv}}D_h^T + 
+\frac{1}{1+\omega_N^2}D_z M_{u,z,\text{inv}}D_z^T
+\end{aligned}
+\end{equation}
+In the first step we could also have used a better approximation of $\tilde{M}_u^{-1}$ by using the Schur-complement of the velocity mass matrix.
+We defined the mass matrices in the horizontal and vertical velocity spaces as
+\begin{xalignat}{2}
+M_{u,h}:\Wspace_2^h\rightarrow\Wspace_2^h,\left(M_{u,h}\right)_{ij} &\equiv \langle \vec{w}^{(h)}_i\cdot\vec{w}^{(h)}_j\rangle,&
+M_{u,z}:\Wspace_2^z\rightarrow\Wspace_2^z,\left(M_{u,z}\right)_{ij} &\equiv \langle \vec{w}^{(z)}_i\cdot\vec{w}^{(z)}_j\rangle
+\end{xalignat}
+and the derivative operators as 
+\begin{xalignat}{2}
+D_h:\Wspace_2^h\rightarrow \Wspace_3,\left(D_h\right)_{ij} &\equiv \langle\phi_i,\nabla\cdot\vec{w}^{(h)}_j\rangle, &
+D_z:\Wspace_2^z\rightarrow \Wspace_3,\left(D_z\right)_{ij} &\equiv \langle\phi_i,\nabla\cdot\vec{w}^{(z)}_j\rangle.
+\end{xalignat}
+The basis functions of these spaces are listed in Tab. \ref{tab:basisfunctions}.
+\begin{table}
+ \begin{center}
+  \begin{tabular}{|l|rr|rr|rrr|}
+    \hline
+    Function space & 
+      $\Uspace_1$ & $\Uspace_2$ & 
+      $\Vspace_0$ & $\Vspace_1$ &
+      $\Wspace_3$ & $\Wspace_2^v$ & $\Wspace_2^h$\\
+    \hline
+    basis function &
+      $\tau_i(\vec{x})$ & $\sigma_i(\vec{x})$ &
+      $\alpha_k(\vec{x})$ & $\beta_k(\vec{x})$ &
+      $\phi_i=\left(\sigma(\vec{x})\beta(\vec{x})\right)_i$ &
+        $\vec{w}_i^{(z)}=\Hdiv\left(\sigma(\vec{x})\alpha(\vec{x})\right)_i$ &
+        $\vec{w}_i^{(h)}=\Hdiv\left(\tau(\vec{x})\beta(\vec{x})\right)_i$\\
+    \hline
+  \end{tabular}
+ \end{center}
+ \caption{Basis functions}
+ \label{tab:basisfunctions}
+\end{table}
+
+$M_{u,h,\text{inv}}$ and $M_{u,z,\text{inv}}$ are approximations to $M_{u,h}^{-1}$ and $M_{u,z}^{-1}$. In the simplest case $M_{u,h,\text{inv}}$ could be the diagonal matrix defined as
+\begin{equation}
+  \left(M_{u,h,\text{inv}}\right)_{ij} \equiv \delta_{ij}/\left(M_{u,h}\right)_{ii}\qquad\text{for all $i$}. 
+\label{eqn:horizontalMassLumping}
+\end{equation}
+$M_{u,z}$ does not contain any couplings in the horizontal direction, i.e. the global matrix is block diagonal (with each block corresponding to couplings between dofs in one column). In each of the blocks we can, for example, construct a sparse approximate inverse \cite{Grote1997} of the local banded matrix to obtain $M_{u,z,\text{inv}}$.
+
+In summary we have for the approximate Helmholtz operator:
 \begin{equation}
   \hat{H} = M_{p} + \omega_c^2\left(
   D_h M_{u,h,\text{inv}} D_h^T +
 \frac{1}{1+\omega_N^2}D_z M_{u,z,\text{inv}} D_z^T\right)
 \label{eqn:Preconditioner}
 \end{equation}
-where we defined\footnote{the notation is a bit sloppy, the velocity space is vector-valued, so the correct contravariant Piola transfroms have to be included when pulling back to the reference element, this is indicated by writing $\Hdiv(\dots)$.}
-\begin{equation}
- \begin{aligned}
-   M_{p}:\Uspace_2\otimes \Vspace_1\rightarrow\Uspace_2\otimes \Vspace_1,\quad \left[\left(M_p\right)_{k\ell}\right]_{ij} &\equiv 
-   \int \sigma_i(\vec{x})\sigma_j(\vec{x})
-   \beta_k(\vec{x})\beta_\ell(\vec{x})
-   \;d\vec{x}\\[1ex]
-   M_{u,z}:\Hdiv(\Uspace_2\otimes\Vspace_0)\rightarrow\Hdiv(\Uspace_2\otimes\Vspace_0),\quad\left[\left(M_{u,z}\right)_{k\ell}\right]_{ij} &\equiv 
-   \int \Hdiv[\sigma_i(\vec{x})
-   \alpha_k(\vec{x})]\cdot\Hdiv[\sigma_j(\vec{x})\alpha_\ell(\vec{x})]
-   \;d\vec{x}\\[1ex]
-   M_{u,h}:\Hdiv(\Uspace_1\otimes\Vspace_1)\rightarrow\Hdiv(\Uspace_1\otimes\Vspace_1),\quad\left[\left(M_{u,h}\right)_{k\ell}\right]_{ij} &\equiv 
-   \int \Hdiv[\tau_i(\vec{x})
-   \beta_k(\vec{x})]\cdot\Hdiv[\tau_j(\vec{x})\beta_\ell(\vec{x})]
-   \;d\vec{x}\\[1ex]
-   D_z: \Hdiv(\Uspace_2\otimes\Vspace_0)\rightarrow\Uspace_2\otimes\Vspace_1
-,\quad \left[\left(D_z\right)_{k\ell}\right]_{ij} &\equiv 
-   \int \sigma_i(\vec{x})\beta_k(\vec{x})\nabla\cdot\Hdiv[\sigma_j(\vec{x})
-   \alpha_\ell(\vec{x})] \;d\vec{x}.\\[1ex]
-   D_h: \Hdiv(\Vspace_1\otimes\Vspace_1)\rightarrow\Uspace_2\otimes\Vspace_1
-,\quad \left[\left(D_h\right)_{k\ell}\right]_{ij} &\equiv 
-   \int \sigma_i(\vec{x})\beta_k(\vec{x})\nabla\cdot\Hdiv[\tau_j(\vec{x})
-   \beta_\ell(\vec{x})] \;d\vec{x}.
- \end{aligned}
-\end{equation}
-Here $i,j$ are the indices of the horizontal dofs in one horizontal cell  and $k,\ell$ the indices of \textit{all} $\Vspace_0$, $\Vspace_1$ or $\Vspace_2$ dofs in one column. Since $\Uspace_2$ is a DG space, there will be no couplings between different columns for $M_p$, $M_{u,z}$ and $D_z$. Similarly, since $\Vspace_1$ is a DG space, there are no couplings between the dofs in different vertical layers in $M_{p}$ and in $M_{u,h,\text{inv}}$.
 
-When constructing the inverse lumped mass matrices $M_{u,h,\text{inv}}$ and $M_{u,z,\text{inv}}$, we demand that these matrices have the same sparsity pattern as $M_{u,h}$ and $M_{u,z}$.
+Since $\Uspace_2$ is a DG space, there will be no couplings between different columns for $M_p$, $M_{u,z}$, $M_{u,z,\text{inv}}$ and $D_z$, in other words the global matrices are block-diagonal (with each block corresponding to the couplings in one vertical column). Similarly, since $\Vspace_1$ is a DG space, there are no couplings between the dofs in different vertical layers in $M_{p}$, $M_{u,h}$ and $M_{u,h,\text{inv}}$, but this is not relevant here.
 
-In the smoother we need the diagonal $\hat{H}_z$ of (\ref{eqn:Preconditioner}) in the $i,j$ space, i.e. the block-banded matrix which would be obtained from $\hat{H}$ is we neglected all couplings between neighbouring columns (but keep the strong couplings in the vertical direction). The first and last terms do not contain any horizontal couplings, and in each column we can obtain the entries of the diagonal matrix
+In the smoother we need the block-diagonal $\hat{H}_z$ of (\ref{eqn:Preconditioner}), i.e. in each column we need to construct the banded matrix which would be obtained from $\hat{H}$ is we neglected all couplings between neighbouring columns (but keep the strong couplings in the vertical direction). In each column we can obtain the entries of this matrix as
 \begin{equation}
-  \Delta_h:\Uspace_2\otimes \Vspace_1\rightarrow\Uspace_2\otimes \Vspace_1,\quad \Delta_h \equiv \text{diag}_{h}\left(D_h M_{u,h,\text{inv}} D_h^T\right)
+  \Delta_h:\Wspace_3 \rightarrow\Wspace_3,\quad \Delta_h \equiv \text{diag}_{h}\left(D_h M_{u,h,\text{inv}} D_h^T\right)
 \end{equation}
-as
+with
 \begin{equation}
-  \left[\left(\Delta_h\right)_{k\ell}\right]_{ij}
-  = \sum_{m,n}\sum_{r,s} 
-\left[\left(D_h\right)_{km}\right]_{ir} 
-\left[\left(M_{u,h,\text{inv}}\right)_{mn}\right]_{rs}
-\left[\left(D^T_h\right)_{n\ell}\right]_{sj}.\label{eqn:Deltah}
+  \left(\Delta_h\right)_{ij}
+  = \sum_{k,\ell} 
+\left(D_h\right)_{ik} 
+\left(M_{u,h,\text{inv}}\right)_{k\ell}
+\left(D^T_h\right)_{\ell j}.\label{eqn:Deltah}
 \end{equation}
-Here $(i,j)$ are the local indices of the $\Uspace_2$ dofs in the column, and the loop over $(r,s)$ only runs over horizontal $\Uspace_1$ indices which are associated with the cell.
+Here $i$ and $j$ are restricted to the indices of the $\Wspace_3$ dofs in the same column.
 
-Note that in a given column all matrices considered above can be written in the form $\left[A_{k\ell}\right]_{ij}$. To work with these matrices, define $\mathbb{M} \simeq \mathbb{R}^{n_h\times n_h}$ be the space of real $n_h\times n_h$ matrices, where $n_h$ is the number of local degrees of freedom in the horizonal DG space $\Uspace_2$. Then the matrices above can be as block-matrices, i.e. the matrices represent mapping $\mathbb{M}^m \rightarrow \mathbb{M}^n$ and each matrix element $A_{k\ell}$ is a $\mathbb{M}_{n_h\times n_h}$ matrix with entries $\left[A_{k\ell}\right]_{ij}$.
-Denoting the dof-vector in a column as $\vec{X}$, such that $\vec{X}_k$ are the dofs associated with the vertical dof-index $k$, we have, for example
+In summary, the block-diagonal (denoted by $\text{diag}_h(\cdot)$) of the Helmholtz operator is given as
 \begin{equation}
-  \left[\left(A\vec{X}\right)_{k}\right]_{i} \equiv \sum_{\ell}\sum_j \left[A_{k\ell}\right]_{ij}\left[X_{\ell}\right]_{j}.
+  \text{diag}_h(\hat{H}) = \hat{H}_z \equiv M_{p} + \omega_c^2\Delta_h+\frac{\omega_c^2}{1+\omega_N^2} D_z M_{u,z,\text{inv}} D_z^T
+  \label{eqn:HHgeneralbanded}.
 \end{equation}
-The products of two matrices in (\ref{eqn:Preconditioner}) are defined as
-\begin{xalignat}{2}
-  \left(AB\right)_{k\ell} &\equiv \sum_{r} A_{kr}B_{r\ell}, & \text{with}\qquad
-  \left[\left(AB\right)_{k\ell}\right]_{ij} &\equiv \sum_{r}\sum_{s} \left[A_{kr}\right]_{is}\left[B_{r\ell}\right]_{sj}
- \end{xalignat}
+In each vertical column the matrix representations of all operators in (\ref{eqn:HHgeneralbanded}), i.e. $M_p$, $\Delta_h$, $D_z$ and $M_{u,z,\text{inv}}$, can be written as generalised banded matrices which will be discussed in section \ref{sec:BandedMatrices}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Implementation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Generalised banded matrices}
+\subsection{Algorithmic components}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Consider an $n_A\times m_A$ block-banded matrix $A$ (representing an operator mapping from $\mathbb{M}^{m_A} \rightarrow \mathbb{M}^{n_A}$) which only has entries for indices $(k,\ell)$ which satisfy
+The system in (\ref{eqn:MixedSystem}) can be solved with a preconditioned Krylov space iteration (e.g. GMRES or BiCGStab). For this we need to be able to carry out the following operations:
+\begin{itemize}
+  \item Apply the operator on the left hand side of (\ref{eqn:MixedSystem}). This can be done either in a matrix-free way or by using the LMA representation of the operators $M_b$, $M_p$, $M_u$, $D$ and $Q$.
+  \item Calculate the modified RHS in (\ref{eqn:BuoyancyRHS}) and back-substitute the buoyancy according to (\ref{eqn:BuoyancyBacksubstitution}). In addition to operator applications, this requires solving for the buoyancy mass matrix $M_b$, which can be achieved with an (unpreconditioned) CG iteration since the matrix $M_b$ is well conditioned.
+  \item Invert the triangular matrices on a vector $(\vec{P},\vec{U})$ and calculate the lower right block in (\ref{eqn:SchurComplement}), i.e. calculate $\tilde{M}_u^{-1}\vec{U}$. In addition to operator applications as above, this will require solves for the modified mass matrix $\tilde{M}_u$, which can again be achieved by a (unpreconditioned) CG iteration. Applying the operator $\tilde{M}_u$ in this iteration requires inverting $M_b$, but again this is possible (see above).
+  \item (Approximately) invert the operator $H$ in (\ref{eqn:HelmholtzOperator}). For this, use a Krylov iteration (e.g. CG) with $H$ and precondition it with the operator $\hat{H}$ in (\ref{eqn:Preconditioner}). For this we need to be able to
+  \begin{itemize}
+    \item Apply the operator $H$ in (\ref{eqn:HelmholtzOperator}). This is possible if we can apply $D$ and (approximately) invert $\tilde{M}_u$, as described above.
+    \item Approximately invert $\hat{H}$ to precondition $H$. For this we use a multigrid iteration. The most important ingredient is the smoother application $p\mapsto p+\hat{H}_z^{-1}(r_p-\hat{H}p)$ and it requires us to
+    \begin{itemize}
+      \item Construct suitable lumped operators $M_{u,h,\text{inv}}$ and $M_{u,z,\text{inv}}$.
+      \item Apply the operator $\hat{H}$ in (\ref{eqn:Preconditioner}). For this we need to be able to apply the additional operators $M_p$, $D_h$, $D_z$, $M_{u,h,\text{inv}}$ and $M_{u,z,\text{inv}}$. Note that these require the new function spaces $\Wspace_2^h$ and $\Wspace_2^v$, so we need to be able to assemble operators mapping to these spaces.
+      \item Construct and invert the block-diagonal operator $\hat{H}_z$ by doing banded matrix solves in each column. This is discussed in section \ref{sec:BandedMatrices}.
+    \end{itemize}
+  \end{itemize}
+\end{itemize}
+
+It is worth stressing that, since they are only required in the preconditioner, any mass matrix solves for $M_b$, $M_u$ and $\tilde{M}_u$ above can be (i) carried with a small number of CG or Richardson iterations or (ii) be approximated by inverting suitably lumped matrices. In addition, bear in mind that in general (but not here, since we are only looking at the linearised equations) the linear operator is used inside a Newton iteration, and hence further simplications might be possible without compromising the convergence of the outer Newton loop.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Generalised banded matrices}\label{sec:BandedMatrices}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+As described above, in each column all components of the operator in (\ref{eqn:HHgeneralbanded}) can be represented by (generalised) banded matrices. In the following we describe this data structure and its algebra.
+
+Consider an $n_A\times m_A$ banded matrix $A$ (representing an operator mapping from $\mathbb{R}^{m_A} \rightarrow \mathbb{R}^{n_A}$) which only has entries for indices $(i,j)$ which satisfy
 \begin{equation}
-  -\gamma_-^{(A)} \le \alpha^{(A)}k-\beta^{(A)}\ell \le \gamma_+^{(A)}.
+  -\gamma_-^{(A)} \le \alpha^{(A)}i-\beta^{(A)}j \le \gamma_+^{(A)}.
 \end{equation}
+An example is shown in Fig. \ref{fig:bandedmatrix}.
+\begin{figure}
+ \begin{center}
+  \includegraphics[width=0.6\linewidth]{bandedmatrix.pdf}
+ \end{center}
+ \caption{Example of a generalised banded matrix with $\alpha^{(A)}=2$, $\beta^{(A)}=1$, $\gamma^{(A)}_-=0$, $\gamma^{(A)}_+=3$ and bandwidth 4.}
+ \label{fig:bandedmatrix}
+\end{figure}
 Without loss of generality we can assume that the greatest common divisor $G\equiv\text{gcd}(\alpha^{(A)},\beta^{(A)})$ of $\alpha^{(A)}$ and $\beta^{(A)}$ is $1$. If  $G\ne 1$, we can replace
 \begin{xalignat}{3}
   \alpha^{(A)} &\mapsto \alpha^{(A)}/G, &
@@ -252,7 +351,7 @@ Without loss of generality we can assume that the greatest common divisor $G\equ
 \end{xalignat}
 without changing the structure of the matrix.
 A special case are symmetrically banded square matrices for which $n_A=m_A$, $\alpha^{(A)}=\beta^{(A)}=1$ and $\gamma_-^{(A)}=\gamma_+^{(A)}\equiv \gamma^{(A)}$.
-The number of entries per row (or the bandwidth), $n_{\text{BW}}^{(A)}$, satisfies\footnote{For $x\in \mathbb{A}$ define $\lceil x\rceil \equiv n_+$ where $n_+\in\mathbb{Z}$ is the smallest integer (positive or negative) such that $x\le n_+$. Further define $\lfloor x\rfloor = n_-$ where $n_-\in\mathbb{Z}$ is the largest integer such that $x\ge n_-$. In particular $\lceil y\rceil = \lfloor y\rfloor = y$ for $y\in\mathbb{Z}$.}
+The number of entries per row (commonly known as the bandwidth), $n_{\text{BW}}^{(A)}$, satisfies\footnote{For $x\in \mathbb{A}$ define $\lceil x\rceil \equiv n_+$ where $n_+\in\mathbb{Z}$ is the smallest integer (positive or negative) such that $x\le n_+$. Further define $\lfloor x\rfloor = n_-$ where $n_-\in\mathbb{Z}$ is the largest integer such that $x\ge n_-$. In particular $\lceil y\rceil = \lfloor y\rfloor = y$ for $y\in\mathbb{Z}$.}
 \begin{equation}
   \begin{aligned}
   \beta^{(A)}(n_{\text{BW}}-1) &\le \gamma_-^{(A)}+\gamma_+^{(A)} \\
@@ -262,15 +361,20 @@ The number of entries per row (or the bandwidth), $n_{\text{BW}}^{(A)}$, satisfi
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Efficient storage format}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-To store these sparse matrices efficiently we can use a one-dimensional $\overline{A}$ of length $N^{(A)}\equiv n_An_{\text{BW}}^{(A)}$ and store rows consecutively in segments of length $n_{\text{BW}}$ \footnote{Here we assume that the entries of $\overline{A}$ are $\mathbb{M}$-values. In practise, we would of course allocate a real array of length $N^{(A)}n_h^2$ and store the entries in the $\mathbb{M}$ matrices contiguously in memory.}. An index pair $(k,\ell)$ corresponds to position
+To store these sparse matrices efficiently we can use a one-dimensional array $\overline{A}$ of length $N^{(A)}\equiv n_An_{\text{BW}}^{(A)}$ and store rows consecutively in segments of length $n_{\text{BW}}$. An index pair $(i,j)$ corresponds to position
 \begin{equation}
-  \nu(k,\ell) \equiv kn_{\text{BW}}+\left(\ell - \ell_-(k)\right)
-  \qquad\text{with}\quad \ell_-(k) = \lceil\frac{\alpha^{(A)}k-\gamma_+^{(A)}}{\beta^{(A)}}\rceil
+  \nu(i,j) \equiv i\cdot n_{\text{BW}}+\left(j - j_-(i)\right)
+  \qquad\text{with}\quad j_-(i) = \lceil\frac{\alpha^{(A)}i-\gamma_+^{(A)}}{\beta^{(A)}}\rceil
 \end{equation}
-in the array $\overline{A}$. Explicitly we have
-\begin{equation}
-  \overline{A}_{\nu(k,\ell)} = A_{k\ell}
-\end{equation}
+in the array $\overline{A}$, i.e. $\overline{A}_{\nu(i,j)} = A_{ij}$, 
+and this is shown in Fig. \ref{fig:linearstorage} for the matrix in Fig. \ref{fig:bandedmatrix}.
+\begin{figure}
+ \begin{center}
+  \includegraphics[width=0.5\linewidth]{linearstorage.pdf}
+ \end{center}
+ \caption{Linear storage for the matrix shown in Fig. \ref{fig:bandedmatrix}.}
+ \label{fig:linearstorage}
+\end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Transpose, product and sum of generalised banded matrices}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -278,7 +382,7 @@ The parameters of the transpose of a generalised banded matrix $A$ are given as
 \begin{xalignat}{3}
   \alpha^{(A^T)} &= \beta^{(A)}, &
   \beta^{(A^T)} &= \alpha^{(A)}, &
-  \gamma_{\pm}^{(A^T)} &= \gamma_{\mp}^{(A)}
+  \gamma_{\pm}^{(A^T)} &= \gamma_{\mp}^{(A)}.
   \label{eqn:ParametersTranspose}
 \end{xalignat}
 Given a generalised banded $n_A\times m_A$ matrix $A$ and a generalised banded $n_B\times m_B$ matrix $B$ with $m_A=n_B$, the parameters of the product $AB$ are given as
@@ -286,9 +390,9 @@ Given a generalised banded $n_A\times m_A$ matrix $A$ and a generalised banded $
   \alpha^{(AB)} &= \alpha^{(A)}\alpha^{(B)}, &
   \beta^{(AB)} &= \beta^{(A)}\beta^{(B)}, &
   \gamma_{\pm}^{(AB)} &= \alpha^{(B)}\gamma_{\pm}^{(A)}+\beta^{(A)}\gamma_{\pm}^{(B)}
-  \label{eqn:ParametersMultiply}
+  \label{eqn:ParametersMultiply}.
 \end{xalignat}
-If the resulting $\alpha^{(AB)}$ and $\beta^{(AB)}$ have a greatest common divisor $\ne 1$, divide by this as in (\ref{eqn:gcd}).
+If the resulting $\alpha^{(AB)}$ and $\beta^{(AB)}$ have a greatest common divisor $G \ne 1$, divide by this as in (\ref{eqn:gcd}).
 
 Two generalised banded $n\times m = n_A\times m_A = n_B\times m_B$ matrices $A$ and $B$ for which $\alpha^{(A)} = \alpha^{(B)}$ and
 $\alpha^{(A)} = \alpha^{(B)}$ can be added with
@@ -299,187 +403,195 @@ $\alpha^{(A)} = \alpha^{(B)}$ can be added with
   \label{eqn:ParametersAdd}
 \end{xalignat}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsubsection{Relevant example}
+\subsubsection{Operators between function spaces}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-The following examples are relevant when considering the spaces\footnote{We use the standard numbering, i.e. CG(1) is the lowest order CG space with piecewise linear polynomials, and DG(0) is the lowest order DG space with piecewise constant polynomials.} CG($r$) to represent the vertical component of the velocity and DG($s$) to store the vertical pressure component. The Helmholtz operator has the following form block-diagonal form
+As already mentioned, in each vertical column the operator $\hat{H}_z$ is represented by a banded matrix which can be constructed from $M_p$, $M_{u,z}$ and the matrix of the derivative operator $D_z$
+by using suitable multiplications and additions of banded matrices, as outlined in the previous section. 
+For a grid with $n_z$ vertical layers, the parameters $\alpha^{(A)}$, $\beta^{(A)}$, $\gamma_-^{(A)}$, $\gamma_+^{(A)}$, $n^{(A)}$ and $m^{(A)}$ of the banded matrix representation $A$ of an operator mapping from function space $\Wspace_{\text{col}}$ to $\Wspace_{\text{row}}$ are given as:
 \begin{equation}
-  \text{diag}_h(H_z) = \hat{H}_z \equiv M_{p} + \omega_c^2\Delta_h+\frac{\omega_c^2}{1+\omega_N^2} D_z M_{u,z,\text{inv}} D_z^T
-  \label{eqn:HHgeneralbanded}
+  \begin{aligned}
+  n^{(A)} &= n_zN_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}}) + (n_z+1)N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}}),\\
+  m^{(A)} &= n_zN_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + (n_z+1)N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}}),\\
+  \alpha^{(A)} &= N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}}),\\
+  \beta^{(A)} &= N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}}),\\
+  \gamma_-^{(A)} &= N_{\text{df}}(\Wspace_{\text{col}})\left(N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}})\right),\\
+  \gamma_+^{(A)} &= N_{\text{df}}(\Wspace_{\text{row}})\left(N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}})\right).
+  \end{aligned}
 \end{equation}
-where $M_{u,\text{inv}}$ is an approximation to the inverse of the velocity mass matrix $M_u$. In the simplest case we assume that this approximate inverse has the same sparsity pattern as $M_u$.
+Here, for a given function space $\Wspace$, $N_{\text{df}}^{(\text{cell})}(\Wspace)$ is the number of degrees of freedom associated with the interior of the reference cell and $N_{\text{df}}^{(\text{facet})}(\Wspace)$ is the number of dofs associated with the bottom facet of the reference cell (for example, $N_{\text{df}}^{(\text{cell})}(\Wspace_3)=1$, $N_{\text{df}}^{(\text{facet})}(\Wspace_3)=0$ and $N_{\text{df}}^{(\text{cell})}(\Wspace_2^v)=0$, $N_{\text{df}}^{(\text{facet})}(\Wspace_2^v)=1$ at lowest order). Also we defined $N_{\text{df}}(\Wspace)\equiv N_{\text{df}}^{(\text{cell})}(\Wspace)+N_{\text{df}}^{(\text{facet})}(\Wspace)$.
 
-In Table \ref{tab:Matrixparameters} we give the generalised banded matrix parameters for the mass matrices and the matrix of the derivative matrix
-\begin{equation}
-  D_z:\text{CG($r$)}\rightarrow \text{DG($s$)}, \qquad
-  \left(D_z\right)_{k\ell} = \int \phi_k(x)(\nabla\cdot \vec{w}_\ell(x))\;dx
-\end{equation}
-in a column with $n_z$ vertical layers. Using (\ref{eqn:ParametersTranspose}), (\ref{eqn:ParametersMultiply}) and (\ref{eqn:ParametersAdd}) we can derive the parameters of $DM_u^{(\text)}D^T$ and $H$, which are given in the last row of the table.
-\begin{table}
- \begin{center}
- \begin{tabular}{lcccccc}
-  \hline
-   matrix $A$ & $n_A$ & $m_A$ & $\alpha^{(A)}$ & $\beta^{(A)}$ & $\gamma_-^{(A)}$ & $\gamma_+^{(A)}$\\
-   \hline\hline
-   DG($s$) mass matrix $M_{p}$, $\Delta_h$ & $(s+1)n_z$ & $(s+1)n_z$ & $1$ & $1$ & $s$ & $s$\\
-   CG($r$) mass matrix $M_{u,z}$ & $rn_z+1$ & $rn_z+1$ & $1$ & $1$ & $r$ & $r$\\
-   CG($r$) $\rightarrow$ DG($s$) derivative $D_z$ & $rn_z+1$ & $sn_z$ & $r$ & $s+1$ & $r(s+1)$ & $rs$\\
-   $H_z$ and $D_zM_{u,z,\text{inv}}D_z^T$ & $(s+1)n_z$ & $(s+1)n_z$ & $1$ & $1$ & $3s+2$ & $3s+2$\\
-  \hline
- \end{tabular}
- \end{center}
- \caption{Generalised banded matrix parameters of the matrices occurring in the Helmholtz operator (\ref{eqn:HHgeneralbanded}).}
- \label{tab:Matrixparameters}
-\end{table}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Algorithms}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-We need to be able to carry out the following algorithms on generalised banded matrices:
+We need to be able to carry out the following algorithms on generalised banded matrices (see appendix for explicit forms of algorithms):
 \begin{itemize}
+  \item Assemble banded matrix from an LMA representation of an operator (Algorithm \ref{alg:GBMMatrixAssembly})
   \item Matrix-vector products $y=Ax$ (Algorithm \ref{alg:GBMMatrixVector})
-  \item Matrix-matric products $C=AB$ (Algorithm \ref{alg:GBMMatrixMatrix})
+  \item Matrix-matrix products $C=AB$ (Algorithm \ref{alg:GBMMatrixMatrixProduct})
+  \item Matrix-matrix sums $C=A+\omega B$ (Algorithm \ref{alg:GBMMatrixMatrixSum})
   \item Transpose matrix $B=A^T$ (Algorithm \ref{alg:GBMMatrixTranspose})
-  \item LU-decomposition (Algorithm \ref{alg:GBMMatrixLUDecompose}) and back-substitution (Algorithm \ref{alg:GBMMatrixBacksubstitute}) of banded matrix $A$ (for better efficiency, could also use Cholesky decomposition for symmetric matrices instead)
+  \item Banded matrix solves $y=A^{-1}x$. This is easily achieved by using LAPACK LU- (or QR-decomposition) and solves. The LU factors can be precomputed with \texttt{dgbtrf} and stored in banded format in a preprocessing step and then \texttt{dgbtrs} can be used to carry out the forward and backward substitutions required for the solves.
+  \item Sparse approximate inverse (SPAI) \cite{Grote1997}. For this prescribe a banded matrix pattern for the SPAI matrix. Calculating the entries then boils down to minimising a least squares problem in each matrix column with the LAPACK routine \texttt{dgels}.
 \end{itemize}
+We assume that in principle operators are available in LMA form. In each vertical column of the grid we store a three dimensional array $L^{(c)}$, such that $L^{(c)}_k$ is the local unassembled matrix with entries $\left(L^{(c)}_k\right)_{ij}$.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\paragraph{Matrix-vector multiplication $\boldsymbol{y=Ax}$.}
+\subsubsection{Degree of freedom ordering and indirection maps}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-To multiply a vector by a banded matrix stored in this format we can use Algorithm \ref{alg:GBMMatrixVector}.
-\begin{algorithm}
- \caption{Generalised banded matrix-vector multiplication $y=Ax$}
+For the moment we assume that the degrees of freedom in each cell are stored in firedrake-order. In each column $c$ of the grid store an indirection map $m_{\Wspace}^{(c)}$, which for each dof index $i$ in the reference cell returns the global dof index of the degrees of freedom in the lowest layer of the 3d grid. In addition, store an offset array $o_{\Wspace}$, which contains the increments which are necessary to go from one vertical layer to the next. Then the global index in an arbitrary vertical layer $k$ is given by
+\begin{equation}
+  i_{\text{global}} = m_{\Wspace}^{(c)}(i)+k\cdot o_{\Wspace}(i).
+\end{equation}
+Typically we have
+\begin{equation}
+  o_{\Wspace}(i)=N_{\text{df}}^{(\text{cell})}(\Wspace)+N_{\text{df}}^{(\text{facet})}(\Wspace)\qquad\text{for all $i$}.
+\end{equation}
+%%%%%%%%%%%%%
+\newcommand{\Ndfrow}{N_{\text{df}}(\Wspace_{\text{row}})}
+\newcommand{\Ndfcellrow}{N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}})}
+\newcommand{\Ndffacetrow}{N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}})}
+\newcommand{\Ndfcol}{N_{\text{df}}(\Wspace_{\text{row}})}
+\newcommand{\Ndfcellcol}{N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}})}
+\newcommand{\Ndffacetcol}{N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}})}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Construction of banded diagonal matrix $\hat{H}_z$}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+To construct the banded diagonal matrix in each cell we can proceed as follows:
+\begin{enumerate}
+  \item Assemble $M_p$, $M_{u,z}$, $M_{u,h}$, $D_z$ and $D_h$ into their local matrix (LMA) representation $L[M_p]$ etc.
+  \item Assemble the local matrix representations into banded matrices using algorithm \ref{alg:GBMMatrixAssembly}, transpose the banded matrix for $D_z$ using algorithm \ref{alg:GBMMatrixTranspose}
+  \item Calculate $M_{u,h,\text{inv}}$, e.g. using (\ref{eqn:horizontalMassLumping})
+  \item Calculate the sparse approximate inverse $M_{u,z,\text{inv}}$ by solving a least squares problem for each matrix column as described in \cite{Grote1997}.
+  \item Calculate $\Delta_h$ using algorithm \ref{alg:GBMDeltahAssembly}
+  \item Build $\hat{H}_z = M_p+\omega_c^2\Delta_h+\omega_c^2/(1+\omega_N^2) D_z M_{u,z,\text{inv}}D_z^T$ using algorithms \ref{alg:GBMMatrixMatrixProduct} and \ref{alg:GBMMatrixMatrixSum}
+  \item LU-factorise $\hat{H}_z$ using LAPACK.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\appendix
+\section{Algorithms}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+The explicit form of the algorithms described above is given here.
+\begin{algorithm}[H]
+ \caption{Generalised banded matrix assembly from local matrix (LMA) representation $L[A]_k$}
+ \label{alg:GBMMatrixAssembly}
+ \begin{algorithmic}[1]
+   \STATE{$\overline{A}\mapsto 0$}
+   \FOR{$k=0$ \TO $n_z-1$}
+     \FOR{$I=0,\Ndfrow-1$}
+\STATE{$i=k\cdot o_{\text{row}}(I)+m^{(c)}_{\text{row}}(I)$}
+         \STATE{$j_-=\lceil(\alpha^{(A)}i-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+       \FOR{$J=0,\Ndfcol-1$}
+                  \STATE{$j=k\cdot o_{\text{col}}(J)+m^{(c)}_{\text{col}}(J)$} 
+         \STATE{$\overline{A}_{BW^{(A)}i+(j-j_m)}\mapsto\overline{A}_{BW^{(A)}i+(j-j_-)}+\left(L[A]_k\right)_{I,J}$}
+       \ENDFOR
+     \ENDFOR
+   \ENDFOR
+ \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+ \caption{Generalised banded \texttt{axpy} matrix-vector multiplication $y\mapsto y+Ax$}
  \label{alg:GBMMatrixVector}
  \begin{algorithmic}[1]
-   \FOR{$k=0$ \TO $n_A-1$}
+   \FOR{$i=0$ \TO $n_A-1$}
      \STATE{$s\mapsto 0$}
-     \STATE{$\ell_- = \lceil (\alpha^{(A)}k-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
-     \STATE{$\ell_+ = \lfloor (\alpha^{(A)}k+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
-     \FOR{$\ell=\max\{0,\ell_-\}$ \TO $\min\{m_A-1,\ell_+\}$}
-       \STATE{$s \mapsto s + \overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_-)} x_\ell$}
+     \STATE{$j_- = \lceil (\alpha^{(A)}i-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+     \STATE{$j_+ = \lfloor (\alpha^{(A)}i+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
+     \FOR{$j=\max\{0,j_-\}$ \TO $\min\{m_A-1,j_+\}$}
+       \STATE{$s \mapsto s + \overline{A}_{n_{\text{BW}}^{(A)}i+(j-j_-)} x_j$}
      \ENDFOR
-     \STATE{$y_k\mapsto s$}
+     \STATE{$y_i\mapsto y_i+s$}
    \ENDFOR
  \end{algorithmic}
 \end{algorithm}
-\begin{algorithm}
+
+\begin{algorithm}[H]
  \caption{Generalised banded matrix-matrix multiplication $C=AB$}
- \label{alg:GBMMatrixMatrix}
+ \label{alg:GBMMatrixMatrixProduct}
  \begin{algorithmic}[1]
-   \FOR{$k=0$ \TO $n_A-1$}
-     \STATE{$\ell_- = \lceil (\alpha^{(C)}k-\gamma_+^{(C)})/\beta^{(C)}\rceil$}
-     \STATE{$\ell_+ = \lfloor (\alpha^{(C)}k+\gamma_-^{(C)})/\beta^{(C)}\rfloor$}
-     \STATE{$m_- = \lceil (\alpha^{(A)}k-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
-     \STATE{$m_+ = \lfloor (\alpha^{(A)}k+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
-     \FOR{$\ell=\max\{0,\ell_-\}$ \TO $\min\{m_B-1,\ell_+\}$}
+   \STATE{$\overline{C}\mapsto 0$}
+   \FOR{$i=0$ \TO $n_A-1$}
+     \STATE{$j_- = \lceil (\alpha^{(C)}i-\gamma_+^{(C)})/\beta^{(C)}\rceil$}
+     \STATE{$j_+ = \lfloor (\alpha^{(C)}i+\gamma_-^{(C)})/\beta^{(C)}\rfloor$}
+     \STATE{$k_- = \lceil (\alpha^{(A)}i-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+     \STATE{$k_+ = \lfloor (\alpha^{(A)}i+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
+     \FOR{$j=\max\{0,j_-\}$ \TO $\min\{m_B-1,j_+\}$}
        \STATE{$s\mapsto 0$}
-       \FOR{$m=\max\{0,m_-\}$ \TO $\min\{m_A-1,M_+\}$}
-         \IF{$\lceil(\alpha^{(B)}m-\gamma_-^{(B)})/\beta^{(B)}\rceil\le \ell \le \lfloor(\alpha^{(B)}m+\gamma_+^{(B)})/\beta^{(B)}\rfloor$}
-           \STATE{$s = s + \overline{A}_{n_{\text{BW}}^{(A)}k+(m-m_-)}\overline{B}_{n_{\text{BW}}^{(B)}m+(\ell-\ell_-)}$}
+       \FOR{$k=\max\{0,k_-\}$ \TO $\min\{m_A-1,k_+\}$}
+         \IF{$\lceil(\alpha^{(B)}k-\gamma_-^{(B)})/\beta^{(B)}\rceil\le j \le \lfloor(\alpha^{(B)}k+\gamma_+^{(B)})/\beta^{(B)}\rfloor$}
+           \STATE{$j'_- = \lceil (\alpha^{(B)}k-\gamma_+^{(B)})/\beta^{(B)}\rceil$}
+           \STATE{$s = s + \overline{A}_{n_{\text{BW}}^{(A)}i+(k-k_-)}\overline{B}_{n_{\text{BW}}^{(B)}k+(j-j'_-)}$}
          \ENDIF
        \ENDFOR
-       \STATE{$\overline{C}_{n_{\text{BW}}^{(C)}k+(\ell-\ell_-)}\mapsto  s$}
+       \STATE{$\overline{C}_{n_{\text{BW}}^{(C)}i+(j-j_-)}\mapsto  s$}
      \ENDFOR
    \ENDFOR
  \end{algorithmic}
 \end{algorithm}
-\begin{algorithm}
+
+\begin{algorithm}[H]
+ \caption{Generalised banded matrix-matrix addition $C=A+\omega B$}
+ \label{alg:GBMMatrixMatrixSum}
+ \begin{algorithmic}[1]
+   \STATE{$\overline{C}\mapsto 0$}
+   \FOR{$i=0$ \TO $n_A-1$}
+     \STATE{$j^{(A)}_- = \lceil (\alpha^{(A)}i-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+     \STATE{$j^{(A)}_+ = \lfloor (\alpha^{(A)}i+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
+     \STATE{$j^{(B)}_- = \lceil (\alpha^{(B)}i-\gamma_+^{(B)})/\beta^{(B)}\rceil$}
+     \STATE{$j^{(B)}_+ = \lfloor (\alpha^{(B)}i+\gamma_-^{(B)})/\beta^{(B)}\rfloor$}
+     \STATE{$j^{(C)}_- = \lceil (\alpha^{(C)}i-\gamma_+^{(C)})/\beta^{(C)}\rceil$}
+     \STATE{$j^{(C)}_+ = \lfloor (\alpha^{(C)}i+\gamma_-^{(C)})/\beta^{(C)}\rfloor$}
+     \FOR{$j=\max\{0,j^{(A)}_-\}$ \TO $\min\{m_A-1,j^{(A)}_+\}$}
+       \STATE{$\overline{C}_{n_{\text{BW}}^{(C)}i+(j-j^{(C)}_-)}=\overline{C}_{n_{\text{BW}}^{(C)}i+(j-j^{(C)}_-)}+\overline{A}_{n_{\text{BW}}^{(A)}i+(j-j^{(A)}_-)}$}
+     \ENDFOR
+     \FOR{$j=\max\{0,j^{(B)}_-\}$ \TO $\min\{m_A-1,j^{(B)}_+\}$}
+       \STATE{$\overline{C}_{n_{\text{BW}}^{(C)}i+(j-j^{(C)}_-)}=\overline{C}_{n_{\text{BW}}^{(C)}i+(j-j^{(C)}_-)}+\omega\overline{B}_{n_{\text{BW}}^{(B)}i+(j-j^{(B)}_-)}$}
+     \ENDFOR
+   \ENDFOR
+ \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
  \caption{Generalised banded matrix transpose $B=A^T$}
  \label{alg:GBMMatrixTranspose}
  \begin{algorithmic}[1]
-   \FOR{$k=0$ \TO $n_A-1$}
-     \STATE{$\ell_- = \lceil (\alpha^{(A)}k-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
-     \STATE{$\ell_+ = \lfloor (\alpha^{(A)}k+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
-     \FOR{$\ell=\max\{0,\ell_-\}$ \TO $\min\{m_B-1,\ell_+\}$}
-       \STATE{$k_- = \lceil (\beta^{(A)}k-\gamma_-^{(A)})/\alpha^{(A)}\rceil = \lceil (\alpha^{(B)}k-\gamma_+^{(B)})/\beta^{(B)}\rceil$}
-       \STATE{$\overline{B}_{n_{\text{BW}}^{(B)}\ell+(k-k_-)}\mapsto \overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_-)}$}
+   \FOR{$i=0$ \TO $n_A-1$}
+     \STATE{$j_- = \lceil (\alpha^{(A)}i-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+     \STATE{$j_+ = \lfloor (\alpha^{(A)}i+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
+     \FOR{$j=\max\{0,j_-\}$ \TO $\min\{m_B-1,j_+\}$}
+       \STATE{$i_- = \lceil (\beta^{(A)}j-\gamma_-^{(A)})/\alpha^{(A)}\rceil = \lceil (\alpha^{(B)}j-\gamma_+^{(B)})/\beta^{(B)}\rceil$}
+       \STATE{$\overline{B}_{n_{\text{BW}}^{(B)}j+(i-i_-)}\mapsto \overline{A}_{n_{\text{BW}}^{(A)}i+(j-j_-)}$}
      \ENDFOR
    \ENDFOR
  \end{algorithmic}
 \end{algorithm}
+
+\newcommand{\ndfWthree}{N_{\text{df}}(\Wspace_3)}
+\newcommand{\ndfWtwov}{N_{\text{df}}(\Wspace_2^v)}
 \begin{algorithm}
- \caption{Banded LU decomposition $A\mapsto LU$}
- \label{alg:GBMMatrixLUDecompose}
+ \caption{Assembly of banded matrix for $\Delta_h=\text{diag}_h\left(D_hM_{u,h,\text{inv}}D_h^T\right)$ from the local matrix (LMA) representations $L[D_h]$ and $L[M_{u,h,\text{inv}}]$}
+ \label{alg:GBMDeltahAssembly}
  \begin{algorithmic}[1]
-   \FOR{$k=0$ \TO $n_A-2$}
-     \STATE{$\ell_- = k-\gamma^{(A)}$}
-     \STATE{$\ell_+ = k+\gamma^{(A)}$}
-     \FOR{$\ell=k+1$ \TO $\min\{n_A-1,\ell_+\}$}
-       \STATE{$\overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_-)} \mapsto \left(\overline{A}_{n_{\text{BW}}^{(A)}k+(k-\ell_-)}\right)^{-1}\overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_-)}$}
+   \STATE{$\overline{\Delta}_h\mapsto 0$}
+   \FOR{$k=0$ \TO $n_z-1$}
+     \FOR{$I=0,\ndfWthree-1$}
+\STATE{$i=k\cdot o_{\Wspace_3}(I)+m^{(c)}_{\Wspace_3}(I)$}
+       \FOR{$J=0,\ndfWtwov-1$}
+                  \STATE{$j=k\cdot o_{\Wspace_2^v}(J)+m^{(c)}_{\Wspace_2^v}(J)$} 
+         \STATE{$s=0$}
+     \FOR{$L=0,\ndfWtwov-1$}
+       \FOR{$M=0,\ndfWtwov-1$}
+        \STATE{$s\mapsto s+\left(L[D_h]_k\right)_{IL}\cdot\left(L[M_{u,h,\text{inv}}]\right)_{LM}\cdot\left(L[D_h]_k\right)_{JM}$}
+       \ENDFOR
      \ENDFOR
-     \FOR{$\ell=k+1$ \TO $\min\{n_A-1,\ell_+\}$}
-       \FOR{$m=k+1$ \TO $\min\{n_A-1,\ell_+\}$}
-         \STATE{$\overline{A}_{n_{\text{BW}}^{(A)}\ell+(m-\ell_-)}\mapsto \overline{A}_{n_{\text{BW}}^{(A)}\ell+(m-\ell_-)}-\overline{A}_{n_{\text{BW}}^{(A)}m+(k-\ell_-)}\overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_-)}$}
+
+\STATE{$j_-=\lceil(\alpha^{(A)}i-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+         \STATE{$\left(\overline{\Delta}_h\right)_{BW^{(A)}i+(j-j_-)}\mapsto\left(\overline{\Delta}_h\right)_{BW^{(A)}i+(j-j_-)}+s$}
        \ENDFOR
      \ENDFOR
    \ENDFOR
  \end{algorithmic}
 \end{algorithm}
-\begin{algorithm}
- \caption{Banded LU backsubstitution: $x\mapsto L^{-1}x\mapsto U^{-1}x$ (for $A=LU$ constructed with Algorithm \ref{alg:GBMMatrixLUDecompose})}
- \label{alg:GBMMatrixBacksubstitute}
- \begin{algorithmic}[1]
-   \FOR{$k=1$ \TO $n_A-1$}
-     \STATE{$\ell_- = k-\gamma^{(A)}$}
-     \STATE{$s\mapsto x_k$}
-     \FOR{$\ell=\max\{0,\ell_-\}$ \TO $k-1$}
-       \STATE{$s\mapsto s - \overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_0)}x_{\ell}$}
-     \ENDFOR
-     \STATE{$x_k\mapsto s$}
-   \ENDFOR
-   \FOR{$k=n_A-1$ \TO $0$}
-     \STATE{$\ell_- = k-\gamma^{(A)}$}
-     \STATE{$\ell_+ = k+\gamma^{(A)}$}
-     \STATE{$s\mapsto x_k$}
-     \FOR{$\ell=k+1$ \TO $\min\{n_A-1,\ell_+\}$}
-       \STATE{$s\mapsto s - \overline{A}_{n_{\text{BW}}^{(A)}k+(\ell-\ell_0)}x_{\ell}$}
-     \ENDFOR
-     \STATE{$x_k\mapsto \left(\overline{A}_{n_{\text{BW}}^{(A)}k+(k-\ell_-)}\right)^{-1}s$}
-   \ENDFOR
-
- \end{algorithmic}
-\end{algorithm}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Smoother algorithm}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsubsection{Preprocessing}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{algorithm}
- \caption{Preprocessing for smoother}
- \label{alg:Preprocessing}
- \begin{algorithmic}[1]
-   \STATE{Construct $M_{u,h,\text{inv}}^{(c)}$}
-   \FORALL{columns}
-     \FOR{$L=0$ \TO $n_z-1$}
-       \STATE{In each cell, calculate the local stencils of $M_p$, $M_{u,z,\text{inv}}$ and $D$ and assemble them into the generalised banded matrices $M_p^{(c)}$, $M_{u,z,\text{inv}}^{(c)}$, $D^{(c)}$}
-       \STATE{In each cell, calculate $\Delta_h$ as in (\ref{eqn:Deltah}) and assemble it into $\Delta_h^{(c)}$}
-     \ENDFOR
-     \STATE{Calculate the lumped inverse $M_{u,z,\text{inv}}^{(c)}$ of the mass matrix $M_{u,z}^{(c)}$ (e.g. using SPAI)}
-     \STATE{Calculate the block-banded matrix $H^{(c)}=M_{p}^{(c)}+\omega^2\Delta_h^{(c)}+\omega^2 D^{(c)}M_{u,\text{inv}}^{(c)}\left(D^{(c)}\right)^T$}
-     \STATE{Calculate $H^{(c)}_{LU}$, the LU decomposition of $H^{(c)}$}
-   \ENDFOR
- \end{algorithmic}
-\end{algorithm}
-\begin{algorithm}
- \caption{Smoother application $\vec{x}\mapsto \vec{x} -\hat{H}_z^{-1}\left(\vec{r}-\hat{H}\right)$}
- \label{alg:Smoother}
- \begin{algorithmic}[1]
-   \FORALL{columns}
-     \FOR{$L=0$ \TO $n_z-1$}
-       \STATE{In each cell, calculate the local stencils of $M_p$, $M_u$ and $D$ and assemble them into the generalised banded matrices $M_p^{(c)}$, $M_u^{(c)}$, $D^{(c)}$}
-     \ENDFOR
-     \STATE{Calculate the block-SPAI $M_{u,\text{inv}}^{(c)}$ of $M_{u}^{(c)}$}
-     \STATE{Calculate the block-banded matrix $H^{(c)}=M_{p}^{(c)}+\omega^2 D^{(c)}M_{u,\text{inv}}^{(c)}\left(D^{(c)}\right)^T$}
-     \STATE{Calculate $H^{(c)}_{LU}$, the LU decomposition of $H^{(c)}$}
-   \ENDFOR
- \end{algorithmic}
-\end{algorithm}
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsubsection{Solve}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
