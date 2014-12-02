@@ -230,6 +230,40 @@ class BandedMatrix(object):
                      lma.dat(op2.READ,lma.cell_node_map()),
                      self._data(op2.INC,self._Vcell.cell_node_map()))
 
+    def ax(self,u):
+        '''In-place Matrix-vector mutiplication :math:`u\mapsto Au`
+
+            :arg u: Vector to multiply
+        '''
+        assert(u.function_space() == self._fs_col)
+        assert(u.function_space() == self._fs_row)
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel_code = '''void ax(double **A,
+                                 double **u) {
+          // Copy vector into temporary array
+          double u_tmp[%(A_n_row)d];
+          for (int i=0;i<%(A_n_row)d;++i) {
+            u_tmp[i] = u[0][i];
+          }
+          // Loop over matrix rows
+          for (int i=0;i<%(A_n_row)d;++i) {
+            double s = 0;
+            // Work out column loop bounds
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+            // Loop over columns
+            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+               s += A[0][%(A_bandwidth)d*i+(j-j_m)] * u_tmp[j];
+            }
+            u[0][i] = s;
+          }
+        }'''
+        kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     u.dat(op2.RW,u.cell_node_map()))
+
     def axpy(self,u,v):
         '''axpy Matrix-vector mutiplication :math:`v\mapsto v+Au`
 

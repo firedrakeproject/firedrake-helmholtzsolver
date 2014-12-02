@@ -77,6 +77,31 @@ def W3(finite_elements,mesh):
     W3 = FunctionSpace(mesh,W3_elt)
     return W3
     
+def test_mass_action_inplace(W3):
+    '''Test mass matrix action in place.
+
+    Calculate the action of the :math:`W_3` mass matrix on a :math:`W_3` field both using
+    the banded matrix class and UFL; compare the results.
+
+    :arg W3: L2 pressure function space
+    '''
+    u = Function(W3)
+    v = Function(W3)
+
+    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+    v.assign(u)
+
+    mat = BandedMatrix(W3,W3)
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+    form = phi_test*phi_trial*dx
+    mat.assemble_ufl_form(form)
+
+    mat.ax(v)
+
+    v_ufl = assemble(action(form, u))
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+
 def test_mass_action(W3):
     '''Test mass matrix action.
 
