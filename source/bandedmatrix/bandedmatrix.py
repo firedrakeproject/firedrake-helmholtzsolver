@@ -557,7 +557,7 @@ class BandedMatrix(object):
             LAPACKE_dgels(LAPACK_COL_MAJOR,'N',n_row_hat,n_col_hat,1,
                           Ahat,%(A_n_row)d,
                           mhat,%(A_n_row)d);
-            for (int j_hat=0;j_hat<=n_col_hat;++j_hat) {
+            for (int j_hat=0;j_hat<n_col_hat;++j_hat) {
               int j = j_hat+j_m;
               M[0][%(M_bandwidth)d*j + (k-(j-%(M_gamma_p)d))] = mhat[j_hat];
             }
