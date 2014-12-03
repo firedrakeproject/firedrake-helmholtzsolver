@@ -547,8 +547,11 @@ class BandedMatrix(object):
               int i = i_hat+i_m;
               for (int j_hat=0;j_hat<n_col_hat;++j_hat) {
                 int j = j_hat+j_m;
-                Ahat[i_hat+%(A_n_row)d*j_hat] 
-                  = A[0][%(A_bandwidth)d*i+(j-(i-%(A_gamma_p)d))];
+                double tmp = 0.0;
+                if ( ((i-%(A_gamma_p)d)<=j) && (j<=(i+%(A_gamma_m)d)) ) {
+                  tmp = A[0][%(A_bandwidth)d*i+(j-(i-%(A_gamma_p)d))];
+                }
+                Ahat[i_hat+%(A_n_row)d*j_hat] = tmp;
               }
             }
             for (int i_hat=0;i_hat<n_row_hat;++i_hat) {
