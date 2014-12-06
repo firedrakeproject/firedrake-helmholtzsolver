@@ -2,6 +2,7 @@ from firedrake import *
 from pressuresolver.vertical_normal import *
 import numpy as np
 import pytest
+import os
 
 @pytest.fixture
 def mesh_2d():
@@ -41,7 +42,7 @@ def test_zhat_2d_plot(mesh_2d):
     '''
     vertical_normal = VerticalNormal(mesh_2d)
     zhat = vertical_normal.zhat
-    DFile = File('zhat_2d.pvd')
+    DFile = File(os.path.join('output','zhat_2d.pvd'))
     DFile << zhat 
     assert True
 
@@ -108,7 +109,7 @@ def test_zhat_3d_plot(mesh_3d):
     '''
     vertical_normal = VerticalNormal(mesh_3d)
     zhat = vertical_normal.zhat
-    DFile = File('zhat_3d.pvd')
+    DFile = File(os.path.join('output','zhat_3d.pvd'))
     DFile << zhat 
     assert True
 
