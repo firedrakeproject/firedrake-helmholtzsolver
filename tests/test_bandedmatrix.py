@@ -4,18 +4,19 @@ import numpy as np
 import pytest
 from fixtures import *
     
-def test_mass_action_inplace(W3):
+def test_mass_action_inplace(W3,pressure_expression):
     '''Test mass matrix action in place.
 
     Calculate the action of the :math:`W_3` mass matrix on a :math:`W_3` field both using
     the banded matrix class and UFL; compare the results.
 
     :arg W3: L2 pressure function space
+    :arg pressure_expression: Analytical expression for pressure
     '''
     u = Function(W3)
     v = Function(W3)
 
-    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+    u.interpolate(pressure_expression)
     v.assign(u)
 
     mat = BandedMatrix(W3,W3)
@@ -29,18 +30,19 @@ def test_mass_action_inplace(W3):
     v_ufl = assemble(action(form, u))
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
-def test_mass_action(W3):
+def test_mass_action(W3,pressure_expression):
     '''Test mass matrix action.
 
     Calculate the action of the :math:`W_3` mass matrix on a :math:`W_3` field both using
     the banded matrix class and UFL; compare the results.
 
     :arg W3: L2 pressure function space
+    :arg pressure_expression: Analytical expression for pressure
     '''
     u = Function(W3)
     v = Function(W3)
 
-    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+    u.interpolate(pressure_expression)
     v.assign(0)
 
     mat = BandedMatrix(W3,W3)
@@ -54,7 +56,7 @@ def test_mass_action(W3):
     v_ufl = assemble(action(form, u))
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
-def test_derivative_action(W2_vert,W3):
+def test_derivative_action(W2_vert,W3,velocity_expression):
     '''Test weak derivative action.
 
     Calculate the action of the :math:`W_2 \\rightarrow W_3` weak derivative both using
@@ -62,11 +64,12 @@ def test_derivative_action(W2_vert,W3):
 
     :arg W2_vert: L2 pressure function space
     :arg W3: HDiv space for vertical velocity component
+    :arg velocity_expression: Analytical expression for velocity
     '''
     u = Function(W2_vert)
     v = Function(W3)
 
-    u.project(Expression(('x[0]*x[1] + 10*x[1]', 'x[1] - x[0] / 10')))
+    u.project(velocity_expression)
     v.assign(0)
 
     mat = BandedMatrix(W3,W2_vert)
@@ -79,7 +82,7 @@ def test_derivative_action(W2_vert,W3):
     v_ufl = assemble(action(form, u))
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
-def test_matmul(W2_vert,W3):
+def test_matmul(W2_vert,W3,velocity_expression):
     '''Test matrix multiplication.
     
     Assemble banded matrices for the :math:`W_3` mass matrix and the 
@@ -89,12 +92,13 @@ def test_matmul(W2_vert,W3):
 
     :arg W2_vert: L2 pressure function space
     :arg W3: HDiv space for vertical velocity component
+    :arg velocity_expression: Analytical expression for velocity
     '''
     u = Function(W2_vert)
     v = Function(W3)
     v_tmp = Function(W3)
 
-    u.project(Expression(('x[0]*x[1] + 10*x[1]', 'x[1] - x[0] / 10')))
+    u.project(velocity_expression)
     v.assign(0)
 
     mat_M = BandedMatrix(W3,W3)
@@ -172,7 +176,8 @@ def helmholtz_matrix(W2_vert,W3,form_M,form_D,form_DT,omega):
 
     return mat_H
 
-def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega):
+def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
+                pressure_expression):
     '''Test matrix addition.
     
     Assemble banded matrices for the :math:`W_3` mass matrix :math:`M` and the 
@@ -186,13 +191,14 @@ def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega):
     :arg form_D: UFL form for weak derivative
     :arg form_DT: UFL form for transpose of weak derivative
     :arg omega: value of parameter omega
+    :arg pressure_expression: Analytical expression for pressure
     '''
 
     u = Function(W3)
     v = Function(W3)
     v_tmp = Function(W3)
 
-    u.project(Expression('x[0]*x[1] + 10*x[1]'))
+    u.project(pressure_expression)
     v.assign(0)
 
     mat_H = helmholtz_matrix
@@ -204,7 +210,7 @@ def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega):
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
-def test_mass_solve(W3,form_M):
+def test_mass_solve(W3,form_M,pressure_expression):
     '''Test LU solver with mass matrix.
 
     Invert the :math:`W_3` mass matrix on a :math:`W_3` for a given field and
@@ -212,11 +218,12 @@ def test_mass_solve(W3,form_M):
 
     :arg W3: L2 pressure function space
     :arg form_M: pressure mass matrix
+    :arg pressure_expression: Analytical expression for pressure
     '''
     u = Function(W3)
     v = Function(W3)
 
-    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+    u.interpolate(pressure_expression)
 
     mat = BandedMatrix(W3,W3)
     mat.assemble_ufl_form(form_M)
@@ -228,7 +235,8 @@ def test_mass_solve(W3,form_M):
 
     assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
 
-def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega):
+def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
+                         pressure_expression):
     '''Test LU solver with the Helmholtz matrix.
 
     Invert the helmholtz matrix on a :math:`W_3` for a given field and
@@ -240,11 +248,12 @@ def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT,
     :arg form_D: UFL form for weak derivative
     :arg form_DT: UFL form for transpose of weak derivative
     :arg omega: value of parameter omega
+    :arg pressure_expression: Analytical expression for pressure
     '''
     u = Function(W3)
     v = Function(W3)
 
-    u.interpolate(Expression('x[0]*x[1] + 10*x[1]'))
+    u.interpolate(pressure_expression)
 
     mat = helmholtz_matrix
 
