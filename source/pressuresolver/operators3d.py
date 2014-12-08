@@ -5,6 +5,63 @@ from pyop2.profiling import timed_function, timed_region
 from mpi4py import MPI
 from bandedmatrix import *
 
+class Operator_H(object):
+    def __init__(self,W_pressure,W_velocity,mutilde,omega_c):
+        '''Schur complement operator :math:`H`.
+
+        The class provides methods for applying the linear operator which arises in the
+        preconditioner for the Schur complement pressure system in a matrix-free way.
+
+        Explicity the operator is given by
+
+        ..math::
+        
+            H = M_p + \omega_c^2 B (\\tilde{M}_u)^{-1} B^T
+
+        where :math:`B` represents the weak derivative.
+
+        :arg W_pressure: L2 function space for pressure fields
+        :arg W_velocity: HDiv function space for velocity fields
+        :arg omega_c: Positive real constant arising from acoustic frequency
+        :arg mutilde: Mass matrix :math:`\\tilde{M}_u`
+        '''
+        self._W_pressure = W_pressure
+        self._W_velocity = W_velocity
+        self._mutilde = mutilde
+        self._omega_c = omega_c
+        self._dx = self._W_pressure.mesh()._dx
+        self._phi_test = TestFunction(self._W_pressure)
+        self._u_test = TestFunction(self._W_velocity)
+        self._u_trial = TrialFunction(self._W_velocity)
+        self._phi_tmp = Function(self._W_pressure)
+        self._res_tmp = Function(self._W_pressure)
+
+    def apply(self,phi):
+        '''Apply operator to pressure field.
+
+        :arg phi: pressure field
+        '''
+        BT_phi = assemble(div(self._u_test)*phi*self._dx)
+        Mutildeinv_BT_phi = self._mutilde.divide(BT_phi)
+        B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
+        M_phi_phi = self._phi_test*phi*self._dx
+        return assemble(M_phi_phi + self._omega_c**2*B_Mutildeinv_BT_phi)
+
+    def mult(self,mat,x,y):
+        '''PETSc interface for operator application.
+
+        PETSc interface wrapper for the :func:`apply` method.
+
+        :arg x: PETSc vector representing the field to be multiplied.
+        :arg y: PETSc vector representing the result.
+        '''
+        with self._phi_tmp.dat.vec as v:
+            v.array[:] = x.array[:]
+        self._res_tmp = self.apply(self._phi_tmp)
+        with self._res_tmp.dat.vec_ro as v:
+            y.array[:] = v.array[:]
+    
+
 class Operator_Hhat(object):
     '''Schur complement operator :math:`\hat{H}`.
 
@@ -101,7 +158,7 @@ class Operator_Hhat(object):
 
         :arg phi: Pressure field :math:`phi` to apply the operator to
         '''
-        with timed_region('apply_pressure_operator_'+self._timer_label):
+        with timed_region('apply_operator_Hhat_'+self._timer_label):
             # Calculate action of B_h
             self._phi_tmp.assign(phi)
             assemble(self._B_h_phi_form, tensor=self._B_h_phi)

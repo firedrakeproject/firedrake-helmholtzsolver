@@ -2,10 +2,8 @@ from firedrake import *
 import pytest
 
 @pytest.fixture(params=[2,3])
-def mesh(request):
-    '''Create 1+1 dimensional mesh by extruding a circle.'''
-    D = 0.1
-    nlayers=4
+def host_mesh(request):
+    '''Create host mesh, which is either a circle or a sphere.'''
 
     dimension = request.param
 
@@ -15,12 +13,40 @@ def mesh(request):
     else:
         refcount = 0
         host_mesh = UnitIcosahedralSphereMesh(refcount)
+    return host_mesh
+
+@pytest.fixture
+def mesh(host_mesh):
+    '''Create extruded mesh.
+
+    :arg host_mesh: Mesh to be extruded
+    '''
+    D = 0.1
+    nlayers = 4
     mesh = ExtrudedMesh(host_mesh,
                         layers=nlayers,
                         extrusion_type='radial',
                         layer_height=D/nlayers)
 
     return mesh
+
+@pytest.fixture
+def mesh_hierarchy(host_mesh):
+    '''Create mesh hierarchy'''
+    D = 0.1
+    nlayers = 4
+    nlevel = 4
+    dimension = host_mesh._ufl_cell.topological_dimension()+1
+    if (dimension == 3):
+        host_mesh_hierarchy = MeshHierarchy(host_mesh,nlevel)
+        mesh_hierarchy = ExtrudedMeshHierarchy(host_mesh_hierarchy,
+                                               layers=nlayers,
+                                               extrusion_type='radial',
+                                               layer_height=D/nlayers)
+    else:
+        mesh_hierarchy = None
+
+    return mesh_hierarchy
 
 @pytest.fixture
 def pressure_expression(mesh):
@@ -45,13 +71,6 @@ def velocity_expression(mesh):
         return Expression(('x[0]+2.0*x[1]','(x[0]+1.0)*x[1]'))
     else:
         return Expression(('x[0]+2.0*x[1]+3.0*x[2]','(x[0]+1.0)*x[1]*x[2]','x[2]*x[0]+x[1]'))
-
-@pytest.fixture
-def mesh_hierarchy(mesh):
-    '''Create mesh hierarchy'''
-    nlevel = 4
-    mesh_hierarchy = MeshHierarchy(mesh,nlevel)
-    return mesh_hierarchy
 
 @pytest.fixture
 def finite_elements(mesh):
@@ -194,6 +213,96 @@ def W3_hierarchy(finite_elements,mesh_hierarchy):
     # Three dimensional elements
     W3_elt = OuterProductElement(U2,V1)
 
-    W3 = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt)
-    return W3
+    if (mesh_hierarchy != None):
+        W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt)
+    else:
+        W3_hierarchy = None
+    return W3_hierarchy
+
+@pytest.fixture
+def W2_horiz_hierarchy(finite_elements,mesh_hierarchy):
+    '''Horizontal velocity space hierarchy.
+            
+    Build pressure space :math:`W_2^{h}=HDiv(U_1\otimes V_1)` 
+    hierarchy.
+
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    W2_elt = HDiv(OuterProductElement(U1,V1))
+
+    if (mesh_hierarchy != None):
+        W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
+    else:
+        W2_horiz_hierarchy = None
+    return W2_horiz_hierarchy
+
+@pytest.fixture
+def W2_vert_hierarchy(finite_elements,mesh_hierarchy):
+    '''Vertical velocity space hierarchy.
+            
+    Build pressure space :math:`W_2^{v}=HDiv(U_2\otimes V_0)`
+    hierarchy.
+
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    W2_elt = HDiv(OuterProductElement(U2,V0))
+
+    if (mesh_hierarchy != None):
+        W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
+    else:
+        W2_vert_hierarchy = None
+    return W2_vert_hierarchy
+
+@pytest.fixture
+def W2_hierarchy(finite_elements,mesh_hierarchy):
+    '''Hdiv velocity space hierarchy.
+            
+    Build pressure space :math:`W_2 = HDiv(U_2\otimes V_1)\oplus HDiv(U_1\otimes V_1)` 
+    hierarchy.
+
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    W2_elt = HDiv(OuterProductElement(U1,V1)) + HDiv(OuterProductElement(U2,V0))
+
+    if (mesh_hierarchy != None):
+        W2_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
+    else:
+        W2_hierarchy = None
+    return W2_hierarchy
+
+@pytest.fixture
+def Wb_hierarchy(finite_elements,mesh_hierarchy):
+    '''buoyancy space hierarchy.
+            
+    Build buoyance space :math:`W_2 = U_2\otimes V_1` hierarchy.
+
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    Wb_elt = OuterProductElement(U2,V0)
+
+    if (mesh_hierarchy != None):
+        Wb_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,Wb_elt)
+    else:
+        Wb_hierarchy = None
+    return Wb_hierarchy
 
