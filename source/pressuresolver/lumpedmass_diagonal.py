@@ -17,9 +17,9 @@ class FullMass(object):
     def __init__(self,V_velocity):
         self.V_velocity = V_velocity
         self.w = TestFunction(self.V_velocity)
-        self.dx = self.V_velocity.mesh()._dx
+        self._dx = self.V_velocity.mesh()._dx
         v = TrialFunction(self.V_velocity)
-        self.a_mass = assemble(dot(self.w,v)*self.dx)
+        self.a_mass = assemble(dot(self.w,v)*self._dx)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -40,7 +40,7 @@ class FullMass(object):
 
         :arg u: velocity field to multiply (will be modified in-place)
         '''
-        u_out = assemble(dot(self.w,u)*self.dx)
+        u_out = assemble(dot(self.w,u)*self._dx)
         u.assign(u_out)
             
     def divide(self,u):
@@ -70,7 +70,7 @@ class LumpedMass(object):
     def __init__(self,V_velocity):
         self.V_velocity = V_velocity
         self.mesh = self.V_velocity.mesh()
-        self.dx = self.V_velocity.mesh()._dx
+        self._dx = self.V_velocity.mesh()._dx
         self.project_solver_param = {'ksp_type':'cg',
                                      'pc_type':'jacobi'}
         nlocaldof = self.V_velocity.cell_node_map().arity 
@@ -81,7 +81,7 @@ class LumpedMass(object):
         v = TrialFunction(self.V_velocity)
 
         # Build local stencil of full mass matrix
-        mass = dot(u,v)*dx
+        mass = dot(u,v)*self._dx
         compiled_form = compile_form(mass, 'mass')[0]
         mass_kernel = compiled_form[6]
         coords = compiled_form[3]
@@ -139,7 +139,7 @@ class LumpedMass(object):
         u_SBR = Function(self.V_velocity)
         u_SBR.project(Expression(('0','-x[2]','x[1]')),
                       solver_parameters=self.project_solver_param)
-        energy_full = assemble(dot(u_SBR,u_SBR)*self.dx)
+        energy_full = assemble(dot(u_SBR,u_SBR)*self._dx)
         Mu_SBR = Function(self.V_velocity)
         Mu_SBR.assign(u_SBR)
         self.multiply(Mu_SBR)
