@@ -8,32 +8,32 @@ class hMultigrid(object):
     smoother and coarse grid operator are passed as arguments, this allows
     tuning of the number of smoothing steps etc.
 
-    :arg V_pressure_hierarchy: Hierarchy of pressure spaces to solve on
-    :arg operator_hierarchy: Schur complement :class:`Operator` s on the
+    :arg W_3_hierarchy: Hierarchy of pressure spaces to solve on
+    :arg operator_hierarchy: Schur complement :class:`Operator_H` s on the
         different multigrid levels.
     :arg presmoother_hierarchy: Presmoother on different multigrid levels
     :arg postsmoother_hierarchy: Postsmoother on different multigrid levels
     :arg coarsegrid_solver: Solver object for coarse grid equation
     ''' 
     def __init__(self,
-                 V_pressure_hierarchy,
+                 W3_hierarchy,
                  operator_hierarchy,
                  presmoother_hierarchy,
                  postsmoother_hierarchy,
                  coarsegrid_solver):
-        self.operator_hierarchy = operator_hierarchy
-        self.presmoother_hierarchy = presmoother_hierarchy
-        self.postsmoother_hierarchy = postsmoother_hierarchy
-        self.coarsegrid_solver = coarsegrid_solver
-        self.V_pressure_hierarchy = V_pressure_hierarchy 
-        self.residual = FunctionHierarchy(self.V_pressure_hierarchy)
-        self.rhs = FunctionHierarchy(self.V_pressure_hierarchy)
-        self.phi = FunctionHierarchy(self.V_pressure_hierarchy)
-        self.fine_level = len(self.V_pressure_hierarchy)-1
-        self.coarsest_level = 0
-        self.dx = [self.V_pressure_hierarchy[level].mesh()._dx
-                   for level in range(len(self.V_pressure_hierarchy))]
-        self.operator = operator_hierarchy[self.fine_level] 
+        self._operator_hierarchy = operator_hierarchy
+        self._presmoother_hierarchy = presmoother_hierarchy
+        self._postsmoother_hierarchy = postsmoother_hierarchy
+        self._coarsegrid_solver = coarsegrid_solver
+        self._W3_hierarchy = W3_hierarchy 
+        self._residual = FunctionHierarchy(self._W3_hierarchy)
+        self._rhs = FunctionHierarchy(self._W3_hierarchy)
+        self._phi = FunctionHierarchy(self._W3_hierarchy)
+        self._fine_level = len(self._W3_hierarchy)-1
+        self._coarsest_level = 0
+        self._dx = [self._W3_hierarchy[level].mesh()._dx
+                    for level in range(len(self._W3_hierarchy))]
+        self._operator = operator_hierarchy[self._fine_level] 
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -43,10 +43,10 @@ class hMultigrid(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        self.operator_hierarchy.add_to_xml(e,'operator_hierarchy')
-        self.presmoother_hierarchy.add_to_xml(e,'presmoother_hierarchy')
-        self.postsmoother_hierarchy.add_to_xml(e,'postsmoother_hierarchy')
-        self.coarsegrid_solver.add_to_xml(e,'coarse_grid_solver')
+        self._operator_hierarchy.add_to_xml(e,'operator_hierarchy')
+        self._presmoother_hierarchy.add_to_xml(e,'presmoother_hierarchy')
+        self._postsmoother_hierarchy.add_to_xml(e,'postsmoother_hierarchy')
+        self._coarsegrid_solver.add_to_xml(e,'coarse_grid_solver')
 
     def vcycle(self,level=None):
         '''Recursive implementation of multigrid V-cycle.
@@ -54,34 +54,35 @@ class hMultigrid(object):
         :arg level: multigrid level, if None, start on finest level.
         '''
         if (level == None):
-            level = self.fine_level
+            level = self._fine_level
         # Solve exactly on coarsest level
-        if (level == self.coarsest_level):
+        if (level == self._coarsest_level):
             # presmooth
-            self.coarsegrid_solver.solve(self.rhs[level],self.phi[level])
+            self._coarsegrid_solver.solve(self._rhs[level],self._phi[level])
         else:
             # Recursion on all other levels
             # Only initialise solution to zero on the coarser levels
-            initial_phi_is_zero = not (level == self.fine_level)
+            initial_phi_is_zero = not (level == self._fine_level)
             # Presmoother
-            self.presmoother_hierarchy[level].smooth(self.rhs[level],
-                                                     self.phi[level],
-                                                     initial_phi_is_zero=initial_phi_is_zero)
-            self.residual[level].assign(self.operator_hierarchy[level].residual(self.rhs[level],
-                                                                                self.phi[level]))
+            self._presmoother_hierarchy[level].smooth(self._rhs[level],
+              self._phi[level],
+              initial_phi_is_zero=initial_phi_is_zero)
+            self._residual[level].assign(self._operator_hierarchy[level].residual(
+              self._rhs[level],
+              self._phi[level]))
             # Restrict residual to RHS on coarser level
-            self.residual.restrict(level)
-            self.rhs[level-1].assign(self.residual[level-1])
+            self._residual.restrict(level)
+            self._rhs[level-1].assign(self._residual[level-1])
             # Recursive call
             self.vcycle(level-1)
             # Prolongate and add coarse grid correction
-            self.residual[level-1].assign(self.phi[level-1])
-            self.residual.prolong(level-1)
-            self.phi[level].assign(self.residual[level]+self.phi[level])
+            self._residual[level-1].assign(self._phi[level-1])
+            self._residual.prolong(level-1)
+            self._phi[level].assign(self._residual[level]+self._phi[level])
             # Postsmooth
-            self.postsmoother_hierarchy[level].smooth(self.rhs[level],
-                                                      self.phi[level],
-                                                      initial_phi_is_zero=False)
+            self._postsmoother_hierarchy[level].smooth(self._rhs[level],
+                                                       self._phi[level],
+                                                       initial_phi_is_zero=False)
 
     def solve(self,b,phi):
         '''Solve approximately.
@@ -93,10 +94,10 @@ class hMultigrid(object):
         :arg b: right hand side in pressure space
         :arg phi: State :math:`\phi` in pressure space.
         '''
-        self.phi[self.fine_level].assign(0.0)
-        self.rhs[self.fine_level].assign(b)
+        self._phi[self._fine_level].assign(0.0)
+        self._rhs[self._fine_level].assign(b)
         self.vcycle()
-        phi.assign(self.phi[self.fine_level])
+        phi.assign(self._phi[self._fine_level])
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
@@ -107,11 +108,11 @@ class hMultigrid(object):
             space
         :arg y: PETSc vector representing the solution pressure space.
         '''
-        with self.rhs[self.fine_level].dat.vec as v:
+        with self._rhs[self._fine_level].dat.vec as v:
             v.array[:] = x.array[:]
-        self.phi[self.fine_level].assign(0.0)
+        self._phi[self._fine_level].assign(0.0)
         self.vcycle()
-        with self.phi[self.fine_level].dat.vec_ro as v:
+        with self._phi[self._fine_level].dat.vec_ro as v:
             y.array[:] = v.array[:]
 
 class hpMultigrid(object):
@@ -133,22 +134,22 @@ class hpMultigrid(object):
                  operator,
                  presmoother,
                  postsmoother):
-        self.hmultigrid = hmultigrid
-        self.operator = operator
-        self.presmoother = presmoother
-        self.postsmoother = postsmoother
-        self.V_pressure = self.operator.V_pressure
-        self.V_pressure_low = self.hmultigrid.V_pressure_hierarchy[-1]
-        self.rhs_low = Function(self.V_pressure_low)
-        self.dphi = Function(self.V_pressure)
-        self.dphi_low = Function(self.V_pressure_low)
-        self.dx = self.V_pressure.mesh()._dx
-        self.psi = TestFunction(self.V_pressure)
-        self.psi_low = TestFunction(self.V_pressure_low)
-        self.a_mass = TrialFunction(self.V_pressure)*self.psi*self.dx
-        self.a_mass_low = TrialFunction(self.V_pressure_low)*self.psi_low*self.dx
-        self.phi_tmp = Function(self.V_pressure)
-        self.rhs_tmp = Function(self.V_pressure)
+        self._hmultigrid = hmultigrid
+        self._operator = operator
+        self._presmoother = presmoother
+        self._postsmoother = postsmoother
+        self._W3 = self._operator._W3
+        self._W3_low = self._hmultigrid._W3_hierarchy[-1]
+        self._rhs_low = Function(self._W3_low)
+        self._dphi = Function(self._W3)
+        self._dphi_low = Function(self._W3_low)
+        self._dx = self._W3.mesh()._dx
+        self._psi = TestFunction(self._W3)
+        self._psi_low = TestFunction(self._W3_low)
+        self._a_mass = TrialFunction(self._W3)*self._psi*self._dx
+        self._a_mass_low = TrialFunction(self._W3_low)*self._psi_low*self._dx
+        self._phi_tmp = Function(self._W3)
+        self._rhs_tmp = Function(self._W3)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -158,10 +159,10 @@ class hpMultigrid(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        self.operator.add_to_xml(e,'high_order_operator')
-        self.presmoother.add_to_xml(e,'high_order_presmoother')
-        self.postsmoother.add_to_xml(e,'high_order_postsmoother')
-        self.hmultigrid.add_to_xml(e,'hmultigrid')
+        self._operator.add_to_xml(e,'high_order_operator')
+        self._presmoother.add_to_xml(e,'high_order_presmoother')
+        self._postsmoother.add_to_xml(e,'high_order_postsmoother')
+        self._hmultigrid.add_to_xml(e,'hmultigrid')
 
     def solve(self,b,phi):
         '''Solve approximately.
@@ -175,17 +176,17 @@ class hpMultigrid(object):
         '''
         phi.assign(0.0)
         # Presmooth
-        self.presmoother.smooth(b,phi,initial_phi_is_zero=True)
+        self._presmoother.smooth(b,phi,initial_phi_is_zero=True)
         # Calculuate residual...
-        self.residual = self.operator.residual(b,phi)
+        self._residual = self._operator.residual(b,phi)
         # ... and restrict to RHS in lowest order space
-        self.restrict(self.residual,self.rhs_low)
+        self.restrict(self._residual,self._rhs_low)
         # h-multigrid in lower order space
-        self.hmultigrid.solve(self.rhs_low,self.dphi_low)
+        self._hmultigrid.solve(self._rhs_low,self._dphi_low)
         # Prolongate correction back to higher order space...
-        self.prolong(self.dphi_low,self.dphi)
+        self.prolong(self._dphi_low,self._dphi)
         # ... and add to solution in higher order space
-        phi.assign(phi+self.dphi)
+        phi.assign(phi+self._dphi)
         # Postsmooth
         self.postsmoother.smooth(b,phi,initial_phi_is_zero=False)
 
@@ -198,10 +199,10 @@ class hpMultigrid(object):
             space
         :arg y: PETSc vector representing the solution pressure space.
         '''
-        with self.rhs_tmp.dat.vec as v:
+        with self._rhs_tmp.dat.vec as v:
             v.array[:] = x.array[:]
-        self.solve(self.rhs_tmp,self.phi_tmp)
-        with self.phi_tmp.dat.vec_ro as v:
+        self.solve(self._rhs_tmp,self._phi_tmp)
+        with self._phi_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
 
     def restrict(self,phi_high, phi_low):
@@ -212,8 +213,8 @@ class hpMultigrid(object):
         :arg phi_high: Function in higher order space
         :arg phi_low: Resulting function in lower order space
         '''
-        L = self.psi_low*phi_high*self.dx
-        solve(self.a_mass_low == L,phi_low)
+        L = self._psi_low*phi_high*self._dx
+        solve(self._a_mass_low == L,phi_low)
 
     def prolong(self,phi_low, phi_high):
         '''Prolongate to higher order space.
@@ -223,6 +224,6 @@ class hpMultigrid(object):
         :arg phi_low: Function in lower order space
         :arg phi_high: Resulting function in higher order space
         '''
-        L = self.psi*phi_low*self.dx
-        solve(self.a_mass == L,phi_high)
+        L = self._psi*phi_low*self._dx
+        solve(self._a_mass == L,phi_high)
 
