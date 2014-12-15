@@ -2,10 +2,51 @@ from firedrake import *
 import sys, petsc4py
 import numpy as np
 from vertical_normal import *
+from ksp_monitor import *
 
 petsc4py.init(sys.argv)
 
 from petsc4py import PETSc
+
+class VelocityMassPrec(object):
+    '''Preconditioner for the modified velocity mass matrix :math:`\\tilde{M}_u`
+    
+    The preconditioner is the inverse of the velocity matrix 
+    :math:`M_u+\omega_N^2 M_u^{(v)}`, i.e. the velocity mass matrix plus 
+    :math:`\omega_N^2` times the vertical part of the mass matrix.
+
+    :arg W2: Velocity space
+    '''
+    def __init__(self,W2,omega_N):
+        self._W2 = W2
+        self._omega_N = omega_N
+        self._mesh = self._W2.mesh()
+        self._dx = self._mesh._dx
+        u_test = TestFunction(self._W2)
+        u_trial = TrialFunction(self._W2)
+        self._u_tmp = Function(self._W2)
+        self._P_u_tmp = Function(self._W2)
+        vertical_normal = VerticalNormal(self._mesh)
+        zhat = vertical_normal.zhat
+        self._Mu = assemble((dot(u_test,u_trial)
+                            +self._omega_N**2*dot(u_test,zhat)*dot(u_trial,zhat))*self._dx)
+
+    def apply(self,pc,x,y):
+        '''PETSc interface for preconditioner solve.
+
+        PETSc interface wrapper for the :func:`solve` method.
+
+        :arg x: PETSc vector representing the right hand side in velocity space
+        :arg y: PETSc vector representing the solution in pressure space.
+        '''
+        with self._u_tmp.dat.vec as v:
+            v.array[:] = x.array[:]
+        solve(self._Mu,self._P_u_tmp,self._u_tmp,
+              solver_parameters={'ksp_rtol':1.E-6,
+                                 'ksp_type':'cg',
+                                 'pc_type':'jacobi'})
+        with self._P_u_tmp.dat.vec_ro as v:
+            y.array[:] = v.array[:]
 
 
 class Mutilde(object):
@@ -57,6 +98,7 @@ class Mutilde(object):
         self._solver_param_b = {'ksp_type':'cg',
                                 'ksp_rtol':self._tolerance_b,
                                 'ksp_max_it':self._maxiter_b,
+                                'ksp_monitor':False,
                                 'pc_type':'jacobi'}
         n = self._W2.dof_dset.size
         self._u = PETSc.Vec()
@@ -79,8 +121,12 @@ class Mutilde(object):
                                 max_it=self._maxiter_u)
         self._ksp.setType('cg')
 
+        #self._ksp.setMonitor(KSPMonitor())
+
         pc = self._ksp.getPC()
-        pc.setType(pc.Type.NONE)
+        pc.setType(pc.Type.PYTHON)
+        velocity_mass_prec = VelocityMassPrec(self._W2,self._omega_N)
+        pc.setPythonContext(velocity_mass_prec)
 
         vertical_normal = VerticalNormal(self._mesh)
         self._zhat = vertical_normal.zhat
