@@ -18,6 +18,7 @@ class KSPMonitor(object):
         self.resnorm = []
         self.t_start = 0.0
         self.t_finish = 0.0
+        self.its = 0
 
     '''Call logger. 
 
@@ -28,14 +29,14 @@ class KSPMonitor(object):
     :arg rnorm: The current residual norm
     '''
     def __call__(self,ksp,its,rnorm):
-        if (its==0):
+        if (self.its==0):
             self.rnorm0 = rnorm
         if (self.verbose>=2):
             s = '  KSP '+('%20s' % self.label)
             s += ('  %6d' % its)+' : '
             s += ('  %10.6e' % rnorm)
             s += ('  %10.6e' % (rnorm/self.rnorm0))
-            if (its > 0):
+            if (self.its > 0):
                 s += ('  %8.4f' % (rnorm/self.rnorm_old))
             else:
                 s += '      ----'
