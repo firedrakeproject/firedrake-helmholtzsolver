@@ -46,8 +46,7 @@ def test_pressuresolve_lowest_order(W3_hierarchy,
     omega_N = 0.5
 
     mutilde_hierarchy = HierarchyContainer(Mutilde,
-      zip(W3_hierarchy,
-          W2_hierarchy,
+      zip(W2_hierarchy,
           Wb_hierarchy),
       omega_N)
 
