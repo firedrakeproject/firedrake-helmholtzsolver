@@ -102,7 +102,7 @@ class Operator_Hhat(object):
         self._omega_c = omega_c
         self._omega_N = omega_N
         self._omega_c2 = Constant(omega_c**2)
-        self._const2 = Constant(omega_c**2/(1.+omega_N**2))
+        self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
         self._timer_label = str(ncells)
         w_h = TestFunction(self._W2_h)
@@ -252,9 +252,9 @@ class Operator_Hhat(object):
         delta_h._assemble_lma(lma_delta_h)
 
         # Add everything up       
-        return M_phi.matadd(delta_h.matadd(B_v_Mu_vinv_B_v_T,
-                                           omega=1./(1.+self._omega_N**2)),
-                            omega=self._omega_c**2)
+        delta_h.scale(self._omega_c**2)
+        B_v_Mu_vinv_B_v_T.scale(self._omega_c**2/(1.+self._omega_N**2))
+        return M_phi.matadd(delta_h.matadd(B_v_Mu_vinv_B_v_T))
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.

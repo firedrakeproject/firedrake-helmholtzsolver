@@ -353,6 +353,15 @@ class BandedMatrix(object):
                      result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
+    def scale(self,omega=1.0):
+        '''Scale matrix :math:`A` in place by a given factor.
+
+        Scale matrix :math:`A\mapsto \omega A`
+
+        :arg omega: factor :math:`\omega` to scale by
+        '''
+        self._data *= omega
+
     def matadd(self,other,omega=1.0,result=None):
         '''Calculate matrix sum :math:A+\omega B.
 
