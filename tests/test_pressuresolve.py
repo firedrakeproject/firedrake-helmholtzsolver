@@ -1,10 +1,10 @@
 from firedrake import *
-from pressuresolver.operators3d import *
+from pressuresolver.operators import *
 from pressuresolver.hierarchy import *
 from pressuresolver.mu_tilde import *
-from pressuresolver.smoothers3d import *
-from pressuresolver.preconditioners3d import *
-from pressuresolver.solvers3d import *
+from pressuresolver.smoothers import *
+from pressuresolver.preconditioners import *
+from pressuresolver.solvers import *
 from pressuresolver.ksp_monitor import *
 import numpy as np
 import pytest
@@ -36,8 +36,14 @@ def test_pressuresolve_lowest_order(W3_hierarchy,
 
     W3 = W3_hierarchy[-1]
 
+    mesh = W3.mesh()
+    ncells = mesh.cell_set.size
+
+    print 'Number of cells on finest grid = '+str(ncells)
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+   
+    omega_c = 8.*0.5*dx
     omega_N = 0.5
-    omega_c = 0.5
 
     mutilde_hierarchy = HierarchyContainer(Mutilde,
       zip(W3_hierarchy,
@@ -75,12 +81,13 @@ def test_pressuresolve_lowest_order(W3_hierarchy,
       coarsegrid_solver)
 
     ksp_monitor = KSPMonitor()
-    ksp_type = 'cg'
+    ksp_type = 'gmres'
 
     solver = PETScSolver(operator_H,
       preconditioner,
       ksp_type,
-      ksp_monitor)
+      ksp_monitor,
+      maxiter=10)
 
     b = Function(W3).project(pressure_expression)
     phi = Function(W3)

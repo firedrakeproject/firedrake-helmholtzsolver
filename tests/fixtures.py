@@ -1,4 +1,7 @@
 from firedrake import *
+from ffc import log
+log.set_level(log.ERROR)
+op2.init(log_level="WARNING")
 import pytest
 
 @pytest.fixture(params=[2,3])

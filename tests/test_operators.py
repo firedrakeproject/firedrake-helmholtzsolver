@@ -1,5 +1,5 @@
 from firedrake import *
-from pressuresolver.operators3d import *
+from pressuresolver.operators import *
 import numpy as np
 import pytest
 from fixtures import *
@@ -8,6 +8,9 @@ from fixtures import *
 def test_operator_Hhat(W3,W2_horiz,W2_vert):
     '''Test operator :math:`\hat{H}`
 
+    Apply the operator to a field and compare the result to that obtained by
+    extracting the vertical diagonal operator and applying this to the same field.
+    The diagonal entries of the two results should be identical.
 
     :arg W2_horiz: Horizontal component of velocity space
     :arg W2_vert: Vertical component of velocity space

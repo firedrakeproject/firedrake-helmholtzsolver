@@ -1,5 +1,4 @@
 import xml.etree.cElementTree as ET
-from operators3d import *
 import sys, petsc4py
 import numpy as np
 from mpi_utils import Logger

@@ -1,5 +1,5 @@
-from operators import *
 import xml.etree.cElementTree as ET
+from firedrake import *
 
 class hMultigrid(object):
     '''Geometric Multigrid preconditioner with h-coarsening only.

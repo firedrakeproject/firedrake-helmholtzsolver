@@ -1,12 +1,12 @@
 from firedrake import *
-from lumpedmass_diagonal import *
+from lumpedmass import *
 import xml.etree.cElementTree as ET
 from pyop2.profiling import timed_function, timed_region
 from mpi4py import MPI
 from bandedmatrix import *
 
 class Operator_H(object):
-    def __init__(self,W_pressure,W_velocity,mutilde,omega_c):
+    def __init__(self,W3,W2,mutilde,omega_c):
         '''Schur complement operator :math:`H`.
 
         The class provides methods for applying the linear operator which arises in the
@@ -20,21 +20,21 @@ class Operator_H(object):
 
         where :math:`B` represents the weak derivative.
 
-        :arg W_pressure: L2 function space for pressure fields
-        :arg W_velocity: HDiv function space for velocity fields
+        :arg W3: L2 function space for pressure fields
+        :arg W2: HDiv function space for velocity fields
         :arg omega_c: Positive real constant arising from acoustic frequency
         :arg mutilde: Mass matrix :math:`\\tilde{M}_u`
         '''
-        self._W_pressure = W_pressure
-        self._W_velocity = W_velocity
+        self._W3 = W3
+        self._W2 = W2
         self._mutilde = mutilde
         self._omega_c = omega_c
-        self._dx = self._W_pressure.mesh()._dx
-        self._phi_test = TestFunction(self._W_pressure)
-        self._u_test = TestFunction(self._W_velocity)
-        self._u_trial = TrialFunction(self._W_velocity)
-        self._phi_tmp = Function(self._W_pressure)
-        self._res_tmp = Function(self._W_pressure)
+        self._dx = self._W3.mesh()._dx
+        self._phi_test = TestFunction(self._W3)
+        self._u_test = TestFunction(self._W2)
+        self._u_trial = TrialFunction(self._W2)
+        self._phi_tmp = Function(self._W3)
+        self._res_tmp = Function(self._W3)
 
     def apply(self,phi):
         '''Apply operator to pressure field.
@@ -84,50 +84,50 @@ class Operator_Hhat(object):
     direction. The horizontal mass matrix is obtained by diagonal lumping, and the vertical
     mass matrix by a sparse approximate inverse (SPAI).
     
-    :arg W_pressure: Function space for pressure fields
-    :arg W_velocity_h: Function space for horizontal component of velocity fields
-    :arg W_velocity_v: Function space for vertical component of velocity fields
+    :arg W3: Function space for pressure fields
+    :arg W2_h: Function space for horizontal component of velocity fields
+    :arg W2_v: Function space for vertical component of velocity fields
     :arg omega_c: Positive real constant arising from acoustic frequency
     :arg omega_N: Positive real constant arising from buoyancy frequency
     '''
     def __init__(self,
-                 W_pressure,
-                 W_velocity_h,
-                 W_velocity_v,
+                 W3,
+                 W2_h,
+                 W2_v,
                  omega_c,
                  omega_N):
-        self._W_pressure = W_pressure
-        self._W_velocity_h = W_velocity_h
-        self._W_velocity_v = W_velocity_v
+        self._W3 = W3
+        self._W2_h = W2_h
+        self._W2_v = W2_v
         self._omega_c = omega_c
         self._omega_N = omega_N
         self._omega_c2 = Constant(omega_c**2)
         self._const2 = Constant(omega_c**2/(1.+omega_N**2))
-        ncells = MPI.COMM_WORLD.allreduce(self._W_pressure.mesh().cell_set.size)
+        ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
         self._timer_label = str(ncells)
-        w_h = TestFunction(self._W_velocity_h)
-        w_v = TestFunction(self._W_velocity_v)
-        self._psi = TestFunction(self._W_pressure)
-        self._phi_tmp = Function(self._W_pressure)
-        self._res_tmp = Function(self._W_pressure)
-        self._mesh = self._W_pressure.mesh()
+        w_h = TestFunction(self._W2_h)
+        w_v = TestFunction(self._W2_v)
+        self._psi = TestFunction(self._W3)
+        self._phi_tmp = Function(self._W3)
+        self._res_tmp = Function(self._W3)
+        self._mesh = self._W3.mesh()
         self._dx = self._mesh._dx
 
         # Forms for operator applications
         self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
         self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
-        self._B_h_phi = Function(self._W_velocity_h)
-        self._B_v_phi = Function(self._W_velocity_v)
+        self._B_h_phi = Function(self._W2_h)
+        self._B_v_phi = Function(self._W2_v)
         self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
         self._BT_B_v_phi_form = self._psi*div(self._B_v_phi)*self._dx
         self._M_phi_form = self._psi*self._phi_tmp*self._dx
-        self._M_phi = Function(self._W_pressure)
-        self._BT_B_h_phi = Function(self._W_pressure)
-        self._BT_B_v_phi = Function(self._W_pressure)
+        self._M_phi = Function(self._W3)
+        self._BT_B_h_phi = Function(self._W3)
+        self._BT_B_v_phi = Function(self._W3)
 
         # Lumped mass matrices.
-        self._Mu_h = LumpedMass(self._W_velocity_h)
-        Mu_v = BandedMatrix(self._W_velocity_v,self._W_velocity_v)
+        self._Mu_h = LumpedMass(self._W2_h)
+        Mu_v = BandedMatrix(self._W2_v,self._W2_v)
         self._Mu_vinv = Mu_v.spai()
 
     def add_to_xml(self,parent,function):
@@ -138,14 +138,14 @@ class Operator_Hhat(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        v_str = self.W_pressure.ufl_element()._short_name
-        v_str += str(self._W_pressure.ufl_element().degree())
+        v_str = self.W3.ufl_element()._short_name
+        v_str += str(self._W3.ufl_element().degree())
         e.set("pressure_space",v_str)
-        v_str = self._W_velocity_h.ufl_element()._short_name
-        v_str += str(self._W_velocity_h.ufl_element().degree())
+        v_str = self._W2_h.ufl_element()._short_name
+        v_str += str(self._W2_h.ufl_element().degree())
         e.set("velocity_space [horizontal]",v_str)
-        v_str = self._W_velocity_v.ufl_element()._short_name
-        v_str += str(self._W_velocity_v.ufl_element().degree())
+        v_str = self._W2_v.ufl_element()._short_name
+        v_str += str(self._W2_v.ufl_element().degree())
         e.set("velocity_space [vertical]",v_str)
 
     @timed_function("apply_pressure_operator")
@@ -185,21 +185,21 @@ class Operator_Hhat(object):
         '''Construct the block-diagonal matrix :math:`\hat{H}_z` which only 
         contains vertical couplings.'''
 
-        phi_test = TestFunction(self._W_pressure)
-        phi_trial = TrialFunction(self._W_pressure)
-        w_h_test = TestFunction(self._W_velocity_h)
-        w_h_trial = TrialFunction(self._W_velocity_h)
-        w_v_test = TestFunction(self._W_velocity_v)
-        w_v_trial = TrialFunction(self._W_velocity_v)
+        phi_test = TestFunction(self._W3)
+        phi_trial = TrialFunction(self._W3)
+        w_h_test = TestFunction(self._W2_h)
+        w_h_trial = TrialFunction(self._W2_h)
+        w_v_test = TestFunction(self._W2_v)
+        w_v_trial = TrialFunction(self._W2_v)
 
         # Pressure mass matrix
-        M_phi = BandedMatrix(self._W_pressure,self._W_pressure)
+        M_phi = BandedMatrix(self._W3,self._W3)
         M_phi.assemble_ufl_form(phi_test*phi_trial*self._dx)
 
         # B_v M_{u,v,inv} B_v^T
-        B_v_T = BandedMatrix(self._W_velocity_v,self._W_pressure)
+        B_v_T = BandedMatrix(self._W2_v,self._W3)
         B_v_T.assemble_ufl_form(div(w_v_test)*phi_trial*self._dx)
-        B_v = BandedMatrix(self._W_pressure,self._W_velocity_v)
+        B_v = BandedMatrix(self._W3,self._W2_v)
         B_v.assemble_ufl_form(phi_test*div(w_v_trial)*self._dx)
         B_v_Mu_vinv_B_v_T = B_v.matmul(self._Mu_vinv.matmul(B_v_T))
 
@@ -247,7 +247,7 @@ class Operator_Hhat(object):
                      self._Mu_h._data_inv.dat(op2.READ,self._Mu_h._data_inv.cell_node_map()),
                      lma_delta_h.dat(op2.WRITE,lma_delta_h.cell_node_map()))
 
-        delta_h = BandedMatrix(self._W_pressure,self._W_pressure)
+        delta_h = BandedMatrix(self._W3,self._W3)
         delta_h._assemble_lma(lma_delta_h)
 
         # Add everything up       

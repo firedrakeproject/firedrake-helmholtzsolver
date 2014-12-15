@@ -1,5 +1,5 @@
 import numpy as np
-from operators3d import *
+from firedrake import *
 import xml.etree.cElementTree as ET
 from pyop2.profiling import timed_function
 
