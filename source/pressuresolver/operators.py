@@ -128,6 +128,7 @@ class Operator_Hhat(object):
         # Lumped mass matrices.
         self._Mu_h = LumpedMass(self._W2_h)
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
+        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx)
         self._Mu_vinv = Mu_v.spai()
 
     def add_to_xml(self,parent,function):
