@@ -475,7 +475,8 @@ class BandedMatrix(object):
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel = op2.Kernel(kernel_code % param_dict, 'lu_decompose',
                             cpp=True,
-                            headers=['#include "lapacke.h"'])
+                            headers=['#include "lapacke.h"'],
+                            libs=["lapack","lapacke"])
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
@@ -500,7 +501,8 @@ class BandedMatrix(object):
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel = op2.Kernel(kernel_code % param_dict, 'lu_solve',
                             cpp=True,
-                            headers=['#include "lapacke.h"'])
+                            headers=['#include "lapacke.h"'],
+                            libs=["lapack","lapacke"])
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._lu(op2.WRITE,self._Vcell.cell_node_map()),
@@ -580,7 +582,8 @@ class BandedMatrix(object):
             param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
         kernel = op2.Kernel(kernel_code % param_dict, 'spai',
                             cpp=True,
-                            headers=['#include "lapacke.h"'])
+                            headers=['#include "lapacke.h"'],
+                            libs=["lapack","lapacke"])
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
