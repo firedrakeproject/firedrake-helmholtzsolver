@@ -323,7 +323,7 @@ class BandedMatrix(object):
           for (int i=0;i<%(A_n_row)d;++i) {
             int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/(1.0*%(A_beta)f));
             int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/(1.0*%(A_beta)f));
-            for (int j=std::max(0,j_m);j<std::min(%(B_n_col)d,j_p+1);++j) {
+            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
                int i_m = (int) ceil((%(B_alpha)d*j-%(B_gamma_p)d)/(1.0*%(B_beta)f));
                B[0][%(B_bandwidth)d*j+(i-i_m)] = A[0][%(A_bandwidth)d*i+(j-j_m)];
             }
