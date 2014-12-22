@@ -90,16 +90,16 @@ def finite_elements(mesh):
     # Finite elements
     # Horizontal elements
     if (dimension == 2):
-        U1 = FiniteElement('CG',interval,2)
-        U2 = FiniteElement('DG',interval,1)
+        U1 = FiniteElement('CG',interval,1)
+        U2 = FiniteElement('DG',interval,0)
     else:
         U1 = FiniteElement('RT',triangle,1)
         U2 = FiniteElement('DG',triangle,0)
         
     # Vertical elements
     if (dimension == 2):
-        V0 = FiniteElement('CG',interval,2)
-        V1 = FiniteElement('DG',interval,1)
+        V0 = FiniteElement('CG',interval,1)
+        V1 = FiniteElement('DG',interval,0)
     else:
         V0 = FiniteElement('CG',interval,1)
         V1 = FiniteElement('DG',interval,0)
