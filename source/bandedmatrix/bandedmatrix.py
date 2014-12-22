@@ -296,6 +296,46 @@ class BandedMatrix(object):
                      u.dat(op2.READ,u.cell_node_map()),
                      v.dat(op2.INC,v.cell_node_map()))
 
+    def transpose(self,result=None):
+        '''Calculate transpose of matrix :math:`B=A^T`.
+
+        Transpose the matrix and return the result
+
+            :arg result: resulting matrix :math:`B`
+        '''
+        # Check that matrices can be multiplied
+        if (result != None):
+            assert(result._n_row == self._n_col)
+            assert(result._n_col == self._n_row)
+            assert(result.alpha == self.beta)
+            assert(result.beta == self.alpha)
+            assert(result.gamma_p == self.gamma_m)
+            assert(result.gamma_m == self.gamma_p)
+        else:
+            result = BandedMatrix(self._fs_col,self._fs_row,
+                                  alpha=self.beta,beta=self.alpha,
+                                  gamma_m=self.gamma_p,gamma_p=self.gamma_m)
+        param_dict = {}
+        for label, matrix in zip(('A','B'),(self,result)):
+            param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
+        kernel_code = '''void transpose(double **A,
+                                        double **B) {
+          for (int i=0;i<%(A_n_row)d;++i) {
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/(1.0*%(A_beta)f));
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/(1.0*%(A_beta)f));
+            for (int j=std::max(0,j_m);j<std::min(%(B_n_col)d,j_p+1);++j) {
+               int i_m = (int) ceil((%(B_alpha)d*j-%(B_gamma_p)d)/(1.0*%(B_beta)f));
+               B[0][%(B_bandwidth)d*j+(i-i_m)] = A[0][%(A_bandwidth)d*i+(j-j_m)];
+            }
+          }
+        }'''
+        kernel = op2.Kernel(kernel_code % param_dict, 'transpose',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        return result
+
     def matmul(self,other,result=None):
         '''Calculate matrix product :math:`C=AB`.
 

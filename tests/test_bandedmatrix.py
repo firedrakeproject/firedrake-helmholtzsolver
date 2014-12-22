@@ -176,6 +176,37 @@ def helmholtz_matrix(W2_vert,W3,form_M,form_D,form_DT,omega):
 
     return mat_H
 
+def test_transpose(helmholtz_matrix, W2_vert, W3, form_D, form_DT,
+                   pressure_expression):
+    '''Test matrix transpose.
+
+    Assemble derivative matrices :math:`D` and :math:`D^T` and check that they
+    are the transposes of each other.
+
+    :arg W2_vert: L2 pressure function space
+    :arg W3: HDiv space for vertical velocity component
+    :arg form_D: UFL form for weak derivative
+    :arg form_DT: UFL form for transpose of weak derivative
+    :arg pressure_expression: Analytical expression for pressure
+    '''
+
+    mat_D = BandedMatrix(W3,W2_vert)
+    mat_DT = BandedMatrix(W2_vert,W3)
+
+    mat_D.assemble_ufl_form(form_D)
+    mat_DT.assemble_ufl_form(form_DT)
+
+    mat_Dtranspose = mat_D.transpose()
+
+    u = Function(W3)
+    v1 = Function(W2_vert)
+    v2 = Function(W2_vert)
+    u.project(pressure_expression)
+    mat_DT.axpy(u,v1)
+    mat_Dtranspose.axpy(u,v2)
+
+    assert np.allclose(v1.dat.data - v2.dat.data, 0.0)
+
 def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
                 pressure_expression):
     '''Test matrix addition.
