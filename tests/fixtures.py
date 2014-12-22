@@ -41,15 +41,11 @@ def mesh_hierarchy(host_mesh):
     nlayers = 4
     nlevel = 4
     dimension = host_mesh._ufl_cell.topological_dimension()+1
-    if (dimension == 3):
-        host_mesh_hierarchy = MeshHierarchy(host_mesh,nlevel)
-        mesh_hierarchy = ExtrudedMeshHierarchy(host_mesh_hierarchy,
-                                               layers=nlayers,
-                                               extrusion_type='radial',
-                                               layer_height=D/nlayers)
-    else:
-        mesh_hierarchy = None
-
+    host_mesh_hierarchy = MeshHierarchy(host_mesh,nlevel)
+    mesh_hierarchy = ExtrudedMeshHierarchy(host_mesh_hierarchy,
+                                           layers=nlayers,
+                                           extrusion_type='radial',
+                                           layer_height=D/nlayers)
     return mesh_hierarchy
 
 @pytest.fixture
@@ -217,10 +213,7 @@ def W3_hierarchy(finite_elements,mesh_hierarchy):
     # Three dimensional elements
     W3_elt = OuterProductElement(U2,V1)
 
-    if (mesh_hierarchy != None):
-        W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt)
-    else:
-        W3_hierarchy = None
+    W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt)
     return W3_hierarchy
 
 @pytest.fixture
@@ -239,10 +232,7 @@ def W2_horiz_hierarchy(finite_elements,mesh_hierarchy):
     # Three dimensional elements
     W2_elt = HDiv(OuterProductElement(U1,V1))
 
-    if (mesh_hierarchy != None):
-        W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
-    else:
-        W2_horiz_hierarchy = None
+    W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
     return W2_horiz_hierarchy
 
 @pytest.fixture
@@ -261,10 +251,7 @@ def W2_vert_hierarchy(finite_elements,mesh_hierarchy):
     # Three dimensional elements
     W2_elt = HDiv(OuterProductElement(U2,V0))
 
-    if (mesh_hierarchy != None):
-        W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
-    else:
-        W2_vert_hierarchy = None
+    W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
     return W2_vert_hierarchy
 
 @pytest.fixture
@@ -283,10 +270,7 @@ def W2_hierarchy(finite_elements,mesh_hierarchy):
     # Three dimensional elements
     W2_elt = HDiv(OuterProductElement(U1,V1)) + HDiv(OuterProductElement(U2,V0))
 
-    if (mesh_hierarchy != None):
-        W2_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
-    else:
-        W2_hierarchy = None
+    W2_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
     return W2_hierarchy
 
 @pytest.fixture
@@ -304,9 +288,6 @@ def Wb_hierarchy(finite_elements,mesh_hierarchy):
     # Three dimensional elements
     Wb_elt = OuterProductElement(U2,V0)
 
-    if (mesh_hierarchy != None):
-        Wb_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,Wb_elt)
-    else:
-        Wb_hierarchy = None
+    Wb_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,Wb_elt)
     return Wb_hierarchy
 
