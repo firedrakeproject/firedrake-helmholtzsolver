@@ -296,6 +296,32 @@ class BandedMatrix(object):
                      u.dat(op2.READ,u.cell_node_map()),
                      v.dat(op2.INC,v.cell_node_map()))
 
+    def dense(self):
+        '''Convert to a dense matrix format.
+
+        Return the matrix in a dense format, i.e. a n_col x n_row matrix in every 
+        vertical column.
+        '''
+        A_dense = Function(self._Vcell,
+                           val=op2.Dat(self._Vcell.node_set**(self._n_row,self._n_col)))
+        kernel_code = '''void convert_to_dense(double **A,
+                                               double **B) {
+          for (int i=0;i<%(A_n_row)d;++i) {
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/(1.0*%(A_beta)f));
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/(1.0*%(A_beta)f));
+            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+               B[0][%(A_n_col)d*i+j] = A[0][%(A_bandwidth)d*i+(j-j_m)];
+            }
+          }
+        }'''
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel = op2.Kernel(kernel_code % param_dict, 'convert_to_dense',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     A_dense.dat(op2.WRITE,self._Vcell.cell_node_map()))
+        return A_dense
+
     def transpose(self,result=None):
         '''Calculate transpose of matrix :math:`B=A^T`.
 
