@@ -12,7 +12,7 @@ def host_mesh(request):
     dimension = request.param
 
     if (dimension == 2):
-        ncells=3
+        ncells=16
         host_mesh = CircleManifoldMesh(ncells)
     else:
         refcount = 0
