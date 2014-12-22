@@ -303,7 +303,6 @@ class BandedMatrix(object):
 
             :arg result: resulting matrix :math:`B`
         '''
-        # Check that matrices can be multiplied
         if (result != None):
             assert(result._n_row == self._n_col)
             assert(result._n_col == self._n_row)
