@@ -195,7 +195,7 @@ with the (positive-definite) ``Helmholtz'' operator
 \qquad\text{where}\quad \omega_c \equiv \frac{\Delta t}{2}c.
   \label{eqn:HelmholtzOperator}
 \end{equation}
-Explicitly, the preconditioner for the full mixed system in (\ref{eqn:MixedSystem}) can be written as in Algorithm \ref{alg:mixed_preconditioner}:
+Explicitly, the preconditioner for the full mixed system in (\ref{eqn:MixedSystem}) can be written as in Algorithm \ref{alg:mixed_preconditioner}. In total it requires one pressure solve with the ``Helmholtz'' operator $H$ and two solves each with the (well conditioned) matrices $\tilde{M}_u$ and $M_b$. Since this is only a preconditioner, none of these solves need to be exact.
 \begin{algorithm}[H]
  \caption{Preconditioner for mixed system (\ref{eqn:MixedSystem}); given $M_u\vec{R}_u$, $M_p\vec{R}_p$ and $M_b\vec{R}_b$ calculate $\vec{U}$, $\vec{P}$ and $\vec{B}$.}
  \label{alg:mixed_preconditioner}
