@@ -195,7 +195,19 @@ with the (positive-definite) ``Helmholtz'' operator
 \qquad\text{where}\quad \omega_c \equiv \frac{\Delta t}{2}c.
   \label{eqn:HelmholtzOperator}
 \end{equation}
-To invert $H$, we can use another suitably preconditioned CG iteration.
+Explicitly, the preconditioner for the full mixed system in (\ref{eqn:MixedSystem}) can be written as in Algorithm \ref{alg:mixed_preconditioner}:
+\begin{algorithm}[H]
+ \caption{Preconditioner for mixed system (\ref{eqn:MixedSystem}); given $M_u\vec{R}_u$, $M_p\vec{R}_p$ and $M_b\vec{R}_b$ calculate $\vec{U}$, $\vec{P}$ and $\vec{B}$.}
+ \label{alg:mixed_preconditioner}
+ \begin{algorithmic}[1]
+   \STATE{Calculate $(M_u\tilde{\vec{R}}_u)=(M_u\vec{R}_u)-\frac{\Delta t}{2}QM_b^{-1}(M_b\vec{R}_b)$} \COMMENT{Modified right hand side for velocity}
+   \STATE{Calculate $(M_p\tilde{\vec{R}}_p)=(M_p\vec{R}_p)-\frac{\Delta t}{2}D\tilde{M}_u^{-1}(M_u\tilde{\vec{R}}_u)$} \COMMENT{Modified right hand side for pressure}
+  \STATE{Solve $H\vec{P}=(M_p\tilde{\vec{R}}_p)$ for $\vec{P}$} \COMMENT{Pressure solve}
+  \STATE{Calculate $\vec{U}=\tilde{M}_u^{-1}\left((M_u\tilde{\vec{R}}_u)+\frac{\Delta t}{2}D^T \vec{P}\right)$} \COMMENT{Velocity backstubstitution}
+  \STATE{Calculate $\vec{B}=M_b^{-1}\left((M_b\vec{R}_b)-\frac{\Delta t}{2}N^2 Q^T \vec{U}\right)$} \COMMENT{Buoyancy backstubstitution}
+ \end{algorithmic}
+\end{algorithm}
+To (approximately) invert $H$, we can use another suitably preconditioned CG iteration.
 We precondition $H$ with a similar operator $\hat{H}$ in which we neglect the couplings between $\Wspace_2^v=\Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Wspace_2^v=\Hdiv(\Uspace_1\otimes\Vspace_1)$ [step (i)], set $Q=Q_T=M_b$ [step (ii)]  and approximate the inverses of the mass matrices in $\Wspace_2^v=\Hdiv(\Uspace_2\otimes\Vspace_0)$ and $\Wspace_2^h=\Hdiv(\Uspace_1\otimes\Vspace_1)$ by lumped mass matrices [step (iii)].
 The first two approximations are exact in the absence of orography.
 More explicitly, this series of approximations can be written down as follows:
