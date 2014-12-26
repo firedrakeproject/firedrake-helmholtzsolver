@@ -42,7 +42,8 @@ class Operator_H(object):
         :arg phi: pressure field
         '''
         BT_phi = assemble(div(self._u_test)*phi*self._dx)
-        Mutildeinv_BT_phi = self._mutilde.divide(BT_phi)
+        Mutildeinv_BT_phi = Function(self._W2)
+        self._mutilde.divide(BT_phi,Mutildeinv_BT_phi)
         B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
         M_phi_phi = self._phi_test*phi*self._dx
         return assemble(M_phi_phi + self._omega_c**2*B_Mutildeinv_BT_phi)

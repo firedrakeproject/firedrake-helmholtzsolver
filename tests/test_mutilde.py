@@ -62,9 +62,10 @@ def test_mutilde_inverse(W2,Wb,velocity_expression):
     omega_N = 0.8
     mutilde = Mutilde(W2,Wb,omega_N)
     u = Function(W2)
+    w = Function(W2)
     u.project(velocity_expression)
     v = mutilde.apply(u)
-    w = mutilde.divide(v)
+    mutilde.divide(v,w)
     assert np.allclose(u.dat.data - w.dat.data, 0.0) 
 
 ##############################################################

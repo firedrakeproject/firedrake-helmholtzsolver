@@ -157,17 +157,15 @@ class Mutilde(object):
         with self._res_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
 
-    def divide(self,u):
+    def divide(self,u,r_u):
         '''Multiply a velocity field by the inverse of the matrix.
         
         Calculate :math:`(\\tilde{M}_u)^{-1}u` via a CG iteration and return result
 
         :arg u: Velocity field to be multiplied
         '''
-        w = Function(self._W2)
         with u.dat.vec_ro as v:
             self._rhs.array[:] = v.array[:]
         self._ksp.solve(self._rhs,self._u)
-        with w.dat.vec as v:
+        with r_u.dat.vec as v:
             v.array[:] = self._u.array[:]
-        return w
