@@ -32,6 +32,8 @@ def test_pressuresolve_lowest_order(W3_hierarchy,
     '''
 
     W3 = W3_hierarchy[-1]
+    W2 = W2_hierarchy[-1]
+    Wb = Wb_hierarchy[-1]
 
     mesh = W3.mesh()
     ncells = mesh.cell_set.size
@@ -42,18 +44,9 @@ def test_pressuresolve_lowest_order(W3_hierarchy,
     omega_c = 8.*0.5*dx
     omega_N = 0.5
 
-    mutilde_hierarchy = HierarchyContainer(Mutilde,
-      zip(W2_hierarchy,
-          Wb_hierarchy),
-      omega_N)
+    mutilde = Mutilde(W2,Wb,omega_N)
 
-    operator_H_hierarchy = HierarchyContainer(Operator_H,
-      zip(W3_hierarchy,
-          W2_hierarchy,
-          mutilde_hierarchy),
-      omega_c)
-
-    operator_H = operator_H_hierarchy[-1]
+    operator_H = Operator_H(W3,W2,mutilde,omega_c)
 
     operator_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
       zip(W3_hierarchy,
