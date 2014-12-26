@@ -31,9 +31,6 @@ def test_pressuresolve_lowest_order(W3_hierarchy,
     :arg pressure_expression: analytical expression for RHS
     '''
 
-    if (W3_hierarchy == None):
-        return
-
     W3 = W3_hierarchy[-1]
 
     mesh = W3.mesh()
