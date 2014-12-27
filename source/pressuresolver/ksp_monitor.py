@@ -68,6 +68,8 @@ class KSPMonitor(object):
         '''
         self.t_finish = time.clock()
         niter = self.its-1
+        if (niter == 0):
+            niter = 1
         if (self.verbose == 1):
             s = '  KSP '+('%20s' % self.label)
             s += '    iter             rnrm   rnrm/rnrm_0   rho_avg'
