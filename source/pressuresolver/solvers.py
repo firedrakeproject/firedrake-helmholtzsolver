@@ -95,8 +95,8 @@ class PETScSolver(IterativeSolver):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        self.operator.add_to_xml(e,'operator')
-        self.preconditioner.add_to_xml(e,'preconditioner')
+        self._operator.add_to_xml(e,'operator')
+        self._preconditioner.add_to_xml(e,'preconditioner')
         e.set("ksp_type",str(self._ksp.getType()))
         e.set("maxiter",str(self._maxiter))
         e.set("tolerance",str(self._tolerance))

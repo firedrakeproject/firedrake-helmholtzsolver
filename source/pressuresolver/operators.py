@@ -62,6 +62,22 @@ class Operator_H(object):
         with self._res_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
     
+    def add_to_xml(self,parent,function):
+        '''Add to existing xml tree.
+
+        :arg parent: Parent node to be added to
+        :arg function: Function of object
+        '''
+        e = ET.SubElement(parent,function)
+        e.set("type",type(self).__name__)
+        v_str = ''
+        #v_str += self.W3.ufl_element()._short_name
+        v_str += str(self._W3.ufl_element().degree())
+        e.set("pressure_space",v_str)
+        #v_str = self._W2.ufl_element()._short_name
+        v_str += str(self._W2.ufl_element().degree())
+        e.set("velocity_space",v_str)
+
 
 class Operator_Hhat(object):
     '''Schur complement operator :math:`\hat{H}`.
@@ -140,13 +156,14 @@ class Operator_Hhat(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        v_str = self.W3.ufl_element()._short_name
+        v_str = ''
+        #v_str += self._W3.ufl_element()._short_name
         v_str += str(self._W3.ufl_element().degree())
         e.set("pressure_space",v_str)
-        v_str = self._W2_h.ufl_element()._short_name
+        #v_str = self._W2_h.ufl_element()._short_name
         v_str += str(self._W2_h.ufl_element().degree())
         e.set("velocity_space [horizontal]",v_str)
-        v_str = self._W2_v.ufl_element()._short_name
+        #v_str = self._W2_v.ufl_element()._short_name
         v_str += str(self._W2_v.ufl_element().degree())
         e.set("velocity_space [vertical]",v_str)
 

@@ -6,26 +6,34 @@ from firedrake import *
 op2.init(log_level="WARNING")
 from ffc import log
 log.set_level(log.ERROR)
-import helmholtz
-import pressuresolver
-from pressuresolver import operators, smoothers, solvers, preconditioners, lumpedmass, hierarchy, mpi_utils
+import gravitywaves
+import pressuresolver.solvers
+from pressuresolver.operators import *
+from pressuresolver.preconditioners import *
+from pressuresolver.smoothers import *
+from pressuresolver.mu_tilde import *
+from pressuresolver.lumpedmass import *
+from pressuresolver.hierarchy import *
+from pressuresolver.mpi_utils import *
+from pressuresolver.ksp_monitor import *
 import profile_wrapper
 from parameters import Parameters
-from pressuresolver import ksp_monitor
 from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
+# Set correct COFFEE debug level
+parameters["coffee"]["O2"] = False
 
 ##########################################################
 # M A I N
 ##########################################################
 def main(parameter_filename=None):
     # Create parallel logger
-    logger = mpi_utils.Logger()
+    logger = Logger()
 
-    logger.write('+------------------------+')
-    logger.write('! Mixed Helmholtz solver !')
-    logger.write('+------------------------+')
+    logger.write('+---------------------------+')
+    logger.write('! Mixed Gravity wave solver !')
+    logger.write('+---------------------------+')
     logger.write('')
     logger.write('Running on '+('%8d' % logger.size)+' MPI processes')
     logger.write('')
@@ -37,7 +45,13 @@ def main(parameter_filename=None):
     # General parameters
     param_general = Parameters('General',
         # Carry out a warmup solve?
-        {'warmup_run':True,     
+        {'warmup_run':True,
+        # CFL number of sound waves
+        'nu_cfl':10.0,
+        # Sound wave speed
+        'speed_c':1.0,
+        # Gravity wave speed
+        'speed_N':1.0,
         # Solve using the PETSc split solver?
         'use_petscsplitsolver':False,     
         # Use the matrix-free solver
@@ -54,6 +68,10 @@ def main(parameter_filename=None):
     param_grid = Parameters('Grid',
         # Number of refinement levels to construct coarsest multigrid level
         {'ref_count_coarse':3,
+        # Number of vertical layers
+        'nlayer':4,
+        # Thickness of spherical shell
+        'thickness':0.1,
         # Number of multigrid levels
         'nlevel':4})
 
@@ -63,12 +81,8 @@ def main(parameter_filename=None):
         {'ksp_type':'gmres',
         # Use higher order discretisation?
         'higher_order':False,
-        # Lump mass matrix in Schur complement substitution
-        'lump_mass':True,
         # Use diagonal only in Schur complement preconditioner
         'schur_diagonal_only':False,
-        # Preconditioner to use: Multigrid or Jacobi (1-level method)
-        'preconditioner':'Multigrid',
         # tolerance
         'tolerance':1.0E-5,
         # maximal number of iterations
@@ -80,8 +94,6 @@ def main(parameter_filename=None):
     param_pressure = Parameters('Pressure solve',
         # KSP type for PETSc solver
         {'ksp_type':'cg',
-        # Lump mass in Helmholtz operator in pressure space
-        'lump_mass':True,
         # tolerance
         'tolerance':1.E-5,
         # maximal number of iterations
@@ -91,10 +103,8 @@ def main(parameter_filename=None):
     
     # Multigrid parameters
     param_multigrid = Parameters('Multigrid',
-        # Lump mass in multigrid
-        {'lump_mass':True,
         # multigrid smoother relaxation factor
-        'mu_relax':1.0,
+        {'mu_relax':1.0,
         # presmoothing steps
         'n_presmooth':1,
         # postsmoothing steps
@@ -130,191 +140,124 @@ def main(parameter_filename=None):
             os.mkdir(param_output['output_dir'])
 
     # Create coarsest mesh
-    coarse_mesh = UnitIcosahedralSphereMesh(refinement_level= \
-                                   param_grid['ref_count_coarse'])
-    global_normal = Expression(("x[0]","x[1]","x[2]"))
-
-    # Create mesh hierarchy
-    mesh_hierarchy = MeshHierarchy(coarse_mesh,param_grid['nlevel'])
-    for level_mesh in mesh_hierarchy:
-        global_normal = Expression(("x[0]","x[1]","x[2]"))
-        level_mesh.init_cell_orientations(global_normal)
+    coarse_host_mesh = UnitIcosahedralSphereMesh(refinement_level= \
+                                                 param_grid['ref_count_coarse'])
+    host_mesh_hierarchy = MeshHierarchy(coarse_host_mesh,param_grid['nlevel'])
+    mesh_hierarchy = ExtrudedMeshHierarchy(host_mesh_hierarchy,
+                                           layers=param_grid['nlayer'],
+                                           extrusion_type='radial',
+                                           layer_height=param_grid['thickness'] \
+                                            / param_grid['nlayer'])
 
     # Extract mesh on finest level
-    fine_level = len(mesh_hierarchy)-1
-    mesh = mesh_hierarchy[fine_level]
+    mesh = mesh_hierarchy[-1]
     ncells = MPI.COMM_WORLD.allreduce(mesh.cell_set.size)
 
     logger.write('Number of cells on finest grid = '+str(ncells))
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
-   
-    # Calculate parameter omega for 2nd order term 
-    omega = 8.*0.5*dx
 
-    # Build function spaces and velocity mass matrix on finest level
+    # Set time step size dt such that c*dt/dx = nu_cfl
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))   
+    dt = param_general['nu_cfl']/param_general['speed_c']*dx
+    omega_c = 0.5*param_general['speed_c']*dt
+    omega_N = 0.5*param_general['speed_N']*dt
+
+    # Build function spaces
     if (param_mixed['higher_order']):
-        V_pressure = FunctionSpace(mesh,'DG',1)
-        V_velocity = FunctionSpace(mesh,'BDFM',2)
-        lumped_mass_fine = lumpedmass.LumpedMassBDFM1(V_velocity)
-    else:
-        V_pressure = FunctionSpace(mesh,'DG',0)
-        V_velocity = FunctionSpace(mesh,'RT',1)
-        lumped_mass_fine = lumpedmass.LumpedMassRT0(V_velocity)
-    full_mass_fine = lumpedmass.FullMass(V_velocity)
-
-    lumped_mass_fine.test_kinetic_energy()
-    
-    # Construct preconditioner
-    if (param_mixed['preconditioner'] == 'Jacobi'):
-        # Case 1: Jacobi
-        if (param_pressure['lump_mass']):
-            velocity_mass_matrix_operator = lumped_mass_fine
-        else:
-            velocity_mass_matrix_operator = full_mass_fine
-        operator = operators.Operator(V_pressure,
-                                      V_velocity,
-                                      velocity_mass_matrix_operator,
-                                      omega)
-        if (param_mixed['higher_order']):
-            preconditioner = smoothers.Jacobi_HigherOrder(operator,
-                velocity_mass_matrix_operator)
-        else:
-            preconditioner = smoothers.Jacobi_LowestOrder(operator,
-                velocity_mass_matrix_operator)
-        # Case 2: Multigrid
-    elif (param_mixed['preconditioner'] == 'Multigrid'):
-        # Build hierarchies for h-multigrid 
-        # (i) Function spaces
-        V_pressure_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'DG',0)
-        V_velocity_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,'RT',1)
-        # (ii) Lumped mass matrices
-        if (param_multigrid['lump_mass']):
-            mass_hierarchy = \
-                hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
-                                             zip(V_velocity_hierarchy))
-            lumped_mass_hierarchy = mass_hierarchy
-        else:                
-            mass_hierarchy = \
-                hierarchy.HierarchyContainer(lumpedmass.FullMass,
-                                             zip(V_velocity_hierarchy))
-            lumped_mass_hierarchy = \
-                hierarchy.HierarchyContainer(lumpedmass.LumpedMassRT0,
-                                             zip(V_velocity_hierarchy))
-        # (iii) operators
-        operator_hierarchy = hierarchy.HierarchyContainer(
-            operators.Operator,
-            zip(V_pressure_hierarchy,
-                V_velocity_hierarchy,
-                mass_hierarchy),
-            omega)
-        # (iv) pre- and post-smoothers
-        presmoother_hierarchy = \
-            hierarchy.HierarchyContainer(smoothers.Jacobi_LowestOrder,
-               zip(operator_hierarchy,
-                   lumped_mass_hierarchy),
-                n_smooth=param_multigrid['n_presmooth'],
-                mu_relax=param_multigrid['mu_relax'])
-        postsmoother_hierarchy = \
-            hierarchy.HierarchyContainer(smoothers.Jacobi_LowestOrder,
-                zip(operator_hierarchy,
-                    lumped_mass_hierarchy),
-                n_smooth=param_multigrid['n_postsmooth'],
-                mu_relax=param_multigrid['mu_relax'])
-        # Construct coarse grid solver and set number of smoothing steps
-        coarsegrid_solver = smoothers.Jacobi_LowestOrder(operator_hierarchy[0],
-                                                         lumped_mass_hierarchy[0])
-        coarsegrid_solver.n_smooth = param_multigrid['n_coarsesmooth']
-        # Construct h-multigrid instance
-        hmultigrid = preconditioners.hMultigrid(V_pressure_hierarchy,
-                                                operator_hierarchy,
-                                                presmoother_hierarchy,
-                                                postsmoother_hierarchy,
-                                                coarsegrid_solver)
-        # For the higher-order case, also build an hp-multigrid instance
-        if (param_mixed['higher_order']):
-            if (param_multigrid['lump_mass']):
-                velocity_mass_matrix_mg = lumped_mass_fine
-            else:                
-                velocity_mass_matrix_mg = full_mass_fine
-            # Constuct operator and smoothers
-            operator_mg = operators.Operator(V_pressure,
-                                             V_velocity,
-                                             velocity_mass_matrix_mg,
-                                             omega)
-            higherorder_presmoother = smoothers.Jacobi_HigherOrder(operator_mg,
-                lumped_mass_fine,
-                mu_relax=param_multigrid['mu_relax'],
-                n_smooth=param_multigrid['n_presmooth'])
-            higherorder_postsmoother = higherorder_presmoother
-            # Construct hp-multigrid instance
-            hpmultigrid = preconditioners.hpMultigrid(hmultigrid,
-                                                      operator_mg,
-                                                      higherorder_presmoother,
-                                                      higherorder_postsmoother)
-            preconditioner = hpmultigrid
-        else:
-            preconditioner = hmultigrid
-    else:
-        print 'Unknown preconditioner: \''+prec_name+'\'.'
+        # NOT IMPLEMENTED
+        print 'HIGHER ORDER SPACES NOT IMPLEMENTED YET'
         sys.exit(-1)
+    # Horizontal elements
+    U1 = FiniteElement('RT',triangle,1)
+    U2 = FiniteElement('DG',triangle,0)
+    # Vertical elements
+    V0 = FiniteElement('CG',interval,1)
+    V1 = FiniteElement('DG',interval,0)
+    # Velocity space
+    W2_elt_horiz = HDiv(OuterProductElement(U1,V1))
+    W2_elt_vert = HDiv(OuterProductElement(U2,V0))
+    W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_vert)
+    W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz)
+    W2_horiz = FunctionSpace(mesh,W2_elt_horiz)
+    W2_elt = W2_elt_horiz + W2_elt_vert 
+    W2_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
+    W2 = W2_hierarchy[-1]
+    # Pressure space
+    W3_elt = OuterProductElement(U2,V1)
+    W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt)
+    W3 = W3_hierarchy[-1] 
+    # Buoyancy space
+    Wb_elt = OuterProductElement(U2,V0)
+    Wb_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,Wb_elt)
+    Wb = Wb_hierarchy[-1]
 
-    pressure_ksp_monitor = ksp_monitor.KSPMonitor('pressure',
-                                                  verbose=param_pressure['verbose'])
+    mutilde = Mutilde(W2,Wb,omega_N)
 
-    if (param_pressure['lump_mass']):
-        velocity_mass_matrix_op = lumped_mass_fine
-    else:                
-        velocity_mass_matrix_op = full_mass_fine
+    op_H = Operator_H(W3,W2,mutilde,omega_c)
 
-    operator = operators.Operator(V_pressure,
-                                  V_velocity,
-                                  velocity_mass_matrix_op,
-                                  omega)
+    op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
+      zip(W3_hierarchy,
+          W2_horiz_hierarchy,
+          W2_vert_hierarchy),
+      omega_c,
+      omega_N)
+
+    presmoother_hierarchy = HierarchyContainer(Jacobi,
+      zip(op_Hhat_hierarchy),
+      mu_relax=param_multigrid['mu_relax'],
+      n_smooth=param_multigrid['n_presmooth'])
+
+    postsmoother_hierarchy = HierarchyContainer(Jacobi,
+      zip(op_Hhat_hierarchy),
+      mu_relax=param_multigrid['mu_relax'],
+      n_smooth=param_multigrid['n_postsmooth'])
+
+    coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+      mu_relax=param_multigrid['mu_relax'],
+      n_smooth=param_multigrid['n_coarsesmooth'])
+
+    preconditioner = hMultigrid(W3_hierarchy,
+      op_Hhat_hierarchy,
+      presmoother_hierarchy,
+      postsmoother_hierarchy,
+      coarsegrid_solver)
+
+    mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
+    pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
 
     # Construct pressure solver based on operator and preconditioner 
     # built above
-    pressure_solver = solvers.PETScSolver(operator,
+    pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
                                           preconditioner,
                                           param_pressure['ksp_type'],
                                           ksp_monitor=pressure_ksp_monitor,
                                           tolerance=param_pressure['tolerance'],
                                           maxiter=param_pressure['maxiter'])
 
-    # Specify the lumped mass matrix to use in the Schur-complement
-    # substitution
-    if (param_mixed['lump_mass']):
-        velocity_mass_matrix_schursub = lumped_mass_fine
-    else:
-        velocity_mass_matrix_schursub = full_mass_fine
-
-    mixed_ksp_monitor = ksp_monitor.KSPMonitor('mixed',
-                                               verbose=param_mixed['verbose'])
- 
-    # Construct mixed Helmholtz solver
-    helmholtz_solver = helmholtz.PETScSolver(V_pressure,
-                                             V_velocity,
-                                             pressure_solver,
-                                             param_mixed['ksp_type'],
-                                             omega,
-                                             velocity_mass_matrix = \
-                                                velocity_mass_matrix_schursub,
-                                             schur_diagonal_only = \
-                                                param_mixed['schur_diagonal_only'],
-                                             ksp_monitor=mixed_ksp_monitor,
-                                             tolerance=param_mixed['tolerance'],
-                                             maxiter=param_mixed['maxiter'])
+    gravitywave_solver = gravitywaves.PETScSolver(W2,W3,Wb,
+                                                  pressure_solver,
+                                                  dt,
+                                                  param_general['speed_c'],
+                                                  param_general['speed_N'],
+                                                  ksp_type=param_mixed['ksp_type'],
+                                                  schur_diagonal_only = \
+                                                    param_mixed['schur_diagonal_only'],
+                                                  ksp_monitor=mixed_ksp_monitor,
+                                                  tolerance=param_mixed['tolerance'],
+                                                  maxiter=param_mixed['maxiter'])
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):
         xml_root = ET.Element("SolverInformation")
         xml_tree = ET.ElementTree(xml_root)
-        helmholtz_solver.add_to_xml(xml_root,"helmholtz_solver")
+        gravitywave_solver.add_to_xml(xml_root,"gravitywave_solver")
         xml_tree.write('solver.xml')
 
-
     # Right hand side function
-    r_phi = Function(V_pressure)
-    r_u = Function(V_velocity)
+    r_u = Function(W2)
+    r_p = Function(W3)
+    p = Function(W3)
+    r_b = Function(Wb)
+    expression = Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))')
 
     # Warm up run
     if (param_general['warmup_run']):
@@ -322,46 +265,37 @@ def main(parameter_filename=None):
         stdout_save = sys.stdout
         with timed_region("warmup"):
             with open(os.devnull,'w') as sys.stdout:
-                if (param_general['use_petscsplitsolver']):
-                    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
-                    r_u.assign(0.0)
-                    phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
-                if (param_general['use_matrixfreesolver']):
-                    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
-                    r_u.assign(0.0)
-                    phi, w = helmholtz_solver.solve(r_phi,r_u)
+                r_u.assign(0.0)
+                r_p.project(expression)
+                r_b.assign(0.0)
+                u,p,b = gravitywave_solver.solve(r_u,r_p,r_b)
         sys.stdout = stdout_save
         # Reset timers
         profiling.reset_timers()
         logger.write('...done')
         logger.write('')
 
-    # PETSc split solver
-    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
     r_u.assign(0.0)
-    # Solve and return both pressure and velocity field
-    with timed_region("PETSc solve"):
-        if (param_general['use_petscsplitsolver']):
-            phi, w = helmholtz_solver.solve_petsc(r_phi,r_u)
+    r_p.project(expression)
+    r_b.assign(0.0)
 
-    # Matrix-free solver
-    r_phi.project(Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))'))
-    r_u.assign(0.0)
     with timed_region("matrix-free solve"):
-        if (param_general['use_matrixfreesolver']):
-            phi, w = helmholtz_solver.solve(r_phi,r_u)
+        u,p,b = gravitywave_solver.solve(r_u,r_p,r_b)
     conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
     mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
 
     # If requested, write fields to disk
     if (param_output['savetodisk']):
         # Write output to disk
-        DFile_w = File(os.path.join(param_output['output_dir'],
+        DFile_u = File(os.path.join(param_output['output_dir'],
                                     'velocity.pvd'))
-        DFile_w << w
-        DFile_phi = File(os.path.join(param_output['output_dir'],
-                                      'pressure.pvd'))
-        DFile_phi << phi
+        DFile_u << u
+        DFile_p = File(os.path.join(param_output['output_dir'],
+                                    'pressure.pvd'))
+        DFile_p << p
+        DFile_b = File(os.path.join(param_output['output_dir'],
+                                    'buoyancy.pvd'))
+        DFile_b << b
     if (logger.rank == 0):
         profiling.summary()
 
@@ -370,7 +304,7 @@ def main(parameter_filename=None):
 ##########################################################
 if (__name__ == '__main__'):
     # Create parallel logger
-    logger = mpi_utils.Logger()
+    logger = Logger()
     if (len(sys.argv) > 2):
         logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
         sys.exit(1)
