@@ -30,8 +30,7 @@ class FullMass(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        v_str = self._W2.ufl_element()._short_name
-        v_str += str(self._W2.ufl_element().degree())
+        v_str = str(self._W2.ufl_element().shortstr())
         e.set("velocity_space",v_str)
             
     def multiply(self,u):
@@ -126,8 +125,7 @@ class LumpedMass(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        v_str = self._W2.ufl_element()._short_name
-        v_str += str(self._W2.ufl_element().degree())
+        v_str = self._W2.ufl_element().shortstr()
         e.set("velocity_space",v_str)
 
     def test_kinetic_energy(self):

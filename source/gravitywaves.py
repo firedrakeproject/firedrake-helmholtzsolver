@@ -196,15 +196,11 @@ class PETScSolver(object):
         '''
         e = ET.SubElement(parent,function)
         e.set("type",type(self).__name__)
-        v_str = ''
-        #v_str += self._W2.ufl_element().name()
-        v_str += str(self._W2.ufl_element().degree())
+        v_str = self._W2.ufl_element().shortstr()
         e.set("velocity_space",v_str)
-        #v_str = self._W3.ufl_element()._short_name
-        v_str += str(self._W3.ufl_element().degree())
+        v_str = self._W3.ufl_element().shortstr()
         e.set("pressure_space",v_str)
-        #v_str = self._Wb.ufl_element()._short_name
-        v_str += str(self._Wb.ufl_element().degree())
+        v_str = self._Wb.ufl_element().shortstr()
         e.set("buoyancy_space",v_str)
         self._pressure_solver.add_to_xml(e,"pressure_solver")
         e.set("ksp_type",str(self._ksp.getType()))
