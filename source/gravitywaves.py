@@ -403,6 +403,8 @@ class MixedPreconditioner(object):
         self._Pp = Function(self._W3)
         self._Pb = Function(self._Wb)
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
+        self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
+                     DirichletBC(self._W2, 0.0, "top")]
         
     def solve(self,r_u,r_p,r_b,u,p,b):
         '''Preconditioner solve.
@@ -447,6 +449,8 @@ class MixedPreconditioner(object):
                      tensor=self._tmp_u)
             self._tmp_u += self._rtilde_u
             self._mutilde.divide(self._tmp_u,u)
+            for bc in self._bcs:
+                bc.apply(u)
             # Backsubstitution for buoyancy
             assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
                      tensor=self._tmp_b)
