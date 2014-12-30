@@ -2,7 +2,7 @@ from firedrake import *
 import sys, petsc4py
 import numpy as np
 from vertical_normal import *
-from ksp_monitor import *
+from auxilliary.ksp_monitor import *
 
 petsc4py.init(sys.argv)
 

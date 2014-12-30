@@ -1,7 +1,7 @@
 import xml.etree.cElementTree as ET
 import sys, petsc4py
 import numpy as np
-from mpi_utils import Logger
+from auxilliary.logger import *
 from pyop2.profiling import timed_region
 
 petsc4py.init(sys.argv)

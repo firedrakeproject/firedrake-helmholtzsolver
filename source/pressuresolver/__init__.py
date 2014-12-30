@@ -8,7 +8,5 @@ __all__ = ['operators',
            'solvers',
            'preconditioners',
            'vertical_normal',
-           'mpi_utils',
-           'ksp_monitor',
            'hierarchy'
            'mu_tilde']
