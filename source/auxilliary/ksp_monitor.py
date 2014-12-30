@@ -1,4 +1,4 @@
-from mpi_utils import Logger
+from logger import *
 import numpy as np
 from mpi4py import MPI
 import time

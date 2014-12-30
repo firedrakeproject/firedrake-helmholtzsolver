@@ -14,8 +14,8 @@ from pressuresolver.smoothers import *
 from pressuresolver.mu_tilde import *
 from pressuresolver.lumpedmass import *
 from pressuresolver.hierarchy import *
-from pressuresolver.mpi_utils import *
-from pressuresolver.ksp_monitor import *
+from auxilliary.logger import *
+from auxilliary.ksp_monitor import *
 import profile_wrapper
 from parameters import Parameters
 from mpi4py import MPI
