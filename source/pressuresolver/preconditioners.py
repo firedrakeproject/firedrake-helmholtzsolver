@@ -213,8 +213,8 @@ class hpMultigrid(object):
         :arg phi_high: Function in higher order space
         :arg phi_low: Resulting function in lower order space
         '''
-        L = self._psi_low*phi_high*self._dx
-        solve(self._a_mass_low == L,phi_low)
+        L = assemble(self._W3_low_test*phi_high*self._dx)
+        solve(self._a_mass_low,phi_low,L)
 
     def prolong(self,phi_low, phi_high):
         '''Prolongate to higher order space.
@@ -224,6 +224,6 @@ class hpMultigrid(object):
         :arg phi_low: Function in lower order space
         :arg phi_high: Resulting function in higher order space
         '''
-        L = self._psi*phi_low*self._dx
-        solve(self._a_mass == L,phi_high)
+        L = assemble(self._W3_test*phi_low*self._dx)
+        solve(self._a_mass,phi_high,L)
 
