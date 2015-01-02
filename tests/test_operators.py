@@ -44,7 +44,7 @@ def test_spectral_radius(W3,W2,W2_horiz,W2_vert,Wb,velocity_expression):
     print 'cond(Hhat)        = '+('%8.4f' % np.linalg.cond(mat_hat))
     print '--- \hat{H}^{-1}*H ---'
     print 'cond(Hhat^{-1}*H) = '+('%8.4f' % kappa)
-    assert (kappa < 2.)
+    assert (kappa < 10.)
  
 def test_operator_Hhat(W3,W2_horiz,W2_vert):
     '''Test operator :math:`\hat{H}`
