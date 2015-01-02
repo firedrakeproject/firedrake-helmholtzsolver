@@ -69,8 +69,8 @@ def velocity_expression(mesh):
         return Expression(('x[0]+2.0*x[1]+3.0*x[2]','(x[0]+1.0)*x[1]*x[2]','x[2]*x[0]+x[1]'))
 
 @pytest.fixture
-def finite_elements(mesh):
-    '''Create finite elements of horizontal and vertical function spaces.
+def finite_elements_lowestorder(mesh):
+    '''Create lowest order finite elements of horizontal and vertical function spaces.
 
     :math:`U_1` = horizontal H1 space
     :math:`U_2` = horizontal L2 space
@@ -96,6 +96,37 @@ def finite_elements(mesh):
     else:
         V0 = FiniteElement('CG',interval,1)
         V1 = FiniteElement('DG',interval,0)
+
+    return U1, U2, V0, V1
+
+@pytest.fixture
+def finite_elements(mesh):
+    '''Create (higher order) finite elements of horizontal and vertical function spaces.
+
+    :math:`U_1` = horizontal H1 space
+    :math:`U_2` = horizontal L2 space
+    :math:`V_0` = vertical H1 space
+    :math:`V_1` = vertical L2 space
+
+    :arg mesh: underlying extruded mesh (needed for extracting dimension)
+    '''
+    dimension = mesh._ufl_cell.topological_dimension()
+    # Finite elements
+    # Horizontal elements
+    if (dimension == 2):
+        U1 = FiniteElement('CG',interval,2)
+        U2 = FiniteElement('DG',interval,1)
+    else:
+        U1 = FiniteElement('BDFM',triangle,2)
+        U2 = FiniteElement('DG',triangle,1)
+        
+    # Vertical elements
+    if (dimension == 2):
+        V0 = FiniteElement('CG',interval,2)
+        V1 = FiniteElement('DG',interval,1)
+    else:
+        V0 = FiniteElement('CG',interval,2)
+        V1 = FiniteElement('DG',interval,1)
 
     return U1, U2, V0, V1
 
@@ -195,16 +226,16 @@ def W3(finite_elements,mesh):
     return W3
 
 @pytest.fixture
-def W3_hierarchy(finite_elements,mesh_hierarchy):
+def W3_hierarchy(finite_elements_lowestorder,mesh_hierarchy):
     '''L2 pressure space hierarchy.
             
     Build pressure space :math:`W_3 = Hdiv(U_2\otimes V_1)` hierarchy
 
-    :arg finite_elements: Horizontal and vertical finite element
+    :arg finite_elements_order: Lowest order horizontal and vertical finite element
     :arg mesh: Underlying extruded mesh
     '''
 
-    U1, U2, V0, V1 = finite_elements
+    U1, U2, V0, V1 = finite_elements_lowestorder
 
     # Three dimensional elements
     W3_elt = OuterProductElement(U2,V1)
@@ -213,17 +244,17 @@ def W3_hierarchy(finite_elements,mesh_hierarchy):
     return W3_hierarchy
 
 @pytest.fixture
-def W2_horiz_hierarchy(finite_elements,mesh_hierarchy):
+def W2_horiz_hierarchy(finite_elements_lowestorder,mesh_hierarchy):
     '''Horizontal velocity space hierarchy.
             
     Build pressure space :math:`W_2^{h}=HDiv(U_1\otimes V_1)` 
     hierarchy.
 
-    :arg finite_elements: Horizontal and vertical finite element
+    :arg finite_elements_lowestorder: Lowest order horizontal and vertical finite element
     :arg mesh: Underlying extruded mesh
     '''
 
-    U1, U2, V0, V1 = finite_elements
+    U1, U2, V0, V1 = finite_elements_lowestorder
 
     # Three dimensional elements
     W2_elt = HDiv(OuterProductElement(U1,V1))
@@ -232,17 +263,17 @@ def W2_horiz_hierarchy(finite_elements,mesh_hierarchy):
     return W2_horiz_hierarchy
 
 @pytest.fixture
-def W2_vert_hierarchy(finite_elements,mesh_hierarchy):
+def W2_vert_hierarchy(finite_elements_lowestorder,mesh_hierarchy):
     '''Vertical velocity space hierarchy.
             
     Build pressure space :math:`W_2^{v}=HDiv(U_2\otimes V_0)`
     hierarchy.
 
-    :arg finite_elements: Horizontal and vertical finite element
+    :arg finite_elements_lowestorder: Lowest order orizontal and vertical finite element
     :arg mesh: Underlying extruded mesh
     '''
 
-    U1, U2, V0, V1 = finite_elements
+    U1, U2, V0, V1 = finite_elements_lowestorder
 
     # Three dimensional elements
     W2_elt = HDiv(OuterProductElement(U2,V0))
@@ -251,17 +282,17 @@ def W2_vert_hierarchy(finite_elements,mesh_hierarchy):
     return W2_vert_hierarchy
 
 @pytest.fixture
-def W2_hierarchy(finite_elements,mesh_hierarchy):
+def W2_hierarchy(finite_elements_lowestorder,mesh_hierarchy):
     '''Hdiv velocity space hierarchy.
             
     Build pressure space :math:`W_2 = HDiv(U_2\otimes V_1)\oplus HDiv(U_1\otimes V_1)` 
     hierarchy.
 
-    :arg finite_elements: Horizontal and vertical finite element
+    :arg finite_elements_lowestorder: Lowest order horizontal and vertical finite element
     :arg mesh: Underlying extruded mesh
     '''
 
-    U1, U2, V0, V1 = finite_elements
+    U1, U2, V0, V1 = finite_elements_lowestorder
 
     # Three dimensional elements
     W2_elt = HDiv(OuterProductElement(U1,V1)) + HDiv(OuterProductElement(U2,V0))
@@ -270,16 +301,16 @@ def W2_hierarchy(finite_elements,mesh_hierarchy):
     return W2_hierarchy
 
 @pytest.fixture
-def Wb_hierarchy(finite_elements,mesh_hierarchy):
+def Wb_hierarchy(finite_elements_lowestorder,mesh_hierarchy):
     '''buoyancy space hierarchy.
             
     Build buoyance space :math:`W_2 = U_2\otimes V_1` hierarchy.
 
-    :arg finite_elements: Horizontal and vertical finite element
+    :arg finite_elements: Lowest order horizontal and vertical finite element
     :arg mesh: Underlying extruded mesh
     '''
 
-    U1, U2, V0, V1 = finite_elements
+    U1, U2, V0, V1 = finite_elements_lowestorder
 
     # Three dimensional elements
     Wb_elt = OuterProductElement(U2,V0)
