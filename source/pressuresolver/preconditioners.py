@@ -143,11 +143,11 @@ class hpMultigrid(object):
         self._rhs_low = Function(self._W3_low)
         self._dphi = Function(self._W3)
         self._dphi_low = Function(self._W3_low)
-        self._dx = self._W3.mesh()._dx
-        self._psi = TestFunction(self._W3)
-        self._psi_low = TestFunction(self._W3_low)
-        self._a_mass = TrialFunction(self._W3)*self._psi*self._dx
-        self._a_mass_low = TrialFunction(self._W3_low)*self._psi_low*self._dx
+        self._dx = self._W3._mesh._dx
+        self._W3_test = TestFunction(self._W3)
+        self._W3_low_test = TestFunction(self._W3_low)
+        self._a_mass = assemble(self._W3_test*TrialFunction(self._W3)*self._dx)
+        self._a_mass_low = assemble(self._W3_low_test*TrialFunction(self._W3_low)*self._dx)
         self._phi_tmp = Function(self._W3)
         self._rhs_tmp = Function(self._W3)
 
@@ -188,7 +188,7 @@ class hpMultigrid(object):
         # ... and add to solution in higher order space
         phi.assign(phi+self._dphi)
         # Postsmooth
-        self.postsmoother.smooth(b,phi,initial_phi_is_zero=False)
+        self._postsmoother.smooth(b,phi,initial_phi_is_zero=False)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
