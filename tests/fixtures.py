@@ -20,21 +20,6 @@ def host_mesh(request):
     return host_mesh
 
 @pytest.fixture
-def mesh(host_mesh):
-    '''Create extruded mesh.
-
-    :arg host_mesh: Mesh to be extruded
-    '''
-    D = 0.1
-    nlayers = 4
-    mesh = ExtrudedMesh(host_mesh,
-                        layers=nlayers,
-                        extrusion_type='radial',
-                        layer_height=D/nlayers)
-
-    return mesh
-
-@pytest.fixture
 def mesh_hierarchy(host_mesh):
     '''Create mesh hierarchy'''
     D = 0.1
@@ -47,6 +32,17 @@ def mesh_hierarchy(host_mesh):
                                            extrusion_type='radial',
                                            layer_height=D/nlayers)
     return mesh_hierarchy
+
+@pytest.fixture
+def mesh(mesh_hierarchy):
+    '''Extract finest mesh from hierarchy.
+
+    :arg mesh_hierarchy: Mesh hierarchy
+    '''
+    mesh = mesh_hierarchy[-1]
+
+    return mesh
+
 
 @pytest.fixture
 def pressure_expression(mesh):
