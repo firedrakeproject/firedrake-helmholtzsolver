@@ -161,38 +161,46 @@ def main(parameter_filename=None):
     omega_c = 0.5*param_general['speed_c']*dt
     omega_N = 0.5*param_general['speed_N']*dt
 
+
+    # Horizontal elements
+    U1_lo = FiniteElement('RT',triangle,1)
+    U2_lo = FiniteElement('DG',triangle,0)
+    # Vertical elements
+    V0_lo = FiniteElement('CG',interval,1)
+    V1_lo = FiniteElement('DG',interval,0)
+
+    # Velocity space
+    W2_elt_horiz_lo = HDiv(OuterProductElement(U1_lo,V1_lo))
+    W2_elt_vert_lo = HDiv(OuterProductElement(U2_lo,V0_lo))
+    W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_vert_lo)
+    W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz_lo)
+    # Pressure space
+    W3_elt_lo = OuterProductElement(U2_lo,V1_lo)
+    W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt_lo)
+
     # Build function spaces
     if (param_mixed['higher_order']):
-        # NOT IMPLEMENTED
-        print 'HIGHER ORDER SPACES NOT IMPLEMENTED YET'
-        sys.exit(-1)
-    # Horizontal elements
-    U1 = FiniteElement('RT',triangle,1)
-    U2 = FiniteElement('DG',triangle,0)
-    # Vertical elements
-    V0 = FiniteElement('CG',interval,1)
-    V1 = FiniteElement('DG',interval,0)
-    # Velocity space
-    W2_elt_horiz = HDiv(OuterProductElement(U1,V1))
-    W2_elt_vert = HDiv(OuterProductElement(U2,V0))
-    W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_vert)
-    W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz)
-    W2_horiz = FunctionSpace(mesh,W2_elt_horiz)
-    W2_elt = W2_elt_horiz + W2_elt_vert 
-    W2_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt)
-    W2 = W2_hierarchy[-1]
-    # Pressure space
-    W3_elt = OuterProductElement(U2,V1)
-    W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt)
-    W3 = W3_hierarchy[-1] 
-    # Buoyancy space
-    Wb_elt = OuterProductElement(U2,V0)
-    Wb_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,Wb_elt)
-    Wb = Wb_hierarchy[-1]
-
-    mutilde = Mutilde(W2,Wb,omega_N)
-
-    op_H = Operator_H(W3,W2,mutilde,omega_c)
+        U1 = FiniteElement('BDFM',triangle,2)
+        U2 = FiniteElement('DG',triangle,1)
+        V0 = FiniteElement('CG',interval,2)
+        V1 = FiniteElement('DG',interval,1)
+        W2_elt_horiz = HDiv(OuterProductElement(U1,V1))
+        W2_horiz = FunctionSpace(mesh,W2_elt_horiz)
+        W2_elt_vert = HDiv(OuterProductElement(U2,V0))
+        W2_vert = FunctionSpace(mesh,W2_elt_vert)
+        W2_elt = HDiv(OuterProductElement(U1,V1)) + HDiv(OuterProductElement(U2,V0))
+        W2 = FunctionSpace(mesh,W2_elt)
+        W3_elt = OuterProductElement(U2,V1)
+        W3 = FunctionSpace(mesh,W3_elt)
+        Wb_elt = OuterProductElement(U2,V0)
+        Wb = FunctionSpace(mesh,Wb_elt)
+    else:
+        W2_elt_lo = HDiv(OuterProductElement(U1_lo,V1_lo)) \
+                  + HDiv(OuterProductElement(U2_lo,V0_lo))
+        W2 = FunctionSpace(mesh,W2_elt_lo)
+        W3 = W3_hierarchy[-1]
+        Wb_elt_lo = OuterProductElement(U2_lo,V0_lo)
+        Wb = FunctionSpace(mesh,Wb_elt_lo)
 
     op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
       zip(W3_hierarchy,
@@ -215,11 +223,31 @@ def main(parameter_filename=None):
       mu_relax=param_multigrid['mu_relax'],
       n_smooth=param_multigrid['n_coarsesmooth'])
 
-    preconditioner = hMultigrid(W3_hierarchy,
+    hmultigrid = hMultigrid(W3_hierarchy,
       op_Hhat_hierarchy,
       presmoother_hierarchy,
       postsmoother_hierarchy,
       coarsegrid_solver)
+
+    if (param_mixed['higher_order']):
+        op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+        presmoother = Jacobi(op_Hhat,
+                             mu_relax=param_multigrid['mu_relax'],
+                             n_smooth=param_multigrid['n_presmooth'])
+        postsmoother = Jacobi(op_Hhat,
+                              mu_relax=param_multigrid['mu_relax'],
+                              n_smooth=param_multigrid['n_postsmooth'])
+        preconditioner = hpMultigrid(hmultigrid,
+                                     op_Hhat,
+                                     presmoother,
+                                     postsmoother)
+    else:
+        preconditioner = hmultigrid
+
+    mutilde = Mutilde(W2,Wb,omega_N)
+
+    op_H = Operator_H(W3,W2,mutilde,omega_c)
+
 
     mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
     pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
