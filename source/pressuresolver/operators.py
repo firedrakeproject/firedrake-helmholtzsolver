@@ -6,25 +6,25 @@ from mpi4py import MPI
 from bandedmatrix import *
 
 class Operator_H(object):
-    def __init__(self,W3,W2,mutilde,omega_c):
-        '''Schur complement operator :math:`H`.
+    '''Schur complement operator :math:`H`.
 
         The class provides methods for applying the linear operator which arises in the
         preconditioner for the Schur complement pressure system in a matrix-free way.
 
         Explicity the operator is given by
 
-        ..math::
+        .. math::
         
-            H = M_p + \omega_c^2 B (\\tilde{M}_u)^{-1} B^T
+            H = M_p + \omega_c^2 D (\\tilde{M}_u)^{-1} D^T
 
-        where :math:`B` represents the weak derivative.
+        where :math:`D` represents the weak derivative.
 
         :arg W3: L2 function space for pressure fields
         :arg W2: HDiv function space for velocity fields
-        :arg omega_c: Positive real constant arising from acoustic frequency
-        :arg mutilde: Mass matrix :math:`\\tilde{M}_u`
-        '''
+        :arg omega_c: Positive real constant arising from gravity wave speed
+        :arg mutilde: Mass matrix :math:`\\tilde{M}_u`, see :class:`.Mutilde`
+    '''
+    def __init__(self,W3,W2,mutilde,omega_c):
         self._W3 = W3
         self._W2 = W2
         self._mutilde = mutilde
@@ -37,7 +37,7 @@ class Operator_H(object):
         self._res_tmp = Function(self._W3)
 
     def apply(self,phi):
-        '''Apply operator to pressure field.
+        '''Apply operator to pressure field and return result.
 
         :arg phi: pressure field
         '''
@@ -91,9 +91,9 @@ class Operator_Hhat(object):
     .. math::
         
         
-        \hat{H} = M_\phi + \omega_c^2(B_h M_{u,h,inv} B_h^T+1/(1+\omega_N^2)B_v M_{u,v,inv} B_v^T)
+        \hat{H} = M_\phi + \omega_c^2(D_h M_{u,h,inv} D_h^T+1/(1+\omega_N^2)D_v M_{u,v,inv} D_v^T)
 
-    where :math:`B_h` and :math:`B_v` arise from the finite element
+    where :math:`D_h` and :math:`D_v` arise from the finite element
     representation of the divergence and gradient operator in the horizontal- and vertical
     direction. The horizontal mass matrix is obtained by diagonal lumping, and the vertical
     mass matrix by a sparse approximate inverse (SPAI).
@@ -101,8 +101,8 @@ class Operator_Hhat(object):
     :arg W3: Function space for pressure fields
     :arg W2_h: Function space for horizontal component of velocity fields
     :arg W2_v: Function space for vertical component of velocity fields
-    :arg omega_c: Positive real constant arising from acoustic frequency
-    :arg omega_N: Positive real constant arising from buoyancy frequency
+    :arg omega_c: Positive real constant, gravity wave speed
+    :arg omega_N: Positive real constant, buoyancy frequency
     '''
     def __init__(self,
                  W3,
@@ -164,11 +164,11 @@ class Operator_Hhat(object):
     def apply(self,phi):
         '''Apply operator.
 
-        Apply the operator :math:`H` to a field :math:`phi` in a matrix free
+        Apply the operator :math:`H` to a field :math:`\phi` in a matrix free
         way by applying the individual components in turn and return the
         result :math:`H\phi`.
 
-        :arg phi: Pressure field :math:`phi` to apply the operator to
+        :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''
         with timed_region('apply_operator_Hhat_'+self._timer_label):
             # Calculate action of B_h

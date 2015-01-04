@@ -7,28 +7,34 @@ from firedrake.ffc_interface import compile_form
 from firedrake.fiat_utils import *
 
 class BandedMatrix(object):
-    def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None):
-        '''Generalised block banded matrix.
+    '''Generalised block banded matrix.
 
         :math:`n_{row}\\times n_{col}` matrix with entries only for 
         row-indices :math:`i` and column indices :math:`j` for which satisfy
 
-            :math::
+        .. math::
                 -\gamma_- \le \\alpha i - \\beta j \le \gamma_+
 
         Internally the matrix is stored in a sparse format as an array 
-        :math:`\overline{A}` of length :math:`n_{row}BW` with the bandwidth BW defined 
+        :math:`\overline{A}` of length :math:`n_{row}\cdot BW` with the bandwidth defined 
         as :math:`BW=1+\lceil((\gamma_++\gamma_-)/\\beta)\\rceil`. Element :math:`A_{ij}`
         can be accessed as :math:`A_{ij}=\overline{A}_{BW\cdot i+(j-j_-(i))}` where
-        :math:`j_-(i) = \lceil((\\alpha i-\gamma_+)/\\beta)\`rceil`.
+        :math:`j_-(i) = \lceil((\\alpha i-\gamma_+)/\\beta)\\rceil`.
+
+        If the parameters :math:`\\alpha`, :math:`\\beta`, :math:`\\gamma_-` and
+        :math:`\\gamma_+` are not given explicitly, they are deduced from the function spaces
+        fs_row and fs_col.
+
+        For more details see also section 3.2 in `notes in LaTeX <./GravityWaves.pdf>`_.
         
-            :arg fs_row: Row function space
-            :arg fs_col: Column function space
-            :arg alpha: Parameter :math:`alpha`
-            :arg beta: Parameter :math:`beta`
-            :arg gamma_m: Lower bound :math:`\gamma_-`
-            :arg gamma_p: Upper bound :math:`\gamma_+`
+        :arg fs_row: Row function space
+        :arg fs_col: Column function space
+        :arg alpha: Parameter :math:`\\alpha`
+        :arg beta: Parameter :math:`\\beta`
+        :arg gamma_m: Lower bound :math:`\\gamma_-`
+        :arg gamma_p: Upper bound :math:`\\gamma_+`
         '''
+    def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None):
         # Function spaces
         self._fs_row = fs_row
         self._fs_col = fs_col
@@ -120,22 +126,22 @@ class BandedMatrix(object):
 
     @property
     def alpha(self):
-        '''Bandedness parameter :math:`alpha`'''
+        '''Bandedness parameter :math:`\\alpha`'''
         return self._alpha
     
     @property
     def beta(self):
-        '''Bandedness parameter :math:`beta`'''
+        '''Bandedness parameter :math:`\\beta`'''
         return self._beta
     
     @property
     def gamma_m(self):
-        '''Bandedness parameter :math:`gamma_-`'''
+        '''Bandedness parameter :math:`\\gamma_-`'''
         return self._gamma_m
     
     @property
     def gamma_p(self):
-        '''Bandedness parameter :math:`gamma_+`'''
+        '''Bandedness parameter :math:`\\gamma_+`'''
         return self._gamma_p
     
     def _divide_by_gcd(self):
@@ -149,11 +155,11 @@ class BandedMatrix(object):
             self._gamma_p /=gcd
     
     def _get_ndof_cell(self, fs):
-        """Count the number of dofs associated with (tdom-1,n) in a function space
+        '''Count the number of dofs associated with (tdim-1,n) in a function space
 
         :arg fs: the function space to inspect for the element dof
         ordering.
-        """
+        '''
         ufl_ele = fs.ufl_element()
         # Unwrap non HDiv'd element if necessary
         if isinstance(ufl_ele, HDiv):
@@ -173,7 +179,7 @@ class BandedMatrix(object):
         with the UFL form. Then call _assemble_lma() to loop over all cells and assemble 
         into the banded matrix.
 
-            :arg ufl_form: UFL form to assemble
+        :arg ufl_form: UFL form to assemble
         '''
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
         kernel = compiled_form[6]
@@ -191,10 +197,11 @@ class BandedMatrix(object):
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma.cell_set, *args)
         self._assemble_lma(lma)
-
         
     def _assemble_lma(self,lma):
-        '''Assemble the matrix from the LMA storage format.'''
+        '''Assemble the matrix from the LMA storage format.
+
+        :arg lma: Matrix in LMA storage format.'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = ''' void assemble_lma(double **lma,
                                             double **A) {
@@ -233,7 +240,7 @@ class BandedMatrix(object):
     def ax(self,u):
         '''In-place Matrix-vector mutiplication :math:`u\mapsto Au`
 
-            :arg u: Vector to multiply
+        :arg u: Function to multiply, on exit this contains result :math:`Au`
         '''
         assert(u.function_space() == self._fs_col)
         assert(u.function_space() == self._fs_row)
@@ -267,8 +274,8 @@ class BandedMatrix(object):
     def axpy(self,u,v):
         '''axpy Matrix-vector mutiplication :math:`v\mapsto v+Au`
 
-            :arg u: Vector to multiply
-            :arg v: Resulting vector
+        :arg u: Vector to multiply
+        :arg v: Resulting vector
         '''
         assert(u.function_space() == self._fs_col)
         assert(v.function_space() == self._fs_row)
@@ -300,7 +307,8 @@ class BandedMatrix(object):
         '''Convert to a dense matrix format.
 
         Return the matrix in a dense format, i.e. a n_col x n_row matrix in every 
-        vertical column.
+        vertical column. This should mainly be used for debugging since the matrix
+        is sparse and the routine will return huge dense matrices for larger meshes.
         '''
         A_dense = Function(self._Vcell,
                            val=op2.Dat(self._Vcell.node_set**(self._n_row,self._n_col)))
@@ -325,9 +333,10 @@ class BandedMatrix(object):
     def transpose(self,result=None):
         '''Calculate transpose of matrix :math:`B=A^T`.
 
-        Transpose the matrix and return the result
+        Transpose the matrix and return the result. If the parameter result is passed,
+        this matrix is used, otherwise new storage space is allocated.
 
-            :arg result: resulting matrix :math:`B`
+        :arg result: resulting matrix :math:`B`
         '''
         if (result != None):
             assert(result._n_row == self._n_col)
@@ -365,11 +374,12 @@ class BandedMatrix(object):
         '''Calculate matrix product :math:`C=AB`.
 
         Multiply this matrix by the banded matrix :math:`B` from the right and store the
-        result in the matrix :math:`C`. If result is None, allocate a new matrix, otherwise 
-        write data to already allocated matrix. 
+        result in the matrix :math:`C`, which is returned on exit.
+        If result is None, allocate a new matrix, otherwise 
+        write data to already allocated matrix ``result``. 
 
-            :arg other: matrix :math:`B` to multiply with
-            :arg result: resulting matrix :math:`C`
+        :arg other: matrix :math:`B` to multiply with
+        :arg result: resulting matrix :math:`C`
         '''
         # Check that matrices can be multiplied
         assert (self._n_col == other._n_row)
@@ -421,22 +431,23 @@ class BandedMatrix(object):
     def scale(self,omega=1.0):
         '''Scale matrix :math:`A` in place by a given factor.
 
-        Scale matrix :math:`A\mapsto \omega A`
+        Scale this matrix :math:`A\mapsto \omega A`
 
         :arg omega: factor :math:`\omega` to scale by
         '''
         self._data *= omega
 
     def matadd(self,other,omega=1.0,result=None):
-        '''Calculate matrix sum :math:A+\omega B.
+        '''Calculate matrix sum :math:`C=A+\omega B`.
 
         Add the banded matrix :math:`\omega B` to this matrix and store the result in the 
-        banded matrix :math:`C`. If result is None, allocate a new matrix, otherwise write 
-        data to already allocated matrix.
+        banded matrix :math:`C`, which is returned on exit.
+        If result is None, allocate a new matrix, otherwise write 
+        data to already allocated matrix ``result``.
 
-            :arg other: matrix :math:`B` to add
-            :arg omega: real scaling factor :math:`\omega`
-            :arg result: resulting matrix :math:`C`
+        :arg other: matrix :math:`B` to add
+        :arg omega: real scaling factor :math:`\omega`
+        :arg result: resulting matrix :math:`C`
         '''
         assert(self._n_row == other._n_row)
         assert(self._n_col == other._n_col)
@@ -579,15 +590,16 @@ class BandedMatrix(object):
         '''Calculate Sparse approximate inverse based on a fixed
         sparsity pattern.
 
-        The matrix has to be square and symmetrically banded, i.e. the sparsity 
+        The matrix has to be square and symmetrically banded 
+        (:math:`\gamma=\gamma_+=\gamma_-`, :math:`\\alpha=\\beta=1`), i.e. the sparsity 
         pattern is
 
-        :math::
+        .. math::
             -\gamma \le i-j \le \gamma
 
         If no argument is passed, the sparsity pattern of the resulting matrix
         is the same as that of the current matrix, otherwise it is the one
-        obtained by replacing :math:`\gamma \mapsto \gamma^{(M)}`.
+        obtained by using :math:`\gamma \mapsto \gamma^{(M)}`.
 
         For the description of the SPAI preconditioner, see Grote, Marcus J., and 
         Thomas Huckle:

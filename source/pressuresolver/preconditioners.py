@@ -5,11 +5,12 @@ class hMultigrid(object):
     '''Geometric Multigrid preconditioner with h-coarsening only.
 
     Solve approximately using a multigrid V-cycle. The operator, pre-, post-
-    smoother and coarse grid operator are passed as arguments, this allows
+    smoother and coarse grid solver are passed as arguments, this allows
     tuning of the number of smoothing steps etc.
+    The smoothers can for example be a :class:`.Jacobi` instance.
 
     :arg W_3_hierarchy: Hierarchy of pressure spaces to solve on
-    :arg operator_hierarchy: Schur complement :class:`Operator_H` s on the
+    :arg operator_hierarchy: Schur complement :class:`.Operator_Hhat` s on the
         different multigrid levels.
     :arg presmoother_hierarchy: Presmoother on different multigrid levels
     :arg postsmoother_hierarchy: Postsmoother on different multigrid levels
@@ -125,7 +126,8 @@ class hpMultigrid(object):
 
     :arg hmultigrid: Instance of :class:`hMultigrid`, which is used on the
         lowest order pressure space hierarchy. 
-    :arg operator: Helmholtz operator on higher order space
+    :arg operator: Helmholtz operator (instance of :class:`.Operator_Hhat`) on higher
+        order space
     :arg presmoother: Presmoother on higher order space
     :arg postsmoother: Postsmoother on higher order space
     ''' 

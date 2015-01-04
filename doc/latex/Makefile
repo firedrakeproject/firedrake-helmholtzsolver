@@ -1,6 +1,6 @@
 TEX=pdflatex
 LATEXMK=latexmk
-MAIN=FEMmultigrid
+MAIN=GravityWaves
 SOURCES=$(MAIN).tex Makefile $(shell ls *.tex) $(shell ls *.bib)
 
 all: $(MAIN).pdf

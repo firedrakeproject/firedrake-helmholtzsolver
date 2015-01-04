@@ -4,6 +4,8 @@ source
 .. toctree::
    :maxdepth: 4
 
-   helmholtz
+   gravitywaves
    pressuresolver
+   auxilliary
+   bandedmatrix
    parameters

@@ -15,15 +15,15 @@ class IterativeSolver(object):
     factor tolerance.
 
     :arg operator: Instance :math:`\hat{H}` of linear Schur complement
-        :class:`.Operator` in pressure space
-    :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
+        :class:`.OperatorH` in pressure space
+    :arg preconditioner: Preconditioner, e.g. :class:`.hMultigrid` or :class:`.hpMultigrid`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
     '''
     def __init__(self,operator,
                  preconditioner,
                  maxiter=100,
-                 tolerance=1.E-6):
+                 tolerance=1.E-5):
         self._operator = operator
         self._W3 = self._operator._W3
         self._preconditioner = preconditioner
@@ -46,8 +46,10 @@ class PETScSolver(IterativeSolver):
     set at runtime.
     
     :arg operator: Instance :math:`H` of linear Schur complement
-        :class:`.Operator` in pressure space
-    :arg preconditioner: Instance :math:`P` of :class:`.Preconditioner`
+        :class:`.OperatorH` in pressure space
+    :arg preconditioner: Preconditioner, e.g. :class:`.hMultigrid` or :class:`.hpMultigrid`
+    :arg ksp_type: Name of iterative PETSc solver, e.g. ``cg``
+    :arg ksp_monitor: KSP monitor class, e.g. instance of :class:`.KSPMonitor`
     :arg maxiter: Maximal number of iterations
     :arg tolerance: Relative tolerance for solve
     '''

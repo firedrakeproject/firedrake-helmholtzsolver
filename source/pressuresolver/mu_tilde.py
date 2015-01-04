@@ -14,8 +14,10 @@ class VelocityMassPrec(object):
     The preconditioner is the inverse of the velocity matrix 
     :math:`M_u+\omega_N^2 M_u^{(v)}`, i.e. the velocity mass matrix plus 
     :math:`\omega_N^2` times the vertical part of the mass matrix.
+    This preconditioner is required by :class:`.Mutilde`.
 
     :arg W2: Velocity space
+    :arg omega_N: real positive number related to buoyancy frequency
     '''
     def __init__(self,W2,omega_N):
         self._W2 = W2
@@ -50,20 +52,17 @@ class VelocityMassPrec(object):
 
 
 class Mutilde(object):
-    def __init__(self,W2,Wb,omega_N,
-                 tolerance_b=1.E-12,maxiter_b=1000,
-                 tolerance_u=1.E-12,maxiter_u=1000):
-        '''Class representing the operator :math:`\\tilde{M}_u`.
+    '''Class representing the operator :math:`\\tilde{M}_u`.
 
         The operator is defined as
 
-        :math::
+        .. math::
             \\tilde{M}_u = M_u+\omega_N^2 Q M_b^{-1} Q^T
 
         where :math:`M_u` and :math:`M_b` are the mass matrices in velocity and 
         buoyancy space and the matrix Q is defined as
     
-        :math::
+        .. math::
             Q_{ij} = \langle w_i,\gamma_j \hat{z}\\rangle
 
         where :math:`w_i` and :math:`\gamma_j` are basis functions in the 
@@ -79,7 +78,10 @@ class Mutilde(object):
         :arg maxiter_b: Maximal number of iterations for buoyancy mass solve
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve
         :arg maxiter_u: Maximal number of iterations for :math:`\\tilde{M}_u` solve
-        '''
+    '''
+    def __init__(self,W2,Wb,omega_N,
+                 tolerance_b=1.E-12,maxiter_b=1000,
+                 tolerance_u=1.E-12,maxiter_u=1000):
         self._W2 = W2
         self._Wb = Wb
         self._mesh = self._W2.mesh()
@@ -163,6 +165,7 @@ class Mutilde(object):
         Calculate :math:`(\\tilde{M}_u)^{-1}u` via a CG iteration and return result
 
         :arg u: Velocity field to be multiplied
+        :arg r_u: Resulting velocity field
         '''
         with u.dat.vec_ro as v:
             self._rhs.array[:] = v.array[:]

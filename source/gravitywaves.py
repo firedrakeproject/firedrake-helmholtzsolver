@@ -10,14 +10,16 @@ petsc4py.init(sys.argv)
 
 from petsc4py import PETSc
 
-'''Solve Gravity wave system in mixed formulation.
+'''Solve Linear gravity wave system in mixed formulation.
 
 This module contains the :class:`.PETScSolver` for solving the linear gravity wave system
 
 .. math::
 
     \\vec{u}  - \Delta t/2 grad p - \Delta t/2\hat{z} b = \\vec{r}_u
+
     \\Delta t/2 c^2 div\\vec{u} + p = r_p
+
     \\Delta t/2 N^2 \zhat\dot\\vec{u} + b = r_b
 
 using mixed finite elements.
@@ -31,12 +33,12 @@ class MixedArray(object):
         can be used to work out the corresponding bounds and copy in and out of these
         mixed vector. 
 
-        We store the mixed dof-vector in an array array as 
-        :math:`(u_0,...,u_{ndof_u-1},p_0,...,p_{ndof_p-1},b_0,...,b_{ndof_b}-1`
+        We store the combined mixed dof-vector in an array as 
+        :math:`(u_0,...,u_{ndof_u-1},p_0,...,p_{ndof_p-1},b_0,...,b_{ndof_b-1})`
 
-        :arg W_2: Function space for velocity field :math:`\\vec{u}`
-        :arg W_3: Function space for pressure field :math:`p`
-        :arg W_b: Function space for buoyancy field :math:`b`
+        :arg W2: Function space for velocity field :math:`\\vec{u}`
+        :arg W3: Function space for pressure field :math:`p`
+        :arg Wb: Function space for buoyancy field :math:`b`
     '''
     def __init__(self,W2,W3,Wb):
         self._W2 = W2
@@ -48,30 +50,34 @@ class MixedArray(object):
 
     @property
     def range_u(self):
-        '''Range for u-dof-vector.'''
+        '''Range (min,max) for u-dof-vector.'''
         return 0, self._ndof_u
 
     @property
     def range_p(self):
-        '''Range for p-dof-vector.'''
+        '''Range (min,max) for p-dof-vector.'''
         return self._ndof_u, self._ndof_u+self._ndof_p
 
     @property
     def range_b(self):
-        '''Range for b-dof-vector.'''
+        '''Range (min,max) for b-dof-vector.'''
         return self._ndof_u+self._ndof_p, self._ndof_u+self._ndof_p+self._ndof_b
 
     @property
     def ndof(self):
-        '''Total length of mixed dof-vector'''
+        '''Total length of combined dof-vector.
+
+        This is the sum of the lengths of the :math:`u`,:math:`p` and :math:`b` dof
+        vectors.
+        '''
         return self._ndof_u+self._ndof_p+self._ndof_b
 
     def combine(self,u,p,b,v):
-        '''Combine field given as separate components (u,p,b) into mixed dof vector v
+        '''Combine field given as separate components (u,p,b) into combined dof vector v
         
-            :arg u: Velocity dat vector :math:`u`
-            :arg u: Pressure dat vector :math:`p`
-            :arg u: Buoyancy dat vector :math:`b`
+            :arg u: Velocity dof vector :math:`u`
+            :arg p: Pressure dof vector :math:`p`
+            :arg b: Buoyancy dof vector :math:`b`
             :arg v: Resulting combined field :math:`v = (u,p,b)`
         '''
         v.array[self.range_u[0]:self.range_u[1]] = u.array[:]
@@ -79,51 +85,58 @@ class MixedArray(object):
         v.array[self.range_b[0]:self.range_b[1]] = b.array[:]
 
     def split(self,v,u,p,b):
-        '''Split field given as mixed vector v into the components (u,p,b)
+        '''Split field given as combined vector v into the components (u,p,b)
 
             :arg v: Combined field :math:`v = (u,p,b)`
-            :arg u: Resulting velocity component dat vector :math:`u`
-            :arg u: Resulting pressure component dat vector :math:`p`
-            :arg u: Resulting Buoyancy component dat vector :math:`b`
+            :arg u: Resulting velocity component dof vector :math:`u`
+            :arg p: Resulting pressure component dof vector :math:`p`
+            :arg b: Resulting Buoyancy component dof vector :math:`b`
         '''
         u.array[:] = v.array[self.range_u[0]:self.range_u[1]]
         p.array[:] = v.array[self.range_p[0]:self.range_p[1]]
         b.array[:] = v.array[self.range_b[0]:self.range_b[1]]
 
 class PETScSolver(object):
-    '''Iterative solver for the linear gravity wave system.
+    '''Iterative solver for the mixed formulation of the linear gravity wave system.
 
         This class uses the iterative PETSc solvers to solve the linear
-        gravity wave system defined as
+        equation encountered for the gravity wave system defined as
 
         .. math::
 
-            \\vec{u}  - \Delta t/2 grad p - \Delta t/2\hat{z} b = \\vec{r}_u
-            \\Delta t/2 c^2 div\\vec{u} + p = r_p
-            \\Delta t/2 N^2 \zhat\dot\\vec{u} + b = r_b
+            \\vec{u}  - \\frac{\Delta t}{2} grad p 
+                      - \\frac{\Delta t}{2}\hat{\\vec{z}} b = \\vec{r}_u
 
-        in the mixed finite element formulation, which results in
+            \\frac{\Delta t}{2}c^2 div\\vec{u} + p = r_p
+
+            \\frac{\Delta t}{2} N^2 \hat{\\vec{z}}\cdot\\vec{u} + b = r_b
+
+        The mixed finite element formulation results in
     
         .. math::
-            M_u \\vec{U} - \Delta t/2 D^T \\vec{P} - \Delta t/2 Q \\vec{B} = \\vec{R}_u
-            \Delta t/2 c^2 D \\vec{U} + M_p \\vec{P} = \\vec{R}_p
-            \Delta t/2 N^2 Q^T \\vec{U} + M_b\\vec{B} = \\vec{R}_b
+
+            M_u \\vec{U} - \\frac{\Delta t}{2} D^T \\vec{P} 
+                         - \\frac{\Delta t}{2} Q \\vec{B} = \\vec{R}_u
+
+            \\frac{\Delta t}{2} c^2 D \\vec{U} + M_p \\vec{P} = \\vec{R}_p
+
+            \\frac{\Delta t}{2} N^2 Q^T \\vec{U} + M_b\\vec{B} = \\vec{R}_b
 
         where :math:`\\vec{U}`, :math:`\\vec{P}` and :math:`\\vec{B}` are the
         dof-vectors for velocity, pressure and buoyancy.
 
-        :arg W_2: Function space for velocity field :math:`\\vec{u}`
-        :arg W_3: Function space for pressure field :math:`p`
-        :arg W_b: Function space for buoyancy field :math:`b`
-        :arg ksp_type: PETSc KSP solver
+        :arg W2: HDiv Function space for velocity field :math:`\\vec{u}`
+        :arg W3: L2 Function space for pressure field :math:`p`
+        :arg Wb: Function space for buoyancy field :math:`b`
+        :arg ksp_type: String describing the PETSc KSP solver (e.g. ``gmres``)
         :arg pressure_solver: Solver for Schur complement pressure system.
             This is an instance of :class:`.IterativeSolver`
-        :arg dt: Positive real number, time step size
+        :arg dt: Positive real number, time step size :math:`\Delta t`
         :arg c: Positive real number, speed of sound waves
-        :arg N: Positive real number, speed of gravity waves
+        :arg N: Positive real number, buoyancy frequency
         :arg schur_diagonal_only: Only use the diagonal part in the 
             Schur complement preconditioner, see :class:`MixedPreconditioner`.
-        :arg ksp_monitor: KSP monitor instance, see e.g. :class:`KSP_Monitor`
+        :arg ksp_monitor: KSP monitor instance, see e.g. :class:`KSPMonitor`
         :arg maxiter: Maximal number of iterations for outer iteration
         :arg tolerance: Tolerance for outer iteration
     '''
@@ -220,6 +233,8 @@ class PETScSolver(object):
         iteration and the pressure correction system is solved with the 
         specified :class:`pressure_solver` in an inner iteration.
 
+        Return the solution :math:`u`, :math:`p`, :math:`b`.
+
         See `Notes in LaTeX <./GravityWaves.pdf>`_ for more details of the
         algorithm.
 
@@ -250,12 +265,26 @@ class PETScSolver(object):
 class MixedOperator(object):
     '''Matrix free operator for mixed Gravity wave system
 
-        :arg W2: Function space for velocity
-        :arg W3: Function space for pressure
+        This class can be used to apply the operator :math:`A` defined by
+
+        :math:`(\\vec{R}_u, \\vec{R}_p, \\vec{R}_b)^T = A (\\vec{U},\\vec{P},\\vec{B})^T`
+        with
+    
+        .. math::
+
+            \\vec{R}_u = M_u \\vec{U} - \\frac{\Delta t}{2} D^T \\vec{P} 
+                         - \\frac{\Delta t}{2} Q \\vec{B} 
+
+            \\vec{R}_p = \\frac{\Delta t}{2} c^2 D \\vec{U} + M_p \\vec{P}
+
+            \\vec{R}_b = \\frac{\Delta t}{2} N^2 Q^T \\vec{U} + M_b\\vec{B}
+
+        :arg W2: HDiv function space for velocity
+        :arg W3: L2 function space for pressure
         :arg Wb: Function space for buoyancy
         :arg dt: Positive real number, time step size
         :arg c: Positive real number, speed of sound waves
-        :arg N: Positive real number, speed of gravity waves
+        :arg N: Positive real number, buoyancy frequency
     '''
     def __init__(self,W2,W3,Wb,
                       dt,c,N):
@@ -282,7 +311,8 @@ class MixedOperator(object):
     def apply(self,u,p,b,r_u,r_p,r_b):
         '''Apply the operator to a mixed field.
         
-        Calculate :math:`(r_u, r_p, r_b)^T = A (u,p,b)^T`
+            Calculate
+            :math:`(\\vec{R}_u, \\vec{R}_p, \\vec{R}_b)^T = A (\\vec{U},\\vec{P},\\vec{B})^T`
 
             :arg u: Velocity field :math:`u`
             :arg p: Pressure field :math:`p`
@@ -304,9 +334,10 @@ class MixedOperator(object):
     def mult(self,mat,x,y):
         '''PETSc interface for operator application
 
-        PETSc interface wrapper for the :func:`apply` method.
-        :arg x: PETSc vector representing the field to be multiplied.
-        :arg y: PETSc vector representing the result.
+            PETSc interface wrapper for the :func:`apply` method.
+
+            :arg x: PETSc vector representing the field to be multiplied.
+            :arg y: PETSc vector representing the result.
         '''
         with self._u_tmp.dat.vec as u, \
              self._p_tmp.dat.vec as p, \
@@ -323,38 +354,44 @@ class MixedOperator(object):
 class MixedPreconditioner(object):
     '''Schur complement preconditioner for the mixed gravity wave system.
 
-    Use the following algorithm to precondition the mixed gravity wave system:
+        Use the following algorithm to precondition the mixed gravity wave system:
 
-    Calculate
+        1. Calculate
 
-    ..math::
-        M_u\\tilde{\\vec{R}}_u = M_u\\vec{R}_u-\\frac{\Delta t}{2}QM_b^{-1}(M_b\\vec{R}_b)
-        M_p\\tilde{\\vec{R}}_p = M_p\\vec{R}_p-\\frac{\Delta t}{2}D\\tilde{M}_u^{-1}(M_u\\tilde{\\vec{R}}_u)
+        .. math::
+
+            M_u\\tilde{\\vec{R}}_u = M_u\\vec{R}_u+\\frac{\Delta t}{2}QM_b^{-1}(M_b\\vec{R}_b)
+
+            M_p\\tilde{\\vec{R}}_p = M_p\\vec{R}_p
+                - \\frac{\Delta t}{2}D\\tilde{M}_u^{-1}(M_u\\tilde{\\vec{R}}_u)
         
-    Solve :math:`H\vec{P}=(M_p\\tilde{\\vec{R}}_p)` for :math:`\\vec{P}`
+        2. Solve :math:`H\\vec{P}=(M_p\\tilde{\\vec{R}}_p)` for :math:`\\vec{P}` using
+            the specified pressure solver
 
-    Calculate
+        3. Calculate
         
-    ..math::
-        \\vec{U} = \\tilde{M}_u^{-1}((M_u\\tilde{\\vec{R}}_u)+\\frac{\Delta t}{2}D^T \\vec{P})
-        \\vec{B} = M_b^{-1}((M_b\\vec{R}_b)-\\frac{\Delta t}{2}N^2 Q^T \\vec{U})
+        .. math::
+            \\vec{U} = \\tilde{M}_u^{-1}((M_u\\tilde{\\vec{R}}_u)
+                     + \\frac{\Delta t}{2}D^T \\vec{P})
 
-    Here :math:`\\tilde{M_u} = M_u + (\Delta t/2 N)^2 Q M_b^{-1} Q^T` is the
-    modified velocity mass matrix and
-    :math:`H = M_{p} + \omega_c^2 D (\\tilde{M}_u)^{-1} D^T` is the
-    Helmholtz operator in pressure space. Depending on the value of the
-    parameter diagonal_only, only the central, block-diagonal matrix is used
-    and in backward/forward substitution the terms which are formally of order \Delta t 
-    are ignored.
+            \\vec{B} = M_b^{-1}((M_b\\vec{R}_b)-\\frac{\Delta t}{2}N^2 Q^T \\vec{U})
+
+        Here :math:`\\tilde{M_u} = M_u + \omega_N^2 Q M_b^{-1} Q^T` is the
+        modified velocity mass matrix (see :class:`.Mutilde`) and
+        :math:`H = M_{p} + \omega_c^2 D (\\tilde{M}_u)^{-1} D^T` is the
+        Helmholtz operator in pressure space. Depending on the value of the
+        parameter diagonal_only, only the central, block-diagonal matrix is used
+        and in backward/forward substitution (steps 1. and 3. above) the terms which are 
+        formally of order :math:`\Delta t` are ignored.
     
-    :arg W2: Function space for velocity
-    :arg W3: Function space for velocity
-    :arg Wb: Function space for buoyancy
-    :arg dt: Time step size
-    :arg N: Buoyancy freuency
-    :arg pressure_solver: Solver in pressure space
-    :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
-        substitution with triagular matrices
+        :arg W2: Hdiv function space for velocity
+        :arg W3: L2 function space for velocity
+        :arg Wb: Function space for buoyancy
+        :arg dt: Time step size
+        :arg N: Buoyancy frequency
+        :arg pressure_solver: Solver in pressure space
+        :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
+            substitution with triagular matrices
     '''
     def __init__(self,
                  W2,W3,Wb,
@@ -405,16 +442,15 @@ class MixedPreconditioner(object):
     def solve(self,r_u,r_p,r_b,u,p,b):
         '''Preconditioner solve.
 
-        Given r_u = :math:`\\vec{r}_u`, r_p = :math:`\\vec{r}_p` and
-        r_b = :math:`\\vec{r}_b`, calculate the dof-vectors 
-        u = :math:`\\vec{U}`, p = :math:`\\vec{P}`, b = :math:`\\vec{B}`
+        Given the RHS r_u, r_p and r_b, calculate the fields 
+        u,p and b.
 
-        :arg r_u: :math:`\\vec{r}_u`, RHS in velocity space
-        :arg r_p: :math:`\\vec{r}_p`, RHS in pressure space
-        :arg r_b: :math:`\\vec{r}_b`, RHS in buoyancy space
-        :arg u: Solution dof-vector :math:`\\vec{u}` for velocity
-        :arg p: Solution dof-vector :math:`\\vec{p}` for pressure
-        :arg b: Solution dof-vector :math:`\\vec{b}` for buoyancy
+        :arg r_u: RHS in velocity space
+        :arg r_p: RHS in pressure space
+        :arg r_b: RHS in buoyancy space
+        :arg u: Solution for velocity
+        :arg p: Solution for pressure
+        :arg b: Solution for buoyancy
         '''
        
         if (self._diagonal_only):

@@ -44,14 +44,6 @@ pressuresolver.solvers module
     :undoc-members:
     :show-inheritance:
 
-pressuresolver.mpi_utils module
--------------------------------
-
-.. automodule:: pressuresolver.mpi_utils
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pressuresolver.hierarchy module
 -------------------------------
 
@@ -60,10 +52,18 @@ pressuresolver.hierarchy module
     :undoc-members:
     :show-inheritance:
 
-pressuresolver.ksp_monitor module
----------------------------------
+pressuresolver.vertical_normal module
+-------------------------------------
 
-.. automodule:: pressuresolver.ksp_monitor
+.. automodule:: pressuresolver.vertical_normal
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pressuresolver.mu_tilde module
+------------------------------
+
+.. automodule:: pressuresolver.mu_tilde
     :members:
     :undoc-members:
     :show-inheritance:

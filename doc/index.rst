@@ -16,24 +16,29 @@ Contents:
 ===============
 Overview
 ===============
-Set of classes for solving the mixed formulation of the Helmholtz
-equation in two dimensions based on the `firedrake <http://www.firedrakeproject.org/>`_ package. 
-Different matrix-free preconditioner 
-for the Schur complement pressure correction system are provided,
-including a geometric multigrid solver. The equation which is solved
+Set of classes for solving the mixed formulation of the 3d linear gravity wave system
+equation in a 2+1 dimensionsal extruded mesh based on the 
+`firedrake <http://www.firedrakeproject.org/>`_ package. 
+Both a lowest- and higher- order matrix-free multigrid preconditioner
+for the Schur complement pressure correction system are provided.
+The PDE system which is solved
 in the domain :math:`\Omega` is
 
 .. math::
-  
-  \phi + \omega (\nabla\cdot\phi^*\vec{u}) = r_\phi
+  \frac{\partial \vec{u}}{\partial t} = \nabla p + b\hat{\vec{z}}
 
-  -\vec{u} - \omega \nabla{\phi} = \vec{r}_u
+  \frac{\partial p}{\partial t} = -c^2 \nabla\cdot\vec{u}
 
-where the pressure field :math:`\phi` is defined in a :math:`DG` space and the velocity 
-:math:`\vec{u}` is a :math:`H(div)` function space. :math:`omega` is a real and positive
-parameter. Currently the field :math:`\phi^*` is set to a constant value 1 and only the lowest order DG space (:math:`P0`) and lowest order Raviart Thomas elements (:math:`RT1`) are supported.
+  \frac{\partial b}{\partial t}=-N^2\vec{u}\cdot\hat{\vec{z}}
 
-For more details see `Notes in LaTeX <./FEMmultigrid.pdf>`_.
+where the pressure field :math:`p` is defined in a :math:`L_2` space and the velocity 
+:math:`\vec{u}` is a :math:`H(div)` function space with vertical boundary condition
+:math:`\vec{u}\cdot\vec{n}=0`. The buoyancy field is denoted by :math:`b`, and lives in
+a function space which is equivalent to the vertical component of the velocity space.
+The real and positive parameters :math:`c` and :math:`N` are the speed of sound and the 
+buoyancy frequency.
+
+For more details see `Notes in LaTeX <./GravityWaves.pdf>`_.
 
 Indices and tables
 ==================

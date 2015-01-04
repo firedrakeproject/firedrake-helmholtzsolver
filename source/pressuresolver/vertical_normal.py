@@ -8,16 +8,21 @@ from petsc4py import PETSc
 
 
 class VerticalNormal(object):
-    def __init__(self,mesh):
-        '''Class for constructing a vertical normal field on a given extruded mesh`.
+    '''Class for constructing a vertical normal field on a given extruded mesh`.
 
-        :arg mesh: extruded mesh
-        '''
+    This class can be used to construct a constant vertical normal field 
+    :math:`\hat{z}`, which is, for example, used to express terms of the form
+    :math:`\hat{\\vec{z}}\cdot\\vec{u}`.
+
+    :arg mesh: extruded mesh
+    '''
+    def __init__(self,mesh):
         self._mesh = mesh
         self._build_zhat()
 
     @property
     def zhat(self):
+        '''Return field :math:`\hat{\\vec{z}}`'''
         return self._zhat
 
     def _build_zhat(self):

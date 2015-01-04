@@ -7,8 +7,9 @@ import xml.etree.cElementTree as _WT
 class FullMass(object):
     '''Class for full velocity mass matrix which can be expressed in UFL.
 
-    Note that this implementation is not very efficient as the mass matrix is
-    assembled in the constructor and inverted explicity using the built-in
+    This class provides methods for multiplying and dividing by the full mass matrix
+    in a HDiv velocity space. Note that this implementation is not very efficient as 
+    the mass matrix is assembled in the constructor and inverted explicity using the built-in
     PETSc solver when the :func:`divide` method is called.
 
     :arg W2: Velocity space the mass matrix is built on

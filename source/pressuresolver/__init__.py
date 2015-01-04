@@ -8,5 +8,5 @@ __all__ = ['operators',
            'solvers',
            'preconditioners',
            'vertical_normal',
-           'hierarchy'
+           'hierarchy',
            'mu_tilde']
