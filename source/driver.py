@@ -24,24 +24,12 @@ from pyop2.profiling import timed_region
 # Set correct COFFEE debug level
 parameters["coffee"]["O2"] = False
 
-##########################################################
-# M A I N
-##########################################################
-def main(parameter_filename=None):
-    # Create parallel logger
+def initialise_parameters(filename=None):
+    '''Set default parameters and read from file.
+
+    :arg filename: Name of file to read from, do not read if this is None
+    '''
     logger = Logger()
-
-    logger.write('+---------------------------+')
-    logger.write('! Mixed Gravity wave solver !')
-    logger.write('+---------------------------+')
-    logger.write('')
-    logger.write('Running on '+('%8d' % logger.size)+' MPI processes')
-    logger.write('')
-
-    # ------------------------------------------------------
-    # --- User defined Parameters --------------------------
-    # ------------------------------------------------------
-
     # General parameters
     param_general = Parameters('General',
         # Carry out a warmup solve?
@@ -112,7 +100,7 @@ def main(parameter_filename=None):
         # number of coarse grid smoothing steps
         'n_coarsesmooth':1})
 
-    if parameter_filename:
+    if (filename != None):
         for param in (param_general,
                       param_output,
                       param_grid,
@@ -120,39 +108,150 @@ def main(parameter_filename=None):
                       param_pressure,
                       param_multigrid):
             if (logger.rank == 0):
-                param.read_from_file(parameter_filename)
+                param.read_from_file(filename)
             param.broadcast(logger.comm)
 
+    all_param = (param_general,
+                 param_output,
+                 param_grid,
+                 param_mixed,
+                 param_pressure,
+                 param_multigrid)
     logger.write('*** Parameters ***')
-    for param in (param_general,
-                  param_output,
-                  param_grid,
-                  param_mixed,
-                  param_pressure,
-                  param_multigrid):
+    for param in all_param:
         logger.write(str(param))
+
+    return all_param
+
+def build_mesh_hierarchy(ref_count_coarse,
+                         nlevel,
+                         nlayer,
+                         thickness):
+    '''Build extruded mesh hierarchy.
+
+    Build mesh hierarchy based on an extruded icosahedral mesh.
+
+    :arg ref_count_coarse: Number of refinement steps to build coarse mesh
+    :arg nlevel: Number of multigrid levels
+    :arg nlayer: Number of vertical layers
+    :arg thickness: Thickness of speherical shell
+    '''
+    # Create coarsest mesh
+    coarse_host_mesh = UnitIcosahedralSphereMesh(refinement_level=ref_count_coarse)
+    host_mesh_hierarchy = MeshHierarchy(coarse_host_mesh,nlevel)
+    mesh_hierarchy = ExtrudedMeshHierarchy(host_mesh_hierarchy,
+                                           layers=nlayer,
+                                           extrusion_type='radial',
+                                           layer_height= thickness/nlayer)
+    return mesh_hierarchy
+
+def build_function_spaces(mesh_hierarchy,
+                          higher_order=False):
+    '''Build function spaces and function space hierarchy for h-multigrid.
+
+    Return the following function spaces:
+    
+        * W2: HDiv velocity space on finest grid and highest order
+        * W3: L2 pressure space on finest grid and highest order
+        * Wb: Buoyancy space on finest grid and highest order
+        * W2_horiz: Horizontal component of HDiv velocity space on finest grid
+            and highest order
+        * W2_vert: Vertical component of HDiv velocity space on finest grid and highest order
         
+    In addition, return the following lowest order hierarchies, which are required
+    for building the h-multigrid preconditioner:
+
+        * W2_horiz_hierarchy: Horizontal component of HDiv velocity space
+        * W2_vert_hierarchy: Vertical component of HDiv velocity space
+        * W3_hierarchy: L2 pressure space
+
+    Note that if lowest_order=True, some of the function spaces are identical to the
+    finest element of the function space hierarchy.
+
+    :arg mesh_hierarchy: Extruded mesh hierarchy
+    :arg higher_order: Build higher order elements?
+    '''
+    mesh = mesh_hierarchy[-1]
+    # Lowest order horizontal elements
+    U1_lo = FiniteElement('RT',triangle,1)
+    U2_lo = FiniteElement('DG',triangle,0)
+    # Lowest order vertical elements
+    V0_lo = FiniteElement('CG',interval,1)
+    V1_lo = FiniteElement('DG',interval,0)
+    # Lowest order product elements
+    W2_elt_horiz_lo = HDiv(OuterProductElement(U1_lo,V1_lo))
+    W2_elt_vert_lo = HDiv(OuterProductElement(U2_lo,V0_lo))
+    W3_elt_lo = OuterProductElement(U2_lo,V1_lo)
+    # Velocity space hierarchy
+    W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_vert_lo)
+    W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz_lo)
+    # Pressure space hierarchy
+    W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt_lo)
+
+    if (higher_order):
+        # Higher order elements
+        U1 = FiniteElement('BDFM',triangle,2)
+        U2 = FiniteElement('DG',triangle,1)
+        V0 = FiniteElement('CG',interval,2)
+        V1 = FiniteElement('DG',interval,1)
+        W2_elt_vert = HDiv(OuterProductElement(U2,V0))
+        W2_elt_horiz = HDiv(OuterProductElement(U1,V1))
+        W2_elt = HDiv(OuterProductElement(U1,V1)) + HDiv(OuterProductElement(U2,V0))
+        W3_elt = OuterProductElement(U2,V1)
+        Wb_elt = OuterProductElement(U2,V0)
+        # Function spaces
+        W2 = FunctionSpace(mesh,W2_elt)
+        W3 = FunctionSpace(mesh,W3_elt)
+        Wb = FunctionSpace(mesh,Wb_elt)
+        W2_horiz = FunctionSpace(mesh,W2_elt_horiz)
+        W2_vert = FunctionSpace(mesh,W2_elt_vert)
+    else:
+        W2_elt_lo = HDiv(OuterProductElement(U1_lo,V1_lo)) \
+                  + HDiv(OuterProductElement(U2_lo,V0_lo))
+        Wb_elt_lo = OuterProductElement(U2_lo,V0_lo)
+        W2 = FunctionSpace(mesh,W2_elt_lo)
+        W3 = W3_hierarchy[-1]
+        Wb = FunctionSpace(mesh,Wb_elt_lo)
+        W2_horiz = W2_horiz_hierarchy[-1]
+        W2_vert = W2_vert_hierarchy[-1]
+
+    return W2,W3,Wb,W2_horiz,W2_vert, W2_horiz_hierarchy,W2_vert_hierarchy,W3_hierarchy
+
+
+##########################################################
+# M A I N
+##########################################################
+def main(parameter_filename=None):
+    # Create parallel logger
+    logger = Logger()
+
+    logger.write('+---------------------------+')
+    logger.write('! Mixed Gravity wave solver !')
+    logger.write('+---------------------------+')
+    logger.write('')
+    logger.write('Running on '+('%8d' % logger.size)+' MPI processes')
+    logger.write('')
+ 
+    param_general, \
+    param_output, \
+    param_grid, \
+    param_mixed, \
+    param_pressure, \
+    param_multigrid = initialise_parameters(parameter_filename)
     # ------------------------------------------------------
 
     # Create output directory if it does not already exist
     if (logger.rank == 0):
         if (not os.path.exists(param_output['output_dir'])):
             os.mkdir(param_output['output_dir'])
-
-    # Create coarsest mesh
-    coarse_host_mesh = UnitIcosahedralSphereMesh(refinement_level= \
-                                                 param_grid['ref_count_coarse'])
-    host_mesh_hierarchy = MeshHierarchy(coarse_host_mesh,param_grid['nlevel'])
-    mesh_hierarchy = ExtrudedMeshHierarchy(host_mesh_hierarchy,
-                                           layers=param_grid['nlayer'],
-                                           extrusion_type='radial',
-                                           layer_height=param_grid['thickness'] \
-                                            / param_grid['nlayer'])
+    mesh_hierarchy = build_mesh_hierarchy(param_grid['ref_count_coarse'],
+                                          param_grid['nlevel'],
+                                          param_grid['nlayer'],
+                                          param_grid['thickness'])
 
     # Extract mesh on finest level
     mesh = mesh_hierarchy[-1]
     ncells = MPI.COMM_WORLD.allreduce(mesh.cell_set.size)
-
     logger.write('Number of cells on finest grid = '+str(ncells))
 
     # Set time step size dt such that c*dt/dx = nu_cfl
@@ -161,46 +260,11 @@ def main(parameter_filename=None):
     omega_c = 0.5*param_general['speed_c']*dt
     omega_N = 0.5*param_general['speed_N']*dt
 
-
-    # Horizontal elements
-    U1_lo = FiniteElement('RT',triangle,1)
-    U2_lo = FiniteElement('DG',triangle,0)
-    # Vertical elements
-    V0_lo = FiniteElement('CG',interval,1)
-    V1_lo = FiniteElement('DG',interval,0)
-
-    # Velocity space
-    W2_elt_horiz_lo = HDiv(OuterProductElement(U1_lo,V1_lo))
-    W2_elt_vert_lo = HDiv(OuterProductElement(U2_lo,V0_lo))
-    W2_vert_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_vert_lo)
-    W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz_lo)
-    # Pressure space
-    W3_elt_lo = OuterProductElement(U2_lo,V1_lo)
-    W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt_lo)
-
-    # Build function spaces
-    if (param_mixed['higher_order']):
-        U1 = FiniteElement('BDFM',triangle,2)
-        U2 = FiniteElement('DG',triangle,1)
-        V0 = FiniteElement('CG',interval,2)
-        V1 = FiniteElement('DG',interval,1)
-        W2_elt_horiz = HDiv(OuterProductElement(U1,V1))
-        W2_horiz = FunctionSpace(mesh,W2_elt_horiz)
-        W2_elt_vert = HDiv(OuterProductElement(U2,V0))
-        W2_vert = FunctionSpace(mesh,W2_elt_vert)
-        W2_elt = HDiv(OuterProductElement(U1,V1)) + HDiv(OuterProductElement(U2,V0))
-        W2 = FunctionSpace(mesh,W2_elt)
-        W3_elt = OuterProductElement(U2,V1)
-        W3 = FunctionSpace(mesh,W3_elt)
-        Wb_elt = OuterProductElement(U2,V0)
-        Wb = FunctionSpace(mesh,Wb_elt)
-    else:
-        W2_elt_lo = HDiv(OuterProductElement(U1_lo,V1_lo)) \
-                  + HDiv(OuterProductElement(U2_lo,V0_lo))
-        W2 = FunctionSpace(mesh,W2_elt_lo)
-        W3 = W3_hierarchy[-1]
-        Wb_elt_lo = OuterProductElement(U2_lo,V0_lo)
-        Wb = FunctionSpace(mesh,Wb_elt_lo)
+    # Construct function spaces and hierarchies
+    W2,W3,Wb,W2_horiz,W2_vert, \
+    W2_horiz_hierarchy, \
+    W2_vert_hierarchy, \
+    W3_hierarchy = build_function_spaces(mesh_hierarchy,param_mixed['higher_order'])
 
     op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
       zip(W3_hierarchy,
@@ -209,6 +273,7 @@ def main(parameter_filename=None):
       omega_c,
       omega_N)
 
+    # Construct smoother hierarchies and coarse grid solver
     presmoother_hierarchy = HierarchyContainer(Jacobi,
       zip(op_Hhat_hierarchy),
       mu_relax=param_multigrid['mu_relax'],
@@ -248,7 +313,6 @@ def main(parameter_filename=None):
 
     op_H = Operator_H(W3,W2,mutilde,omega_c)
 
-
     mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
     pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
 
@@ -261,6 +325,7 @@ def main(parameter_filename=None):
                                           tolerance=param_pressure['tolerance'],
                                           maxiter=param_pressure['maxiter'])
 
+    # Construct mixed gravity wave solver
     gravitywave_solver = gravitywaves.PETScSolver(W2,W3,Wb,
                                                   pressure_solver,
                                                   dt,
