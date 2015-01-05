@@ -21,7 +21,8 @@ class Operator_H(object):
 
         :arg W3: L2 function space for pressure fields
         :arg W2: HDiv function space for velocity fields
-        :arg omega_c: Positive real constant arising from gravity wave speed
+        :arg omega_c: Positive real constant arising from sound wave speed,
+            :math:`\omega_c=\\frac{\Delta t}{2}c`
         :arg mutilde: Mass matrix :math:`\\tilde{M}_u`, see :class:`.Mutilde`
     '''
     def __init__(self,W3,W2,mutilde,omega_c):
@@ -101,8 +102,10 @@ class Operator_Hhat(object):
     :arg W3: Function space for pressure fields
     :arg W2_h: Function space for horizontal component of velocity fields
     :arg W2_v: Function space for vertical component of velocity fields
-    :arg omega_c: Positive real constant, gravity wave speed
-    :arg omega_N: Positive real constant, buoyancy frequency
+    :arg omega_c: Positive real constant, related to sound wave speed,
+        :math:`\omega_c=\\frac{\Delta t}{2}c`
+    :arg omega_N: Positive real constant, related to buoyancy frequency
+        :math:`\omega_c=\\frac{\Delta t}{2}N`
     '''
     def __init__(self,
                  W3,

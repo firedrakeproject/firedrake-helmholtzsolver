@@ -17,7 +17,8 @@ class VelocityMassPrec(object):
     This preconditioner is required by :class:`.Mutilde`.
 
     :arg W2: Velocity space
-    :arg omega_N: real positive number related to buoyancy frequency
+    :arg omega_N: real positive number related to buoyancy frequency,
+        :math:`\omega_N=\\frac{\Delta t}{2}N`
     '''
     def __init__(self,W2,omega_N):
         self._W2 = W2
@@ -73,7 +74,8 @@ class Mutilde(object):
 
         :arg W2: HDiv function space for velocity
         :arg Wb: Function space for buoyancy
-        :arg omega_c: Positive constant related to density fluctuations
+        :arg omega_N: Positive constant related to buoyancy frequency,
+            :math:`\omega_N=\\frac{\Delta t}{2}N`
         :arg tolerance_b: Tolerance for buoyancy mass solve
         :arg maxiter_b: Maximal number of iterations for buoyancy mass solve
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve

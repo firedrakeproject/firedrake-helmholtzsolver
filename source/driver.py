@@ -38,7 +38,7 @@ def initialise_parameters(filename=None):
         'nu_cfl':10.0,
         # Sound wave speed
         'speed_c':1.0,
-        # Gravity wave speed
+        # Buoyancy frequency
         'speed_N':1.0,
         # Solve using the PETSc split solver?
         'use_petscsplitsolver':False,     
