@@ -236,6 +236,25 @@ def W2_vert(finite_elements,mesh):
     return W2_vert
 
 @pytest.fixture
+def W2_vert_coarse(finite_elements,coarse_mesh):
+    '''HDiv space for vertical velocity component on coarsest mesh.
+            
+    Build vertical horizontal space :math:`W_2^{v} = Hdiv(U_2\otimes V_0)`
+    
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    W2_elt = HDiv(OuterProductElement(U2,V0))
+
+    W2_vert = FunctionSpace(coarse_mesh,W2_elt)
+    
+    return W2_vert
+
+@pytest.fixture
 def Wb(finite_elements,mesh):
     '''Finite element space for buoyancy.
             
@@ -254,6 +273,24 @@ def Wb(finite_elements,mesh):
     
     return Wb
 
+@pytest.fixture
+def Wb_coarse(finite_elements,coarse_mesh):
+    '''Finite element space for buoyancy on coarsest mesh.
+            
+    Build vertical horizontal space :math:`W_b = U_2\otimes V_0`
+    
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    W2_elt = OuterProductElement(U2,V0)
+
+    Wb = FunctionSpace(coarse_mesh,W2_elt)
+    
+    return Wb
 
 @pytest.fixture
 def W3(finite_elements,mesh):
@@ -271,6 +308,24 @@ def W3(finite_elements,mesh):
     W3_elt = OuterProductElement(U2,V1)
 
     W3 = FunctionSpace(mesh,W3_elt)
+    return W3
+
+@pytest.fixture
+def W3_coarse(finite_elements,coarse_mesh):
+    '''L2 pressure space on coarsest mesh.
+            
+    Build pressure space :math:`W_3 = Hdiv(U_2\otimes V_1)`
+
+    :arg finite_elements: Horizontal and vertical finite element
+    :arg mesh: Underlying extruded mesh
+    '''
+
+    U1, U2, V0, V1 = finite_elements
+
+    # Three dimensional elements
+    W3_elt = OuterProductElement(U2,V1)
+
+    W3 = FunctionSpace(coarse_mesh,W3_elt)
     return W3
 
 @pytest.fixture
