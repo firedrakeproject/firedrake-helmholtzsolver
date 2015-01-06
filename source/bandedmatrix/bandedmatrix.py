@@ -181,6 +181,8 @@ class BandedMatrix(object):
 
         :arg ufl_form: UFL form to assemble
         '''
+        param_coffee_old = parameters["coffee"]["O2"]
+        parameters["coffee"]["O2"] = False
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
         kernel = compiled_form[6]
         coords = compiled_form[3]
@@ -197,6 +199,7 @@ class BandedMatrix(object):
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma.cell_set, *args)
         self._assemble_lma(lma)
+        parameters["coffee"]["O2"] = param_coffee_old
         
     def _assemble_lma(self,lma):
         '''Assemble the matrix from the LMA storage format.

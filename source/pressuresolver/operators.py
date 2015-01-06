@@ -227,8 +227,10 @@ class Operator_Hhat(object):
         arguments = ufl_form.arguments()
         ndof_pressure = arguments[0].cell_node_map().arity
         ndof_velocity_h = arguments[1].cell_node_map().arity
-
+        
         # Build LMA for B_h
+        param_coffee_old = parameters["coffee"]["O2"]
+        parameters["coffee"]["O2"] = False
         V_lma = FunctionSpace(self._mesh,'DG',0)
         lma_B_h = Function(V_lma, val=op2.Dat(V_lma.node_set**(ndof_pressure*ndof_velocity_h)))
         args = [lma_B_h.dat(op2.INC, lma_B_h.cell_node_map()[op2.i[0]]), 
@@ -236,6 +238,7 @@ class Operator_Hhat(object):
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma_B_h.cell_set, *args)
+        parameters["coffee"]["O2"] = param_coffee_old
 
         # Build LMA representation for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
         lma_delta_h = Function(V_lma, val=op2.Dat(V_lma.node_set**(ndof_pressure**2)))

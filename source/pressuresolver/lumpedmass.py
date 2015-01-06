@@ -83,6 +83,8 @@ class LumpedMass(object):
         v = TrialFunction(self._W2)
 
         # Build local stencil of full mass matrix
+        param_coffee_old = parameters["coffee"]["O2"]
+        parameters["coffee"]["O2"] = False
         mass = dot(u,v)*self._dx
         compiled_form = compile_form(mass, 'mass')[0]
         mass_kernel = compiled_form[6]
@@ -95,6 +97,7 @@ class LumpedMass(object):
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(mass_kernel,mass_matrix.cell_set,*args)
+        parameters["coffee"]["O2"] = param_coffee_old
 
         self._data = Function(self._W2)
 

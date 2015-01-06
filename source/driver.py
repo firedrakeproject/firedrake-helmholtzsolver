@@ -21,8 +21,6 @@ from parameters import Parameters
 from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
-# Set correct COFFEE debug level
-parameters["coffee"]["O2"] = False
 
 def initialise_parameters(filename=None):
     '''Set default parameters and read from file.
