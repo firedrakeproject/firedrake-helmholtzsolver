@@ -4,6 +4,7 @@
 \usepackage{hyperref}
 \usepackage{algorithm,algorithmic}
 \usepackage{graphicx}
+\newcommand{\order}{\mathcal{O}}
 \newcommand{\Uspace}{\mathbb{U}}
 \newcommand{\Vspace}{\mathbb{V}}
 \newcommand{\Wspace}{\mathbb{W}}
@@ -604,6 +605,121 @@ The explicit form of the algorithms described above is given here.
    \ENDFOR
  \end{algorithmic}
 \end{algorithm}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Derivation of model equations}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Here we derive the equations (\ref{eqn:ContinuousEquations}) from first principles. The Navier Stokes equations are
+\begin{xalignat}{4}
+  \frac{D\vec{u}}{Dt} &= -c_p\theta \nabla \pi - g\hat{\vec{z}}, &
+  \frac{D\theta}{Dt} &= 0, &
+  \frac{\partial \rho}{\partial t}+\nabla\cdot\left(\rho\vec{u}\right) &= 0, &
+  \rho\theta &= \Gamma \pi^\gamma.
+\end{xalignat}
+Expand around stationary profiles $\pi_0(z)$, $\theta_0(z)$ and $\rho_0(z)$
+\begin{xalignat}{4}
+  \vec{u}(\vec{x},t) &= \epsilon \vec{u}'(\vec{x},t), &
+  \pi(\vec{x},t) &= \pi_0(z) + \epsilon \pi'(\vec{x},t), &
+  \theta(\vec{x},t) &= \theta_0(z) + \epsilon \theta'(\vec{x},t), &
+  \rho(\vec{x},t) &= \rho_0(z) + \epsilon \rho'(\vec{x},t)
+\end{xalignat}
+At lowest order in $\epsilon$ the stationary solution satisfies hydrostatic balance 
+\begin{equation}
+  c_p\theta_0 \partial_z \pi_0 = -g\label{eqn:HydrostaticBalance}
+\end{equation}
+and the equation of state
+\begin{equation}
+  \rho_0\theta_0 = \Gamma\pi_0^\gamma.
+\end{equation}
+The equation of state also implies
+\begin{xalignat}{2}
+  \frac{\partial_z \rho_0}{\rho_0}
++ \frac{\partial_z \theta_0}{\theta_0}
+&= \gamma\frac{\partial_z \pi_0}{\pi_0}, &
+  \frac{\rho'}{\rho_0}
++ \frac{\theta'}{\theta_0} 
+&= \gamma\frac{\pi'}{\pi_0}.\label{eqn:DifferentialEoS}
+\end{xalignat} 
+At $\order(\epsilon)$ the momentum equation and the conservation of potential temperature are
+\begin{xalignat}{2}
+  \frac{\partial\vec{u}'}{\partial t} &= c_p\theta_0 \nabla\pi'
+  - c_p\hat{\vec{n}}(\partial_z\pi_0) \theta', &
+  \frac{\partial \theta'}{\partial t} + \hat{\vec{n}}\cdot\vec{u}' (\partial_z \theta_0) &= 0.\label{eqn:epsilonMomentumBuoyancy}
+\end{xalignat}
+If we introduce the buoyancy 
+\begin{equation}
+  b \equiv g\frac{\theta'}{\theta_0},
+\end{equation}
+and buoyancy (Brunt-Vais\"{a}l\"{a}) frequency $N$ with
+\begin{equation}
+  N^2 \equiv g\frac{\partial_z \theta_0}{\theta_0}
+\end{equation}
+these can be written (in the momentum equation we used (\ref{eqn:HydrostaticBalance}) to replace $\partial_z\pi_0$ by $-g/(c_p\theta_0)$) as
+\begin{equation}
+  \frac{\partial\vec{u}'}{\partial t} = -c_p\theta_0 \nabla\pi' + \hat{\vec{n}} b
+\end{equation}
+and
+\begin{equation}
+  \frac{\partial b}{\partial t} + N^2 \hat{\vec{n}}\cdot\vec{u}' = 0.
+  \label{eqn:BuoyancyEquation}
+\end{equation}
+The equation for the density is at $\order(\epsilon)$:
+\begin{equation}
+  \frac{\partial\rho'}{\partial t} + \hat{\vec{n}}\cdot\vec{u}'(\partial_z \rho_0) + \rho_0\nabla\cdot\vec{u}' = 0
+\end{equation}
+Divide by $\rho_0$ and use (\ref{eqn:DifferentialEoS}) to replace $\rho'$ by $\pi'$ and $\theta'$
+\begin{equation}
+  \frac{\gamma}{\pi_0}\frac{\partial \pi'}{\partial t} 
++ \frac{\partial_z\rho_0}{\rho_0} \hat{\vec{n}}\cdot\vec{u}'-\frac{1}{\theta_0}\frac{\partial \theta'}{\partial t} + \nabla\cdot \vec{u}' = 0
+\end{equation}
+and then (\ref{eqn:epsilonMomentumBuoyancy}) to eliminate the time derivative of $\theta'$
+\begin{equation}
+  \frac{\gamma}{\pi_0}\frac{\partial \pi'}{\partial t} 
++ \underbrace{\left(\frac{\partial_z\rho_0}{\rho_0}+\frac{\partial_z \theta_0}{\theta_0}\right) \hat{\vec{n}}\cdot\vec{u}'}_{A}+ \underbrace{\nabla\cdot \vec{u}'}_{B} = 0
+\end{equation}
+We now estimate the relative size of the two terms $A$ and $B$ in this equation. Define the scale height $D_f$ for a profile $f$ as
+\begin{equation}
+  D_f \equiv \min\left\{\left(\frac{\partial_z f_0}{f_0}\right)^{-1}\right\}.
+\end{equation}
+We now assume that the height $H$ of the domain is much smaller than all scale heights, $D_f\gg H$, i.e. the profiles vary only relatively slowly with height. Then we have 
+\begin{equation}
+  A \sim U\left(D_\rho^{-1}+D_\theta^{-1}\right) \ll UH^{-1} \sim B
+\end{equation}
+With this approximation the equation for the Exner pressure becomes
+\begin{equation}
+  \frac{\partial\pi'}{\partial t} + \frac{\pi_0}{\gamma}\nabla\cdot\vec{u}' = 0.
+\end{equation}
+Define
+\begin{equation}
+  p \equiv c_p \theta_0 \pi = c_p T_0 \frac{\pi'}{\pi_0}
+\end{equation}
+and note that the speed of sound $c$ is given by
+\begin{equation}
+  c^2 = \frac{c_p T_0}{\gamma}.
+\end{equation}
+When written in terms of the variable $p$ the pressure equation becomes
+\begin{equation}
+  \frac{\partial p}{\partial t} + c^2 \nabla\vec{u}' = 0.
+  \label{eqn:PressureEquation}
+\end{equation}
+and the momentum equation is
+\begin{equation}
+  \frac{\partial \vec{u}'}{\partial t} = -\nabla p+\hat{\vec{n}}b.
+  \label{eqn:MomentumEquation}
+\end{equation}
+Here we have again used the condition on the scale heights to approximate
+$\theta_0\nabla \pi' \approx \nabla(\theta_0\pi')$.
+Together (\ref{eqn:BuoyancyEquation}), (\ref{eqn:PressureEquation}) and (\ref{eqn:MomentumEquation}) form the set of equations given in (\ref{eqn:ContinuousEquations}) 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Numerical values}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+A typical value for the speed of sound is
+\begin{equation}
+  c = 300ms^{-1}.
+\end{equation}
+When choosing a buoyancy frequency $N = \sqrt{g/D_\theta}$ we have to ensure that
+\begin{equation}
+  N^2 \ll g/H.
+\end{equation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
