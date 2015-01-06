@@ -3,7 +3,6 @@ from pressuresolver.vertical_normal import *
 import numpy as np
 import pytest
 import os
-parameters["coffee"]["O2"] = False
 
 @pytest.fixture
 def mesh_2d():
