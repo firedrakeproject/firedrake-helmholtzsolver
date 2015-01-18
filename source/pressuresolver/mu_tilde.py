@@ -68,6 +68,18 @@ class Mutilde(object):
 
         where :math:`w_i` and :math:`\gamma_j` are basis functions in the 
         velocity and buoyancy spaces.
+
+        In the absence of orography the buoyancy can be eliminated pointwise from
+        the mixed system of equations. In this case :math:`Q=Q^T=M_b` and the matrix
+        reduces to
+
+        .. math::
+            \\tilde{M}_u = M_u+\omega_N^2 M_b 
+
+        i.e. the matrix application does not require an inverse of :math:`M_b`.
+        In addition, in this case the matrix can be assembled explicitly and
+        a simple Jacobi-preconditioner can be used.           
+        
         This class defines methods for applying the matrix :math:`\\tilde{M}_u` and
         a PETSc interface, can be used to (approximately) invert the matrix
         via an iterative PETSc solver.
@@ -76,18 +88,22 @@ class Mutilde(object):
         :arg Wb: Function space for buoyancy
         :arg omega_N: Positive constant related to buoyancy frequency,
             :math:`\omega_N=\\frac{\Delta t}{2}N`
+        :arg pointwise_elimination: Can the buoyancy be eliminated pointwise
+            (this is possible in the absence of orography)
         :arg tolerance_b: Tolerance for buoyancy mass solve
         :arg maxiter_b: Maximal number of iterations for buoyancy mass solve
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve
         :arg maxiter_u: Maximal number of iterations for :math:`\\tilde{M}_u` solve
     '''
     def __init__(self,W2,Wb,omega_N,
+                 pointwise_elimination=True,
                  tolerance_b=1.E-12,maxiter_b=1000,
                  tolerance_u=1.E-12,maxiter_u=1000):
         self._W2 = W2
         self._Wb = Wb
         self._mesh = self._W2.mesh()
         self._omega_N = omega_N
+        self._pointwise_elimination = pointwise_elimination
         self._tolerance_b = tolerance_b
         self._tolerance_u = tolerance_u
         self._maxiter_b = maxiter_b
@@ -98,54 +114,70 @@ class Mutilde(object):
         self._b_test = TestFunction(self._Wb)
         self._b_trial = TrialFunction(self._Wb)
         self._dx = self._mesh._dx
-        self._Mb = assemble(self._b_test*self._b_trial*self._dx)
-        self._solver_param_b = {'ksp_type':'cg',
-                                'ksp_rtol':self._tolerance_b,
-                                'ksp_max_it':self._maxiter_b,
-                                'ksp_monitor':False,
-                                'pc_type':'jacobi'}
-        n = self._W2.dof_dset.size
-        self._u = PETSc.Vec()
-        self._u.create()
-        self._u.setSizes((n, None))
-        self._u.setFromOptions()
-        self._rhs = self._u.duplicate()
-
-        op = PETSc.Mat().create()
-        op.setSizes(((n, None), (n, None)))
-        op.setType(op.Type.PYTHON)
-        op.setPythonContext(self)
-        op.setUp()
-
-        self._ksp = PETSc.KSP()
-        self._ksp.create()
-        self._ksp.setOptionsPrefix('Mutilde_')
-        self._ksp.setOperators(op)
-        self._ksp.setTolerances(rtol=self._tolerance_u,
-                                max_it=self._maxiter_u)
-        self._ksp.setType('cg')
-
-        #self._ksp.setMonitor(KSPMonitor())
-
-        pc = self._ksp.getPC()
-        pc.setType(pc.Type.PYTHON)
-        velocity_mass_prec = VelocityMassPrec(self._W2,self._omega_N)
-        pc.setPythonContext(velocity_mass_prec)
-
         vertical_normal = VerticalNormal(self._mesh)
         self._zhat = vertical_normal.zhat
+        if (self._pointwise_elimination):
+            self._u_trial = TrialFunction(self._W2)
+            self._Mutilde = assemble((dot(self._u_test,self._u_trial) + \
+                                     self._omega_N**2*dot(self._u_test,self._zhat) * \
+                                                      dot(self._u_trial,self._zhat))*self._dx)
+            self._solver_param_u = {'ksp_type':'cg',
+                                   'ksp_rtol':self._tolerance_u,
+                                   'ksp_max_it':self._maxiter_u,
+                                   'ksp_monitor':False,
+                                   'pc_type':'jacobi'}
+        else:
+            self._Mb = assemble(self._b_test*self._b_trial*self._dx)
+            self._solver_param_b = {'ksp_type':'cg',
+                                    'ksp_rtol':self._tolerance_b,
+                                    'ksp_max_it':self._maxiter_b,
+                                    'ksp_monitor':False,
+                                    'pc_type':'jacobi'}
+            n = self._W2.dof_dset.size
+            self._u = PETSc.Vec()
+            self._u.create()
+            self._u.setSizes((n, None))
+            self._u.setFromOptions()
+            self._rhs = self._u.duplicate()
+
+            op = PETSc.Mat().create()
+            op.setSizes(((n, None), (n, None)))
+            op.setType(op.Type.PYTHON)
+            op.setPythonContext(self)
+            op.setUp()
+
+            self._ksp = PETSc.KSP()
+            self._ksp.create()
+            self._ksp.setOptionsPrefix('Mutilde_')
+            self._ksp.setOperators(op)
+            self._ksp.setTolerances(rtol=self._tolerance_u,
+                                    max_it=self._maxiter_u)
+            self._ksp.setType('cg')
+
+            #self._ksp.setMonitor(KSPMonitor())
+
+            pc = self._ksp.getPC()
+            pc.setType(pc.Type.PYTHON)
+            velocity_mass_prec = VelocityMassPrec(self._W2,self._omega_N)
+            pc.setPythonContext(velocity_mass_prec)
+
 
     def apply(self,u):
         '''Multiply a velocity function with :math:`\\tilde{M}_u` and return result.
         
         :arg u: Velocity function to be multiplied by :math:`\\tilde{M}_u`.
         '''
-        Mbinv_QT_u = Function(self._Wb)
-        QT_u = assemble(dot(self._zhat*self._b_test,u)*self._dx)
-        solve(self._Mb,Mbinv_QT_u,QT_u,solver_parameters=self._solver_param_b)
-        Q_Mbinv_QT_u = dot(self._u_test,self._zhat*Mbinv_QT_u)*self._dx
-        Mu_u = dot(self._u_test,u)*self._dx
-        return assemble(Mu_u+self._omega_N**2*Q_Mbinv_QT_u)
+        if (self._pointwise_elimination):
+            return assemble((dot(self._u_test,u) + \
+                             self._omega_N**2*dot(self._u_test,self._zhat) \
+                                             *dot(self._zhat,u))*self._dx)
+        else:
+            Mbinv_QT_u = Function(self._Wb)
+            QT_u = assemble(dot(self._zhat*self._b_test,u)*self._dx)
+            solve(self._Mb,Mbinv_QT_u,QT_u,solver_parameters=self._solver_param_b)
+            Q_Mbinv_QT_u = dot(self._u_test,self._zhat*Mbinv_QT_u)*self._dx
+            Mu_u = dot(self._u_test,u)*self._dx
+            return assemble(Mu_u+self._omega_N**2*Q_Mbinv_QT_u)
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
@@ -169,8 +201,11 @@ class Mutilde(object):
         :arg u: Velocity field to be multiplied
         :arg r_u: Resulting velocity field
         '''
-        with u.dat.vec_ro as v:
-            self._rhs.array[:] = v.array[:]
-        self._ksp.solve(self._rhs,self._u)
-        with r_u.dat.vec as v:
-            v.array[:] = self._u.array[:]
+        if (self._pointwise_elimination):
+            solve(self._Mutilde,r_u,u,solver_parameters=self._solver_param_u)
+        else:
+            with u.dat.vec_ro as v:
+                self._rhs.array[:] = v.array[:]
+            self._ksp.solve(self._rhs,self._u)
+            with r_u.dat.vec as v:
+                v.array[:] = self._u.array[:]
