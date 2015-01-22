@@ -146,7 +146,7 @@ the system of equations (\ref{eqn:Increments}) can be written as a matrix equati
   M_u\vec{R}_u\\[1ex]M_p\vec{R}_p\\[1ex]M_b\vec{R}_b
 \end{pmatrix}.\label{eqn:MixedSystem}
 \end{equation}
-Use the third equation to eliminate the buoyancy  \footnote{In the absence of orography this equation is satisfied pointwise, i.e. $\vec{B}=\vec{R}_b-\frac{\Delta t}{2}N^2\vec{U}$.}
+Use the third equation to eliminate the buoyancy  \footnote{In the absence of orography this equation is satisfied pointwise, i.e. $\vec{B}=\vec{R}_b-\frac{\Delta t}{2}N^2\Pi_v\vec{U}$.}
 \begin{equation}
 \vec{B}=\vec{R}_b-\frac{\Delta t}{2}N^2M_b^{-1} Q^T\vec{U}
 \label{eqn:BuoyancyBacksubstitution}
@@ -171,7 +171,9 @@ We also have for the new RHS
   \tilde{\vec{R}}_u = \vec{R}_u+\frac{\Delta t}{2}M_u^{-1}Q\vec{R}_b.
   \label{eqn:BuoyancyRHS}
 \end{equation}
-In the absence of orography, $Q=Q^T=M_b$. In any case, both $M_b$ and $\tilde{M}_u$ (and $M_u$) are well conditioned, so can be inverted with a small number of (unpreconditioned) Richardson- or CG- iterations.
+In the absence of orography, $Q^T=M_b\Pi_v$ where $\Pi_v:\Wspace_2\rightarrow \Wspace_2^b$ is the projection onto the vertical component of the velocity space, which is isomorphic to the buoyancy space. The modified velocity matrix becomes $\tilde{M}_u = M_u + \omega^2 \Pi_v^T M_b \Pi_v$. This matrix can be written down in UFL and it's application does not require any inversions of $M_b$, which makes it considerably cheaper.
+
+In any case, both $M_b$ and $\tilde{M}_u$ (and $M_u$) are well conditioned, so can be inverted with a small number of (unpreconditioned) Richardson- or CG- iterations.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Schur complement Preconditioner}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -197,15 +199,17 @@ with the (positive-definite) ``Helmholtz'' operator
   \label{eqn:HelmholtzOperator}
 \end{equation}
 Explicitly, the preconditioner for the full mixed system in (\ref{eqn:MixedSystem}) can be written as in Algorithm \ref{alg:mixed_preconditioner}. In total it requires one pressure solve with the ``Helmholtz'' operator $H$ and two solves each with the (well conditioned) matrices $\tilde{M}_u$ and $M_b$. Since this is only a preconditioner, none of these solves need to be exact.
+
+If we assume that in the preconditioner the buoyancy can be eliminated pointwise, we can save one inversion of $M_b$ and write $(M_u\tilde{\vec{R}}_u)=(M_u\vec{R}_u)+\frac{\Delta t}{2}\Pi_v^T(M_b\vec{R}_b)$ when calculating the RHS for the velocity in the first step. 
 \begin{algorithm}[H]
- \caption{Preconditioner for mixed system (\ref{eqn:MixedSystem}); given $M_u\vec{R}_u$, $M_p\vec{R}_p$ and $M_b\vec{R}_b$ calculate $\vec{U}$, $\vec{P}$ and $\vec{B}$.}
+ \caption{Preconditioner for mixed system (\ref{eqn:MixedSystem}); given $\vec{r}_u=M_u\vec{R}_u$, $\vec{r}_p=M_p\vec{R}_p$ and $\vec{r}_b=M_b\vec{R}_b$ calculate $\vec{U}$, $\vec{P}$ and $\vec{B}$.}
  \label{alg:mixed_preconditioner}
  \begin{algorithmic}[1]
-   \STATE{Calculate $(M_u\tilde{\vec{R}}_u)=(M_u\vec{R}_u)+\frac{\Delta t}{2}QM_b^{-1}(M_b\vec{R}_b)$} \COMMENT{Modified right hand side for velocity}
-   \STATE{Calculate $(M_p\tilde{\vec{R}}_p)=(M_p\vec{R}_p)-\frac{\Delta t}{2}D\tilde{M}_u^{-1}(M_u\tilde{\vec{R}}_u)$} \COMMENT{Modified right hand side for pressure}
-  \STATE{Solve $H\vec{P}=(M_p\tilde{\vec{R}}_p)$ for $\vec{P}$} \COMMENT{Pressure solve}
-  \STATE{Calculate $\vec{U}=\tilde{M}_u^{-1}\left((M_u\tilde{\vec{R}}_u)+\frac{\Delta t}{2}D^T \vec{P}\right)$} \COMMENT{Velocity backstubstitution}
-  \STATE{Calculate $\vec{B}=M_b^{-1}\left((M_b\vec{R}_b)-\frac{\Delta t}{2}N^2 Q^T \vec{U}\right)$} \COMMENT{Buoyancy backstubstitution}
+   \STATE{Calculate $\tilde{\vec{r}}_u=\vec{r}_u+\frac{\Delta t}{2}QM_b^{-1}\vec{r}_b$} \COMMENT{Modified right hand side for velocity}
+   \STATE{Calculate $\tilde{\vec{r}}_p=\vec{r}_p-\frac{\Delta t}{2}D\tilde{M}_u^{-1}\tilde{\vec{r}}_u$} \COMMENT{Modified right hand side for pressure}
+  \STATE{Solve $H\vec{P}=\tilde{\vec{r}}_p$ for $\vec{P}$} \COMMENT{Pressure solve}
+  \STATE{Calculate $\vec{U}=\tilde{M}_u^{-1}\left(\tilde{\vec{r}}_u+\frac{\Delta t}{2}D^T \vec{P}\right)$} \COMMENT{Velocity backstubstitution}
+  \STATE{Calculate $\vec{B}=M_b^{-1}\left(\tilde{\vec{r}}_b-\frac{\Delta t}{2}N^2 Q^T \vec{U}\right)$} \COMMENT{Buoyancy backstubstitution}
  \end{algorithmic}
 \end{algorithm}
 To (approximately) invert $H$, we can use another suitably preconditioned CG iteration.
