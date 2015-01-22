@@ -188,7 +188,7 @@ class PETScSolver(object):
         pc = self._ksp.getPC()
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(MixedPreconditioner(self._W2,self._W3,self._Wb,
-                                                self._dt,self._N,
+                                                self._dt,self._N,self._c,
                                                 self._pressure_solver,
                                                 self._schur_diagonal_only))
 
@@ -389,13 +389,14 @@ class MixedPreconditioner(object):
         :arg Wb: Function space for buoyancy
         :arg dt: Time step size
         :arg N: Buoyancy frequency
+        :arg c: Speed of sound waves
         :arg pressure_solver: Solver in pressure space
         :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
             substitution with triagular matrices
     '''
     def __init__(self,
                  W2,W3,Wb,
-                 dt,N,
+                 dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
                  tolerance_b=1.E-12,maxiter_b=1000,
@@ -407,6 +408,7 @@ class MixedPreconditioner(object):
         self._omega_N = 0.5*dt*N
         self._dt_half = Constant(0.5*dt)
         self._dt_half_N2 = Constant(0.5*dt*N**2)
+        self._dt_half_c2 = Constant(0.5*dt*c**2)
         self._diagonal_only = diagonal_only
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
@@ -470,12 +472,16 @@ class MixedPreconditioner(object):
             self._rtilde_u += r_u
             # Modified RHS for pressure
             self._mutilde.divide(self._rtilde_u,self._tmp_u)
-            assemble(- self._dt_half * self._ptest * div(self._tmp_u) * self._dx,
+            assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                      tensor=self._rtilde_p)
             self._rtilde_p += r_p
             # Pressure solve
             p.assign(0.0)
-            self._pressure_solver.solve(self._rtilde_p,p)
+            self._use_petsc = False
+            if (self._use_petsc):
+                a = (self._ptest*self._ptrial + self._dt_half)
+            else:
+                self._pressure_solver.solve(self._rtilde_p,p)
             # Backsubstitution for velocity 
             assemble(self._dt_half * div(self._utest) * p*self._dx,
                      tensor=self._tmp_u)

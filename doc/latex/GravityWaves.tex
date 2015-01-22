@@ -188,7 +188,7 @@ The inverse of the operator $A$ in (\ref{eqn:PressureVelocitySystem}) is given b
   H^{-1} & 0 \\[1ex] 0 & \tilde{M}_u^{-1}
 \end{pmatrix}
 \begin{pmatrix}
-  1 & -\frac{\Delta t}{2}D\tilde{M}_u^{-1} \\[1ex]
+  1 & -\frac{\Delta t}{2}c^2D\tilde{M}_u^{-1} \\[1ex]
   0 & 1
 \end{pmatrix}\label{eqn:SchurComplement}
 \end{equation}
@@ -206,7 +206,7 @@ If we assume that in the preconditioner the buoyancy can be eliminated pointwise
  \label{alg:mixed_preconditioner}
  \begin{algorithmic}[1]
    \STATE{Calculate $\tilde{\vec{r}}_u=\vec{r}_u+\frac{\Delta t}{2}QM_b^{-1}\vec{r}_b$} \COMMENT{Modified right hand side for velocity}
-   \STATE{Calculate $\tilde{\vec{r}}_p=\vec{r}_p-\frac{\Delta t}{2}D\tilde{M}_u^{-1}\tilde{\vec{r}}_u$} \COMMENT{Modified right hand side for pressure}
+   \STATE{Calculate $\tilde{\vec{r}}_p=\vec{r}_p-\frac{\Delta t}{2}c^2D\tilde{M}_u^{-1}\tilde{\vec{r}}_u$} \COMMENT{Modified right hand side for pressure}
   \STATE{Solve $H\vec{P}=\tilde{\vec{r}}_p$ for $\vec{P}$} \COMMENT{Pressure solve}
   \STATE{Calculate $\vec{U}=\tilde{M}_u^{-1}\left(\tilde{\vec{r}}_u+\frac{\Delta t}{2}D^T \vec{P}\right)$} \COMMENT{Velocity backstubstitution}
   \STATE{Calculate $\vec{B}=M_b^{-1}\left(\tilde{\vec{r}}_b-\frac{\Delta t}{2}N^2 Q^T \vec{U}\right)$} \COMMENT{Buoyancy backstubstitution}
