@@ -393,12 +393,14 @@ class MixedPreconditioner(object):
         :arg pressure_solver: Solver in pressure space
         :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
             substitution with triagular matrices
+        :arg use_petsc: Use PETSc to solve mixed system in :math:`(u,p)` space
     '''
     def __init__(self,
                  W2,W3,Wb,
                  dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
+                 use_petsc=False,
                  tolerance_b=1.E-12,maxiter_b=1000,
                  tolerance_u=1.E-12,maxiter_u=1000):
         self._pressure_solver = pressure_solver
@@ -413,6 +415,43 @@ class MixedPreconditioner(object):
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
         self._dx = self._mesh._dx
+        self._use_petsc = use_petsc
+        if (self._use_petsc):
+            self._Wmixed = self._W2 * self._W3
+            self._mutest, self._mptest = TestFunctions(self._Wmixed)
+            self._mutrial, self._mptrial = TrialFunctions(self._Wmixed)
+            self._bcs = [DirichletBC(self._Wmixed.sub(0), 0.0, "bottom"),
+                         DirichletBC(self._Wmixed.sub(0), 0.0, "top")]
+            self._sparams={'pc_type': 'fieldsplit',
+                           'pc_fieldsplit_type': 'schur',
+                           'ksp_type': 'gmres',
+                           'ksp_max_it': 30,
+                           'pc_fieldsplit_schur_fact_type': 'FULL',
+                           'pc_fieldsplit_schur_precondition': 'selfp',
+                           'fieldsplit_0_ksp_type': 'preonly',
+                           'fieldsplit_0_pc_type': 'bjacobi',
+                           'fieldsplit_0_sub_pc_type': 'ilu',
+                           'fieldsplit_1_ksp_type': 'preonly',
+                           'fieldsplit_1_pc_type': 'gamg',
+                           'fieldsplit_1_mg_levels_ksp_type': 'chebyshev',
+                           'fieldsplit_1_mg_levels_ksp_chebyshev_estimate_eigenvalues': True,
+                           'fieldsplit_1_mg_levels_ksp_chebyshev_estimate_eigenvalues_random': True,
+                           'fieldsplit_1_mg_levels_ksp_max_it': 1,
+                           'fieldsplit_1_mg_levels_pc_type': 'bjacobi',
+                           'fieldsplit_1_mg_levels_sub_pc_type': 'ilu',
+                           'ksp_monitor': True}
+
+            self._a = (  self._mptest*self._mptrial \
+                       + self._dt_half_c2*self._mptest*div(self._mutrial) \
+                       - self._dt_half*div(self._mutest)*self._mptrial \
+                       + (dot(self._mutest,self._mutrial) + self._omega_N**2 \
+                            * dot(self._mutest,self._zhat.zhat) \
+                            * dot(self._mutrial,self._zhat.zhat)) \
+                      )*self._dx
+            self._vmixed = Function(self._Wmixed)
+        else:
+            self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
+                         DirichletBC(self._W2, 0.0, "top")]
         self._utest = TestFunction(self._W2)
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
@@ -424,8 +463,8 @@ class MixedPreconditioner(object):
                                 'ksp_monitor':False,
                                 'pc_type':'jacobi'}
         self._mutilde = Mutilde(self._W2,self._Wb,self._omega_N,
-                                tolerance_b,maxiter_b,
-                                tolerance_u,maxiter_u)
+                                tolerance_b=tolerance_b,maxiter_b=maxiter_b,
+                                tolerance_u=tolerance_u,maxiter_u=maxiter_u)
         # Temporary functions
         self._rtilde_u = Function(self._W2)
         self._rtilde_p = Function(self._W3)
@@ -438,8 +477,6 @@ class MixedPreconditioner(object):
         self._Pp = Function(self._W3)
         self._Pb = Function(self._Wb)
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
-        self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
-                     DirichletBC(self._W2, 0.0, "top")]
         
     def solve(self,r_u,r_p,r_b,u,p,b):
         '''Preconditioner solve.
@@ -456,6 +493,7 @@ class MixedPreconditioner(object):
         '''
        
         if (self._diagonal_only):
+            assert (not self._use_petsc)
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(r_p,p)
@@ -470,25 +508,33 @@ class MixedPreconditioner(object):
                                    * self._tmp_b * self._dx,
                      tensor=self._rtilde_u)
             self._rtilde_u += r_u
-            # Modified RHS for pressure
-            self._mutilde.divide(self._rtilde_u,self._tmp_u)
-            assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
-                     tensor=self._rtilde_p)
-            self._rtilde_p += r_p
-            # Pressure solve
-            p.assign(0.0)
-            self._use_petsc = False
             if (self._use_petsc):
-                a = (self._ptest*self._ptrial + self._dt_half)
+                m_p = assemble(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx)
+                m_u = assemble(dot(TestFunction(self._W2),TrialFunction(self._W2))*self._dx)
+                r_u.assign(self._rtilde_u)
+                solve(m_p, self._rtilde_p, r_p)
+                solve(m_u, self._rtilde_u, r_u)
+                L = (  self._mptest*self._rtilde_p \
+                     + dot(self._mutest,self._rtilde_u))*self._dx
+                solve(self._a == L,self._vmixed,
+                      solver_parameters=self._sparams,
+                      bcs=self._bcs)
+                u.assign(self._vmixed.sub(0))
+                p.assign(self._vmixed.sub(1))
             else:
+                # Modified RHS for pressure
+                self._mutilde.divide(self._rtilde_u,self._tmp_u)
+                assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
+                         tensor=self._rtilde_p)
+                self._rtilde_p += r_p
+                # Pressure solve
+                p.assign(0.0)
                 self._pressure_solver.solve(self._rtilde_p,p)
-            # Backsubstitution for velocity 
-            assemble(self._dt_half * div(self._utest) * p*self._dx,
-                     tensor=self._tmp_u)
-            self._tmp_u += self._rtilde_u
-            self._mutilde.divide(self._tmp_u,u)
-            for bc in self._bcs:
-                bc.apply(u)
+                # Backsubstitution for velocity 
+                assemble(self._dt_half * div(self._utest) * p*self._dx,
+                         tensor=self._tmp_u)
+                self._tmp_u += self._rtilde_u
+                self._mutilde.divide(self._tmp_u,u)
             # Backsubstitution for buoyancy
             assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
                      tensor=self._tmp_b)
