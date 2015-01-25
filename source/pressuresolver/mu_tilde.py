@@ -31,8 +31,11 @@ class VelocityMassPrec(object):
         self._P_u_tmp = Function(self._W2)
         vertical_normal = VerticalNormal(self._mesh)
         zhat = vertical_normal.zhat
+        bcs = [DirichletBC(self._W2, 0.0, "bottom"),
+               DirichletBC(self._W2, 0.0, "top")]
         self._Mu = assemble((dot(u_test,u_trial)
-                            +self._omega_N**2*dot(u_test,zhat)*dot(u_trial,zhat))*self._dx)
+                            +self._omega_N**2*dot(u_test,zhat)*dot(u_trial,zhat))*self._dx,
+                            bcs=bcs)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
@@ -116,11 +119,14 @@ class Mutilde(object):
         self._dx = self._mesh._dx
         vertical_normal = VerticalNormal(self._mesh)
         self._zhat = vertical_normal.zhat
+        self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
+                     DirichletBC(self._W2, 0.0, "top")]
         if (self._pointwise_elimination):
             self._u_trial = TrialFunction(self._W2)
             self._Mutilde = assemble((dot(self._u_test,self._u_trial) + \
                                      self._omega_N**2*dot(self._u_test,self._zhat) * \
-                                                      dot(self._u_trial,self._zhat))*self._dx)
+                                                      dot(self._u_trial,self._zhat))*self._dx,
+                                     bcs=self._bcs)
             self._solver_param_u = {'ksp_type':'cg',
                                    'ksp_rtol':self._tolerance_u,
                                    'ksp_max_it':self._maxiter_u,
@@ -162,13 +168,22 @@ class Mutilde(object):
             pc.setPythonContext(velocity_mass_prec)
 
 
+    def _apply_bcs(self,u):
+        '''Apply boundary conditions to velocity function.
+
+            :arg u: Function in velocity space
+        '''
+        for bc in self._bcs:
+            bc.apply(u)
+
     def apply(self,u):
         '''Multiply a velocity function with :math:`\\tilde{M}_u` and return result.
         
         :arg u: Velocity function to be multiplied by :math:`\\tilde{M}_u`.
         '''
+        self._apply_bcs(u)
         if (self._pointwise_elimination):
-            return assemble((dot(self._u_test,u) + \
+            tmp = assemble((dot(self._u_test,u) + \
                              self._omega_N**2*dot(self._u_test,self._zhat) \
                                              *dot(self._zhat,u))*self._dx)
         else:
@@ -177,7 +192,9 @@ class Mutilde(object):
             solve(self._Mb,Mbinv_QT_u,QT_u,solver_parameters=self._solver_param_b)
             Q_Mbinv_QT_u = dot(self._u_test,self._zhat*Mbinv_QT_u)*self._dx
             Mu_u = dot(self._u_test,u)*self._dx
-            return assemble(Mu_u+self._omega_N**2*Q_Mbinv_QT_u)
+            tmp = assemble(Mu_u+self._omega_N**2*Q_Mbinv_QT_u)
+        self._apply_bcs(tmp)
+        return tmp
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
@@ -202,7 +219,10 @@ class Mutilde(object):
         :arg r_u: Resulting velocity field
         '''
         if (self._pointwise_elimination):
-            solve(self._Mutilde,r_u,u,solver_parameters=self._solver_param_u)
+            self._apply_bcs(u)
+            solve(self._Mutilde,r_u,u,
+                  solver_parameters=self._solver_param_u,
+                  bcs=self._bcs)
         else:
             with u.dat.vec_ro as v:
                 self._rhs.array[:] = v.array[:]
