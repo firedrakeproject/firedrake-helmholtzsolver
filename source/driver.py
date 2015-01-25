@@ -38,10 +38,8 @@ def initialise_parameters(filename=None):
         'speed_c':1.0,
         # Buoyancy frequency
         'speed_N':1.0,
-        # Solve using the PETSc split solver?
-        'use_petscsplitsolver':False,     
-        # Use the matrix-free solver
-        'use_matrixfreesolver':True})
+        # Solve using the matrixfree preconditioner?
+        'use_matrixfree_prec':False})     
 
     # Output parameters
     param_output = Parameters('Output',
@@ -334,7 +332,8 @@ def main(parameter_filename=None):
                                                     param_mixed['schur_diagonal_only'],
                                                   ksp_monitor=mixed_ksp_monitor,
                                                   tolerance=param_mixed['tolerance'],
-                                                  maxiter=param_mixed['maxiter'])
+                                                  maxiter=param_mixed['maxiter'],
+                                                  matrixfree_prec=param_general['use_matrixfree_prec'])
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):

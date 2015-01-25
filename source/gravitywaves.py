@@ -148,7 +148,8 @@ class PETScSolver(object):
                  schur_diagonal_only=False,
                  ksp_monitor=None,
                  maxiter=100,
-                 tolerance=1.E-6):
+                 tolerance=1.E-6,
+                 matrixfree_prec=True):
         self._ksp_type = ksp_type
         self._logger = Logger()
         self._W3 = W3
@@ -190,7 +191,8 @@ class PETScSolver(object):
         pc.setPythonContext(MixedPreconditioner(self._W2,self._W3,self._Wb,
                                                 self._dt,self._N,self._c,
                                                 self._pressure_solver,
-                                                self._schur_diagonal_only))
+                                                self._schur_diagonal_only,
+                                                matrixfree_prec=matrixfree_prec))
 
         # Set up test- and trial function spaces
         self._u = Function(self._W2)
@@ -414,7 +416,7 @@ class MixedPreconditioner(object):
                  dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
-                 use_petsc=False,
+                 matrixfree_prec=True,
                  tolerance_b=1.E-12,maxiter_b=1000,
                  tolerance_u=1.E-12,maxiter_u=1000):
         self._pressure_solver = pressure_solver
@@ -429,8 +431,8 @@ class MixedPreconditioner(object):
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
         self._dx = self._mesh._dx
-        self._use_petsc = use_petsc
-        if (self._use_petsc):
+        self._matrixfree_prec = matrixfree_prec
+        if (not self._matrixfree_prec):
             self._Wmixed = self._W2 * self._W3
             self._mutest, self._mptest = TestFunctions(self._Wmixed)
             self._mutrial, self._mptrial = TrialFunctions(self._Wmixed)
@@ -507,7 +509,7 @@ class MixedPreconditioner(object):
         '''
        
         if (self._diagonal_only):
-            assert (not self._use_petsc)
+            assert (self._matrixfree_prec)
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(r_p,p)
@@ -522,20 +524,7 @@ class MixedPreconditioner(object):
                                    * self._tmp_b * self._dx,
                      tensor=self._rtilde_u)
             self._rtilde_u += r_u
-            if (self._use_petsc):
-                m_p = assemble(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx)
-                m_u = assemble(dot(TestFunction(self._W2),TrialFunction(self._W2))*self._dx)
-                r_u.assign(self._rtilde_u)
-                solve(m_p, self._rtilde_p, r_p)
-                solve(m_u, self._rtilde_u, r_u)
-                L = (  self._mptest*self._rtilde_p \
-                     + dot(self._mutest,self._rtilde_u))*self._dx
-                solve(self._a == L,self._vmixed,
-                      solver_parameters=self._sparams,
-                      bcs=self._bcs)
-                u.assign(self._vmixed.sub(0))
-                p.assign(self._vmixed.sub(1))
-            else:
+            if (self._matrixfree_prec):
                 # Modified RHS for pressure
                 self._mutilde.divide(self._rtilde_u,self._tmp_u)
                 assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
@@ -549,6 +538,19 @@ class MixedPreconditioner(object):
                          tensor=self._tmp_u)
                 self._tmp_u += self._rtilde_u
                 self._mutilde.divide(self._tmp_u,u)
+            else:
+                m_p = assemble(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx)
+                m_u = assemble(dot(TestFunction(self._W2),TrialFunction(self._W2))*self._dx)
+                r_u.assign(self._rtilde_u)
+                solve(m_p, self._rtilde_p, r_p)
+                solve(m_u, self._rtilde_u, r_u)
+                L = (  self._mptest*self._rtilde_p \
+                     + dot(self._mutest,self._rtilde_u))*self._dx
+                solve(self._a == L,self._vmixed,
+                      solver_parameters=self._sparams,
+                      bcs=self._bcs)
+                u.assign(self._vmixed.sub(0))
+                p.assign(self._vmixed.sub(1))
             # Backsubstitution for buoyancy
             assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
                      tensor=self._tmp_b)

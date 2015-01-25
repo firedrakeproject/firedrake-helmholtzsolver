@@ -6,7 +6,6 @@ General:
     nu_cfl = 10.0                   # CFL number
     speed_c = 1.0                   # Sound wave speed
     speed_N = 1.0                   # Buoyancy frequency
-    use_petscsplitsolver = True     # Solve using the PETSc split solver?
     use_matrixfreesolver = True     # Use the matrix-free solver
 
 ################################################################################ 
