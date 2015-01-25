@@ -326,6 +326,52 @@ def test_spai(W2_vert):
 
     assert np.allclose(mat_AM._data.data, 0.0)
 
+def test_boundary_conditions(W2_vert_coarse,velocity_expression):
+    '''Check that boundary conditions are applied correctly.
+
+    Create a banded matrix with boundary conditions on the columns space.
+    Apply it to a field and check that
+    
+        * It leaves the values on the boundary nodes unchanges
+        * On the other nodes the result this the same as if the
+          matrix without BCs was applied to a field which has the
+          boundary nodes set to zero first.
+
+    :arg W2_vert_coarse: vertical HDiv space
+    :arg velocity_expression: Expression to project for velocity
+    '''
+    u = TestFunction(W2_vert_coarse)
+    v = TrialFunction(W2_vert_coarse) 
+    ufl_form = dot(u,v)*W2_vert_coarse.mesh()._dx
+    mat = BandedMatrix(W2_vert_coarse,W2_vert_coarse)
+    mat.assemble_ufl_form(ufl_form)
+    bcs = [DirichletBC(W2_vert_coarse, 0.0, "bottom"),
+           DirichletBC(W2_vert_coarse, 0.0, "top")]
+    boundary_nodes = np.concatenate([bc.nodes for bc in bcs])
+    interior_nodes = [i for i in range(W2_vert_coarse.dof_count) if i not in boundary_nodes]
+    # Set boundary dofs to zero and apply original matrix
+    u = Function(W2_vert_coarse)
+    u.project(velocity_expression)
+    for bc in bcs:
+        bc.apply(u)
+    mat.ax(u)
+    # Apply boundary conditions to matrix, and apply this new matrix
+    mat.apply_vertical_bcs()
+    v = Function(W2_vert_coarse)
+    v.project(velocity_expression)
+    #for bc in bcs:
+    #    bc.apply(v)
+    mat.ax(v)
+    w = Function(W2_vert_coarse)
+    w.project(velocity_expression)
+    # 1. Check that applying the modified matrix leaves the values on the boundary nodes
+    #    unchanged
+    assert np.allclose(w.dat.data[boundary_nodes] - v.dat.data[boundary_nodes], 0.0)
+    # 2. Check that applying the modified matrix gives the same values on the interior
+    #    nodes if the boundary nodes have been zeroed out before applying the original,
+    #    full matrix.
+    assert np.allclose(u.dat.data[interior_nodes] - v.dat.data[interior_nodes], 0.0)
+
 ##############################################################
 # M A I N
 ##############################################################

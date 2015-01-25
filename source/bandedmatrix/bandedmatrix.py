@@ -172,14 +172,19 @@ class BandedMatrix(object):
         ndof_bottom_facet = len(element.entity_dofs()[(tdim-1, 0)][0])
         return ndof_cell, ndof_bottom_facet
 
-    def assemble_ufl_form(self,ufl_form):
+    def assemble_ufl_form(self,ufl_form,vertical_bcs=False):
         '''Assemble the matrix form a UFL form.
 
         In each cell of the extruded mesh, build the local matrix stencil associated
         with the UFL form. Then call _assemble_lma() to loop over all cells and assemble 
         into the banded matrix.
 
+        If the flag ``vertical_bcs`` is set, then homogeneous boundary conditions on 
+        the top and bottom surfaces are assumed (on the column space).
+
         :arg ufl_form: UFL form to assemble
+        :arg vertical_bcs: Apply homogeneous Dirichlet boundary conditions on the
+            top and bottom surfaces.
         '''
         param_coffee_old = parameters["coffee"]["O2"]
         parameters["coffee"]["O2"] = False
@@ -198,13 +203,19 @@ class BandedMatrix(object):
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma.cell_set, *args)
-        self._assemble_lma(lma)
+        self._assemble_lma(lma,vertical_bcs)
         parameters["coffee"]["O2"] = param_coffee_old
         
-    def _assemble_lma(self,lma):
+    def _assemble_lma(self,lma,vertical_bcs=False):
         '''Assemble the matrix from the LMA storage format.
 
-        :arg lma: Matrix in LMA storage format.'''
+        If the flag ``vertical_bcs`` is set, then homogeneous boundary conditions on 
+        the top and bottom surfaces are assumed (on the column space).
+
+        :arg lma: Matrix in LMA storage format.
+        :arg vertical_bcs: Apply homogeneous Dirichlet boundary conditions on the
+            top and bottom surfaces.
+        '''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel_code = ''' void assemble_lma(double **lma,
                                             double **A) {
@@ -239,6 +250,80 @@ class BandedMatrix(object):
                      self._hostmesh.cell_set,
                      lma.dat(op2.READ,lma.cell_node_map()),
                      self._data(op2.INC,self._Vcell.cell_node_map()))
+        if (vertical_bcs):
+            self.apply_vertical_bcs()
+        
+    def apply_vertical_bcs(self):
+        '''Apply homogeneous boundary conditions on the top and bottom surfaces.
+
+        Loop over all matrix rows i and columns j and set :math:`A_{ij}=\delta_{ij}` 
+        if i or j is the index of a dof on the top or bottom surface of the domain.
+        '''
+        # identify local indices of dofs on top and bottom boundaries
+        boundary_nodes = {}
+        for label, bc_masks, ndof, nodemap in \
+            zip(('col','row'), \
+                 (self._fs_col.bt_masks,self._fs_row.bt_masks), \
+                 (self._ndof_cell_col+self._ndof_bottom_facet_col, \
+                  self._ndof_cell_row+self._ndof_bottom_facet_row), \
+                 (self._nodemap_col, self._nodemap_row)):
+            offset = (self._ncelllayers-1)*ndof
+            boundary_nodes[label] = np.concatenate(([-1],nodemap[bc_masks[0]], \
+                                                    offset + nodemap[bc_masks[1]]))
+        declare_boundary_nodes = ''
+        for label,nodes in boundary_nodes.iteritems():
+            declare_boundary_nodes += 'int boundary_nodes_'+label+'['+str(len(nodes))+'] = '
+            declare_boundary_nodes += '{%s};\n' % ', '.join('%d' % o for o in nodes)
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        param_dict.update({'DECLARE_BOUNDARY_NODES':declare_boundary_nodes,
+                           'n_boundary_nodes_row':len(boundary_nodes['row']),
+                           'n_boundary_nodes_col':len(boundary_nodes['col'])})
+        kernel_code ='''void apply_bcs(double **A) {
+          #include <stdio.h>
+          %(DECLARE_BOUNDARY_NODES)s
+          // Loop over matrix rows  
+          // Skip the first entry which is always -1
+          // Zero out rows
+          for (int i_bd=1;i_bd<%(n_boundary_nodes_row)d;++i_bd) {
+            int i = boundary_nodes_row[i_bd];
+            // Work out column loop bounds
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+               A[0][%(A_bandwidth)d*i+(j-j_m)] = 0;
+            }
+          }
+          // Zero out columns
+          for (int i=0;i<%(A_n_row)d;++i) {
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+            for (int j_bd=1;j_bd<%(n_boundary_nodes_col)d;++j_bd) {
+              int j = boundary_nodes_col[j_bd];
+              if ( (j_m <= j) && (j <= j_p) ) {
+                A[0][%(A_bandwidth)d*i+(j-j_m)] = 0;
+              }
+            }
+          }
+          // Set diagonal entries to 1.
+          for (int i_bd=1;i_bd<%(n_boundary_nodes_row)d;++i_bd) {
+            int i = boundary_nodes_row[i_bd];
+            // Work out column loop bounds
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+            // Loop over all columns
+            for (int j_bd=1;j_bd<%(n_boundary_nodes_col)d;++j_bd) {
+              int j = boundary_nodes_col[j_bd];
+              if ( (j_m <= j) && (j <= j_p) ) {
+                A[0][%(A_bandwidth)d*i+(j-j_m)] = (i==j);
+              }
+            }
+          }
+        }
+        '''
+        kernel = op2.Kernel(kernel_code % param_dict,'apply_bcs',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.WRITE,self._Vcell.cell_node_map()))
 
     def ax(self,u):
         '''In-place Matrix-vector mutiplication :math:`u\mapsto Au`
