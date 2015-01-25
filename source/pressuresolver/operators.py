@@ -36,6 +36,16 @@ class Operator_H(object):
         self._u_trial = TrialFunction(self._W2)
         self._phi_tmp = Function(self._W3)
         self._res_tmp = Function(self._W3)
+        self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
+                     DirichletBC(self._W2, 0.0, "top")]
+
+    def _apply_bcs(self,u):
+        '''Apply boundary conditions to velocity function.
+
+            :arg u: Function in velocity space
+        '''
+        for bc in self._bcs:
+            bc.apply(u)
 
     def apply(self,phi):
         '''Apply operator to pressure field and return result.
@@ -43,6 +53,7 @@ class Operator_H(object):
         :arg phi: pressure field
         '''
         BT_phi = assemble(div(self._u_test)*phi*self._dx)
+        #self._apply_bcs(BT_phi)
         Mutildeinv_BT_phi = Function(self._W2)
         self._mutilde.divide(BT_phi,Mutildeinv_BT_phi)
         B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
@@ -145,8 +156,18 @@ class Operator_Hhat(object):
         # Lumped mass matrices.
         self._Mu_h = LumpedMass(self._W2_h)
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
-        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx)
+        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,vertical_bcs=True)
         self._Mu_vinv = Mu_v.spai()
+        self._bcs = [DirichletBC(self._W2_v, 0.0, "bottom"),
+                     DirichletBC(self._W2_v, 0.0, "top")]
+
+    def _apply_bcs(self,u):
+        '''Apply boundary conditions to velocity function.
+
+            :arg u: Function in velocity space
+        '''
+        for bc in self._bcs:
+            bc.apply(u)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -181,10 +202,11 @@ class Operator_Hhat(object):
             self._Mu_h.divide(self._B_h_phi)
             # Calculate action of B_h^T
             assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
-
             # Calculate action of B_v
             self._phi_tmp.assign(phi)
             assemble(self._B_v_phi_form, tensor=self._B_v_phi)
+            # Set boundary nodes to zero
+            self._apply_bcs(self._B_v_phi)
             # divide by vertical velocity mass matrix
             self._Mu_vinv.ax(self._B_v_phi)
             # Calculate action of B_v^T
@@ -213,9 +235,9 @@ class Operator_Hhat(object):
 
         # B_v M_{u,v,inv} B_v^T
         B_v_T = BandedMatrix(self._W2_v,self._W3)
-        B_v_T.assemble_ufl_form(div(w_v_test)*phi_trial*self._dx)
+        B_v_T.assemble_ufl_form(div(w_v_test)*phi_trial*self._dx,vertical_bcs=True)
         B_v = BandedMatrix(self._W3,self._W2_v)
-        B_v.assemble_ufl_form(phi_test*div(w_v_trial)*self._dx)
+        B_v.assemble_ufl_form(phi_test*div(w_v_trial)*self._dx,vertical_bcs=True)
         B_v_Mu_vinv_B_v_T = B_v.matmul(self._Mu_vinv.matmul(B_v_T))
 
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)

@@ -50,7 +50,7 @@ def test_spectral_radius(W3_coarse,
     print 'cond(Hhat)        = '+('%8.4f' % np.linalg.cond(mat_hat))
     print '--- \hat{H}^{-1}*H ---'
     print 'cond(Hhat^{-1}*H) = '+('%8.4f' % kappa)
-    assert (kappa < 2.)
+    assert (kappa < 10.)
  
 def test_operator_Hhat(W3_coarse,
                        W2_horiz_coarse,
