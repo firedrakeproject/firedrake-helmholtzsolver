@@ -307,6 +307,8 @@ class MixedOperator(object):
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
         self._dx = self._mesh._dx
+        self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
+                     DirichletBC(self._W2, 0.0, "top")]
 
     def apply(self,u,p,b,r_u,r_p,r_b):
         '''Apply the operator to a mixed field.
@@ -321,6 +323,8 @@ class MixedOperator(object):
             :arg r_p: Resulting pressure field :math:`p`
             :arg r_b: Resulting buoyancy field :math:`b`
         '''
+        # Apply BCs to u
+        self._apply_bcs(u)
         assemble( (  dot(self._utest,u) 
                    - self._dt_half*div(self._utest)*p
                    - self._dt_half*dot(self._utest,self._zhat.zhat)*b
@@ -330,6 +334,16 @@ class MixedOperator(object):
                  tensor=r_p)
         assemble( self._btest * (b  + self._dt_half_N2*dot(self._zhat.zhat,u)) * self._dx,
                  tensor =r_b)
+        # Apply BCs to R_u
+        self._apply_bcs(r_u)
+
+    def _apply_bcs(self,u):
+        '''Apply boundary conditions to velocity field.
+
+            :arg u: Field to apply to
+        '''
+        for bc in self._bcs:
+            bc.apply(u)
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application
