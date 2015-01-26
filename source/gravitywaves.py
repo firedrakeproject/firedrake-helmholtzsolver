@@ -181,10 +181,14 @@ class Solver(object):
         self._p.assign(0.0)
         self._b.assign(0.0)
 
+        f_u = assemble(dot(self._utest,r_u)*self._dx)
+        f_p = assemble(self._ptest*r_p*self._dx)
+        f_b = assemble(self._btest*r_b*self._dx)
+
         # Copy data in
-        with r_u.dat.vec_ro as u, \
-             r_p.dat.vec_ro as p, \
-             r_b.dat.vec_ro as b:
+        with f_u.dat.vec_ro as u, \
+             f_p.dat.vec_ro as p, \
+             f_b.dat.vec_ro as b:
             self._mixedarray.combine(self._y,u,p,b)
         # PETSc ksp solve
         with self._ksp_monitor:
