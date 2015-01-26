@@ -77,62 +77,107 @@ class Solver(object):
                  pressure_solver,
                  dt,c,N,
                  ksp_type='gmres',
+                 orography=False,
                  schur_diagonal_only=False,
                  ksp_monitor=None,
                  maxiter=100,
                  tolerance=1.E-6,
-                 matrixfree_prec=True):
+                 matrixfree=True):
         self._ksp_type = ksp_type
         self._logger = Logger()
-        self._W3 = W3
-        self._W2 = W2
         self._Wb = Wb
         self._dt = dt
         self._c = c
         self._N = N
+        self._dt_half = Constant(0.5*dt)
+        self._dt_half_N2 = Constant(0.5*dt*N**2)
+        self._dt_half_c2 = Constant(0.5*dt*c**2)
+        self._omega_N2 = Constant((0.5*dt*N)**2)
         self._maxiter = maxiter
         self._tolerance = tolerance
         self._pressure_solver = pressure_solver
         self._schur_diagonal_only = schur_diagonal_only
-        self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
-        self._ndof = self._mixedarray.ndof
-        self._x = PETSc.Vec()
-        self._x.create()
-        self._x.setSizes((self._ndof, None))
-        self._x.setFromOptions()
-        self._y = self._x.duplicate()
+        self._matrixfree=matrixfree
+        self._orography = orography
+        if (self._orography):
+            # Solve UPB system
+            self._W3 = W3
+            self._W2 = W2
+            self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
+            self._ndof = self._mixedarray.ndof
+            self._x = PETSc.Vec()
+            self._x.create()
+            self._x.setSizes((self._ndof, None))
+            self._x.setFromOptions()
+            self._y = self._x.duplicate()
 
-        op = PETSc.Mat().create()
-        op.setSizes(((self._ndof, None), (self._ndof, None)))
-        op.setType(op.Type.PYTHON)
-        op.setPythonContext(MixedOperator(self._W2,self._W3,self._Wb,
-                                          self._dt,self._c,self._N))
-        op.setUp()
+            op = PETSc.Mat().create()
+            op.setSizes(((self._ndof, None), (self._ndof, None)))
+            op.setType(op.Type.PYTHON)
+            op.setPythonContext(MixedOperatorUPB(self._W2,self._W3,self._Wb,
+                                                 self._dt,self._c,self._N))
+            op.setUp()
 
-        self._ksp = PETSc.KSP()
-        self._ksp.create()
-        self._ksp.setOptionsPrefix('mixed_')
-        self._ksp.setOperators(op)
-        self._ksp.setTolerances(rtol=self._tolerance,max_it=self._maxiter)
-        self._ksp.setType(self._ksp_type)
-        self._ksp_monitor = ksp_monitor
-        self._ksp.setMonitor(self._ksp_monitor)
-        self._logger.write('  Mixed KSP type = '+str(self._ksp.getType()))
-        pc = self._ksp.getPC()
-        pc.setType(pc.Type.PYTHON)
-        pc.setPythonContext(MixedPreconditioner(self._W2,self._W3,self._Wb,
-                                                self._dt,self._N,self._c,
-                                                self._pressure_solver,
-                                                self._schur_diagonal_only,
-                                                matrixfree_prec=matrixfree_prec))
+            self._ksp = PETSc.KSP()
+            self._ksp.create()
+            self._ksp.setOptionsPrefix('mixed_')
+            self._ksp.setOperators(op)
+            self._ksp.setTolerances(rtol=self._tolerance,max_it=self._maxiter)
+            self._ksp.setType(self._ksp_type)
+            self._ksp_monitor = ksp_monitor
+            self._ksp.setMonitor(self._ksp_monitor)
+            self._logger.write('  Mixed KSP type = '+str(self._ksp.getType()))
+            pc = self._ksp.getPC()
+            pc.setType(pc.Type.PYTHON)
+            pc.setPythonContext(MixedPreconditionerUPB(self._W2,self._W3,self._Wb,
+                                                       self._dt,self._N,self._c,
+                                                       self._pressure_solver,
+                                                       self._schur_diagonal_only,
+                                                       matrixfree_prec=self._matrixfree))
+        else:
+            # Solve UP system
+            if (self._matrixfree):
+                self._W2 = W2
+                self._W3 = W3
+                self._mixedarray = MixedArray(self._W2,self._W3)
+                self._ndof = self._mixedarray.ndof
+                self._x = PETSc.Vec()
+                self._x.create()
+                self._x.setSizes((self._ndof, None))
+                self._x.setFromOptions()
+                self._y = self._x.duplicate()
 
+                op = PETSc.Mat().create()
+                op.setSizes(((self._ndof, None), (self._ndof, None)))
+                op.setType(op.Type.PYTHON)
+                op.setPythonContext(MixedOperatorUP(self._W2,self._W3,
+                                                    self._dt,self._c,self._N))
+                op.setUp()
+
+                self._ksp = PETSc.KSP()
+                self._ksp.create()
+                self._ksp.setOptionsPrefix('mixed_')
+                self._ksp.setOperators(op)
+                self._ksp.setTolerances(rtol=self._tolerance,max_it=self._maxiter)
+                self._ksp.setType(self._ksp_type)
+                self._ksp_monitor = ksp_monitor
+                self._ksp.setMonitor(self._ksp_monitor)
+                self._logger.write('  Mixed KSP type = '+str(self._ksp.getType()))
+                pc = self._ksp.getPC()
+                pc.setType(pc.Type.PYTHON)
+                pc.setPythonContext(MixedPreconditionerUP(self._W2,self._W3,self._Wb,
+                                                          self._dt,self._N,self._c,
+                                                          self._pressure_solver,
+                                                          self._schur_diagonal_only))
+            else:
+                self._Wmixed = W2 * W3
+                self._W2 = self._Wmixed.sub(0)
+                self._W3 = self._Wmixed.sub(1)
+            
         # Set up test- and trial function spaces
         self._u = Function(self._W2)
         self._p = Function(self._W3)
         self._b = Function(self._Wb)
-        self._utest = TestFunction(self._W2)
-        self._ptest = TestFunction(self._W3)
-        self._btest = TestFunction(self._Wb)
         self._dx = self._W3._mesh._dx
 
     def add_to_xml(self,parent,function):
@@ -149,8 +194,9 @@ class Solver(object):
         e.set("pressure_space",v_str)
         v_str = self._Wb.ufl_element().shortstr()
         e.set("buoyancy_space",v_str)
-        self._pressure_solver.add_to_xml(e,"pressure_solver")
-        e.set("ksp_type",str(self._ksp.getType()))
+        if (self._matrixfree):
+            self._pressure_solver.add_to_xml(e,"pressure_solver")
+        e.set("ksp_type",str(self._ksp_type))
         e.set("dt",('%e' % self._dt))
         e.set("c",('%e' % self._c))
         e.set("N",('%e' % self._N))
@@ -180,22 +226,98 @@ class Solver(object):
         self._u.assign(0.0)
         self._p.assign(0.0)
         self._b.assign(0.0)
+                
+        btest = TestFunction(self._Wb)
 
-        f_u = assemble(dot(self._utest,r_u)*self._dx)
-        f_p = assemble(self._ptest*r_p*self._dx)
-        f_b = assemble(self._btest*r_b*self._dx)
+        if self._orography:
+            utest = TestFunction(self._W2)
+            ptest = TestFunction(self._W3)
+            # Solve UPB system
+            f_u = assemble(dot(utest,r_u)*self._dx)
+            f_p = assemble(ptest*r_p*self._dx)
+            f_b = assemble(btest*r_b*self._dx)
+            # Copy data in
+            with f_u.dat.vec_ro as u, \
+                 f_p.dat.vec_ro as p, \
+                 f_b.dat.vec_ro as b:
+                self._mixedarray.combine(self._y,u,p,b)
+            # PETSc ksp solve
+            with self._ksp_monitor:
+                self._ksp.solve(self._y,self._x)
+            # Copy data out
+            with self._u.dat.vec as u, \
+                self._p.dat.vec as p, \
+                self._b.dat.vec as b:
+                self._mixedarray.split(self._x,u,p,b)
+        else:
+            vert_norm = VerticalNormal(self._W3.mesh())
+            if (self._matrixfree):
+                # NOT IMPLEMENTED YET
+                utest = TestFunction(self._W2)
+                ptest = TestFunction(self._W3)
+                # Solve UPB system
+                f_u = assemble((dot(utest,r_u) \
+                               + self._dt_half*dot(utest,vert_norm.zhat*r_b))*self._dx)
+                f_p = assemble(ptest*r_p*self._dx)
 
-        # Copy data in
-        with f_u.dat.vec_ro as u, \
-             f_p.dat.vec_ro as p, \
-             f_b.dat.vec_ro as b:
-            self._mixedarray.combine(self._y,u,p,b)
-        # PETSc ksp solve
-        with self._ksp_monitor:
-            self._ksp.solve(self._y,self._x)
-        # Copy data out
-        with self._u.dat.vec as u, \
-             self._p.dat.vec as p, \
-             self._b.dat.vec as b:
-            self._mixedarray.split(self._x,u,p,b)
+                # Copy data in
+                with f_u.dat.vec_ro as u, \
+                     f_p.dat.vec_ro as p:
+                    self._mixedarray.combine(self._y,u,p)
+                # PETSc ksp solve
+                with self._ksp_monitor:
+                    self._ksp.solve(self._y,self._x)
+                # Copy data out
+                with self._u.dat.vec as u, \
+                     self._p.dat.vec as p:
+                    self._mixedarray.split(self._x,u,p)
+            else:
+                # Calculate RHS
+                utest, ptest = TestFunctions(self._Wmixed)
+                utrial, ptrial = TrialFunctions(self._Wmixed)
+                bcs = [DirichletBC(self._Wmixed.sub(0), 0.0, "bottom"),
+                       DirichletBC(self._Wmixed.sub(0), 0.0, "top")]
+                sparams={'pc_type': 'fieldsplit',
+                         'pc_fieldsplit_type': 'schur',
+                         'ksp_type': 'gmres',
+                         'ksp_max_it': 30,
+                         'ksp_rtol':self._tolerance,
+                         'pc_fieldsplit_schur_fact_type': 'FULL',
+                         'pc_fieldsplit_schur_precondition': 'selfp',
+                         'fieldsplit_0_ksp_type': 'preonly',
+                         'fieldsplit_0_pc_type': 'bjacobi',
+                         'fieldsplit_0_sub_pc_type': 'ilu',
+                         'fieldsplit_1_ksp_type': 'preonly',
+                         'fieldsplit_1_pc_type': 'gamg',
+                         'fieldsplit_1_mg_levels_ksp_type': 'chebyshev',
+                         'fieldsplit_1_mg_levels_ksp_chebyshev_estimate_eigenvalues': True,
+                         'fieldsplit_1_mg_levels_ksp_chebyshev_estimate_eigenvalues_random': True,
+                         'fieldsplit_1_mg_levels_ksp_max_it': 1,
+                         'fieldsplit_1_mg_levels_pc_type': 'bjacobi',
+                         'fieldsplit_1_mg_levels_sub_pc_type': 'ilu',
+                         'ksp_monitor': True}
+                a_up = (  ptest*ptrial \
+                        + self._dt_half_c2*ptest*div(utrial) \
+                        - self._dt_half*div(utest)*ptrial \
+                        + (dot(utest,utrial) + self._omega_N2 \
+                            * dot(utest,vert_norm.zhat) \
+                            * dot(utrial,vert_norm.zhat)) \
+                       )*self._dx
+                vmixed = Function(self._Wmixed)
+                L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,vert_norm.zhat*r_b) \
+                       + ptest*r_p) * self._dx
+                solve(a_up == L_up,vmixed,
+                      solver_parameters=sparams,
+                      bcs=bcs)
+                self._u.assign(vmixed.sub(0))
+                self._p.assign(vmixed.sub(1))
+
+            L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
+            a_b = btest*TrialFunction(self._Wb)*self._dx
+            b_tmp = Function(self._Wb)
+            solve(a_b == L_b,b_tmp,solver_parameters={'ksp_type':'cg',
+                                                'pc_type':'jacobi'})
+            self._b = assemble(r_b-self._dt_half_N2*b_tmp)
+
         return self._u, self._p, self._b
+

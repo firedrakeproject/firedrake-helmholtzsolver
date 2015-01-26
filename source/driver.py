@@ -38,8 +38,10 @@ def initialise_parameters(filename=None):
         'speed_c':1.0,
         # Buoyancy frequency
         'speed_N':1.0,
-        # Solve using the matrixfree preconditioner?
-        'use_matrixfree_prec':False})     
+        # Solve using the matrixfree preconditioner / solver?
+        'matrixfree':False,
+        # Assume orography?
+        'orography':False})
 
     # Output parameters
     param_output = Parameters('Output',
@@ -333,7 +335,8 @@ def main(parameter_filename=None):
                                              ksp_monitor=mixed_ksp_monitor,
                                              tolerance=param_mixed['tolerance'],
                                              maxiter=param_mixed['maxiter'],
-                                             matrixfree_prec=param_general['use_matrixfree_prec'])
+                                             matrixfree=param_general['matrixfree'],
+                                             orography=param_general['orography'])
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):
