@@ -1,5 +1,6 @@
 from firedrake import *
 
+from mixedarray import *
 from auxilliary.logger import *
 from pressuresolver.vertical_normal import *
 from pressuresolver.mu_tilde import *
@@ -216,5 +217,5 @@ class MixedPreconditioner(object):
         with self._Pu.dat.vec_ro as u, \
              self._Pp.dat.vec_ro as p, \
              self._Pb.dat.vec_ro as b:
-            self._mixedarray.combine(u,p,b,y)
+            self._mixedarray.combine(y,u,p,b)
         
