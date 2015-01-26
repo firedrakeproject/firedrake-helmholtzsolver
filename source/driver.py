@@ -322,18 +322,18 @@ def main(parameter_filename=None):
                                           maxiter=param_pressure['maxiter'])
 
     # Construct mixed gravity wave solver
-    gravitywave_solver = gravitywaves.PETScSolver(W2,W3,Wb,
-                                                  pressure_solver,
-                                                  dt,
-                                                  param_general['speed_c'],
-                                                  param_general['speed_N'],
-                                                  ksp_type=param_mixed['ksp_type'],
-                                                  schur_diagonal_only = \
-                                                    param_mixed['schur_diagonal_only'],
-                                                  ksp_monitor=mixed_ksp_monitor,
-                                                  tolerance=param_mixed['tolerance'],
-                                                  maxiter=param_mixed['maxiter'],
-                                                  matrixfree_prec=param_general['use_matrixfree_prec'])
+    gravitywave_solver = gravitywaves.Solver(W2,W3,Wb,
+                                             pressure_solver,
+                                             dt,
+                                             param_general['speed_c'],
+                                             param_general['speed_N'],
+                                             ksp_type=param_mixed['ksp_type'],
+                                             schur_diagonal_only = \
+                                               param_mixed['schur_diagonal_only'],
+                                             ksp_monitor=mixed_ksp_monitor,
+                                             tolerance=param_mixed['tolerance'],
+                                             maxiter=param_mixed['maxiter'],
+                                             matrixfree_prec=param_general['use_matrixfree_prec'])
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):
