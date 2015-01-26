@@ -209,7 +209,7 @@ If we assume that in the preconditioner the buoyancy can be eliminated pointwise
    \STATE{Calculate $\tilde{\vec{r}}_p=\vec{r}_p-\frac{\Delta t}{2}c^2D\tilde{M}_u^{-1}\tilde{\vec{r}}_u$} \COMMENT{Modified right hand side for pressure}
   \STATE{Solve $H\vec{P}=\tilde{\vec{r}}_p$ for $\vec{P}$} \COMMENT{Pressure solve}
   \STATE{Calculate $\vec{U}=\tilde{M}_u^{-1}\left(\tilde{\vec{r}}_u+\frac{\Delta t}{2}D^T \vec{P}\right)$} \COMMENT{Velocity backstubstitution}
-  \STATE{Calculate $\vec{B}=M_b^{-1}\left(\tilde{\vec{r}}_b-\frac{\Delta t}{2}N^2 Q^T \vec{U}\right)$} \COMMENT{Buoyancy backstubstitution}
+  \STATE{Calculate $\vec{B}=M_b^{-1}\left(\vec{r}_b-\frac{\Delta t}{2}N^2 Q^T \vec{U}\right)$} \COMMENT{Buoyancy backstubstitution}
  \end{algorithmic}
 \end{algorithm}
 To (approximately) invert $H$, we can use another suitably preconditioned CG iteration.
