@@ -60,8 +60,8 @@ class MixedPreconditionerUPB(object):
                  pressure_solver,
                  diagonal_only=False,
                  matrixfree_prec=True,
-                 tolerance_b=1.E-12,maxiter_b=1000,
-                 tolerance_u=1.E-12,maxiter_u=1000):
+                 tolerance_b=1.E-5,maxiter_b=1000,
+                 tolerance_u=1.E-5,maxiter_u=1000):
         self._pressure_solver = pressure_solver
         self._W2 = W2
         self._W3 = W3
@@ -271,8 +271,8 @@ class MixedPreconditionerUP(object):
                  dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
-                 tolerance_b=1.E-12,maxiter_b=1000,
-                 tolerance_u=1.E-12,maxiter_u=1000):
+                 tolerance_b=1.E-5,maxiter_b=1000,
+                 tolerance_u=1.E-5,maxiter_u=1000):
         self._pressure_solver = pressure_solver
         self._W2 = W2
         self._W3 = W3
