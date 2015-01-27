@@ -100,8 +100,8 @@ class Mutilde(object):
     '''
     def __init__(self,W2,Wb,omega_N,
                  pointwise_elimination=True,
-                 tolerance_b=1.E-12,maxiter_b=1000,
-                 tolerance_u=1.E-12,maxiter_u=1000):
+                 tolerance_b=1.E-5,maxiter_b=1000,
+                 tolerance_u=1.E-5,maxiter_u=1000):
         self._W2 = W2
         self._Wb = Wb
         self._mesh = self._W2.mesh()
