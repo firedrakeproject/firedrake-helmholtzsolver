@@ -3,9 +3,11 @@ import os
 import math
 import xml.etree.cElementTree as ET
 from firedrake import * 
-op2.init(log_level="WARNING")
-from ffc import log
-log.set_level(log.ERROR)
+op2.init(log_level="ERROR")
+from ffc import log as ffc_log
+ffc_log.set_level(ffc_log.ERROR)
+from ufl import log as ufl_log
+ufl_log.set_level(ufl_log.ERROR)
 import gravitywaves
 import pressuresolver.solvers
 from pressuresolver.operators import *
@@ -258,7 +260,7 @@ def main(parameter_filename=None):
     # Set time step size dt such that c*dt/dx = nu_cfl
     dx = 2.*r_earth/math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
     dt = param_general['nu_cfl']/param_general['speed_c']*dx
-    print 'dx = ',1.E-3*dx, 'km,  dt = ',dt, ' s'
+    logger.write('dx = '+('%12.3f' % (1.E-3*dx))+' km,  dt = '+('%12.3f' % dt)+' s')
     omega_c = 0.5*param_general['speed_c']*dt
     omega_N = 0.5*param_general['speed_N']*dt
 
@@ -274,73 +276,76 @@ def main(parameter_filename=None):
           W2_vert_hierarchy),
       omega_c,
       omega_N)
-
+    
+    with timed_region('matrixfree_solver_setup'):
     # Construct smoother hierarchies and coarse grid solver
-    presmoother_hierarchy = HierarchyContainer(Jacobi,
-      zip(op_Hhat_hierarchy),
-      mu_relax=param_multigrid['mu_relax'],
-      n_smooth=param_multigrid['n_presmooth'])
+        presmoother_hierarchy = HierarchyContainer(Jacobi,
+                                    zip(op_Hhat_hierarchy),
+                                        mu_relax=param_multigrid['mu_relax'],
+                                        n_smooth=param_multigrid['n_presmooth'])
 
-    postsmoother_hierarchy = HierarchyContainer(Jacobi,
-      zip(op_Hhat_hierarchy),
-      mu_relax=param_multigrid['mu_relax'],
-      n_smooth=param_multigrid['n_postsmooth'])
+        postsmoother_hierarchy = HierarchyContainer(Jacobi,
+                                    zip(op_Hhat_hierarchy),
+                                        mu_relax=param_multigrid['mu_relax'],
+                                        n_smooth=param_multigrid['n_postsmooth'])
 
-    coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-      mu_relax=param_multigrid['mu_relax'],
-      n_smooth=param_multigrid['n_coarsesmooth'])
+        coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                   mu_relax=param_multigrid['mu_relax'],
+                                   n_smooth=param_multigrid['n_coarsesmooth'])
 
-    hmultigrid = hMultigrid(W3_hierarchy,
-      op_Hhat_hierarchy,
-      presmoother_hierarchy,
-      postsmoother_hierarchy,
-      coarsegrid_solver)
+        hmultigrid = hMultigrid(W3_hierarchy,
+                                op_Hhat_hierarchy,
+                                presmoother_hierarchy,
+                                postsmoother_hierarchy,
+                                coarsegrid_solver)
 
-    if (param_mixed['higher_order']):
-        op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
-        presmoother = Jacobi(op_Hhat,
-                             mu_relax=param_multigrid['mu_relax'],
-                             n_smooth=param_multigrid['n_presmooth'])
-        postsmoother = Jacobi(op_Hhat,
-                              mu_relax=param_multigrid['mu_relax'],
-                              n_smooth=param_multigrid['n_postsmooth'])
-        preconditioner = hpMultigrid(hmultigrid,
-                                     op_Hhat,
-                                     presmoother,
-                                     postsmoother)
-    else:
-        preconditioner = hmultigrid
+        if (param_mixed['higher_order']):
+            op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+            presmoother = Jacobi(op_Hhat,
+                                 mu_relax=param_multigrid['mu_relax'],
+                                 n_smooth=param_multigrid['n_presmooth'])
+            postsmoother = Jacobi(op_Hhat,
+                                  mu_relax=param_multigrid['mu_relax'],
+                                  n_smooth=param_multigrid['n_postsmooth'])
+            preconditioner = hpMultigrid(hmultigrid,
+                                         op_Hhat,
+                                         presmoother,
+                                         postsmoother)
+        else:
+            preconditioner = hmultigrid
 
-    mutilde = Mutilde(W2,Wb,omega_N)
+        mutilde = Mutilde(W2,Wb,omega_N,
+                          tolerance_b=1.E-1,maxiter_b=10,
+                          tolerance_u=1.E-1,maxiter_u=10)
 
-    op_H = Operator_H(W3,W2,mutilde,omega_c)
+        op_H = Operator_H(W3,W2,mutilde,omega_c)
 
-    mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
-    pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
+        mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
+        pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
 
-    # Construct pressure solver based on operator and preconditioner 
-    # built above
-    pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
-                                          preconditioner,
-                                          param_pressure['ksp_type'],
-                                          ksp_monitor=pressure_ksp_monitor,
-                                          tolerance=param_pressure['tolerance'],
-                                          maxiter=param_pressure['maxiter'])
+        # Construct pressure solver based on operator and preconditioner 
+        # built above
+        pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
+                                              preconditioner,
+                                              param_pressure['ksp_type'],
+                                              ksp_monitor=pressure_ksp_monitor,
+                                              tolerance=param_pressure['tolerance'],
+                                              maxiter=param_pressure['maxiter'])
 
-    # Construct mixed gravity wave solver
-    gravitywave_solver = gravitywaves.Solver(W2,W3,Wb,
-                                             pressure_solver,
-                                             dt,
-                                             param_general['speed_c'],
-                                             param_general['speed_N'],
-                                             ksp_type=param_mixed['ksp_type'],
-                                             schur_diagonal_only = \
-                                               param_mixed['schur_diagonal_only'],
-                                             ksp_monitor=mixed_ksp_monitor,
-                                             tolerance=param_mixed['tolerance'],
-                                             maxiter=param_mixed['maxiter'],
-                                             matrixfree=param_general['matrixfree'],
-                                             orography=param_general['orography'])
+        # Construct mixed gravity wave solver
+        gravitywave_solver = gravitywaves.Solver(W2,W3,Wb,
+                                                 pressure_solver,
+                                                 dt,
+                                                 param_general['speed_c'],
+                                                 param_general['speed_N'],
+                                                 ksp_type=param_mixed['ksp_type'],
+                                                 schur_diagonal_only = \
+                                                   param_mixed['schur_diagonal_only'],
+                                                 ksp_monitor=mixed_ksp_monitor,
+                                                 tolerance=param_mixed['tolerance'],
+                                                 maxiter=param_mixed['maxiter'],
+                                                 matrixfree=param_general['matrixfree'],
+                                                 orography=param_general['orography'])
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):
@@ -376,7 +381,7 @@ def main(parameter_filename=None):
     r_p.project(expression)
     r_b.assign(0.0)
 
-    with timed_region("matrix-free solve"):
+    with timed_region("mixed system solve"):
         u,p,b = gravitywave_solver.solve(r_u,r_p,r_b)
     conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
     mixed_ksp_monitor.save_convergence_history(conv_hist_filename)

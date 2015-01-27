@@ -47,6 +47,7 @@ class Operator_H(object):
         for bc in self._bcs:
             bc.apply(u)
 
+    @timed_function("apply_H")
     def apply(self,phi):
         '''Apply operator to pressure field and return result.
 
@@ -184,13 +185,13 @@ class Operator_Hhat(object):
         v_str = str(self._W2_v.ufl_element().shortstr())
         e.set("velocity_space_vertical",v_str)
 
-    @timed_function("apply_pressure_operator")
+    @timed_function("apply_Hhat")
     def apply(self,phi):
         '''Apply operator.
 
-        Apply the operator :math:`H` to a field :math:`\phi` in a matrix free
+        Apply the operator :math:`\hat{H}` to a field :math:`\phi` in a matrix free
         way by applying the individual components in turn and return the
-        result :math:`H\phi`.
+        result :math:`\hat{H}\phi`.
 
         :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''

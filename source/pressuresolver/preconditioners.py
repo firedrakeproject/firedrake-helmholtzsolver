@@ -1,5 +1,6 @@
 import xml.etree.cElementTree as ET
 from firedrake import *
+from pyop2.profiling import timed_function, timed_region
 
 class hMultigrid(object):
     '''Geometric Multigrid preconditioner with h-coarsening only.
@@ -97,7 +98,8 @@ class hMultigrid(object):
         '''
         self._phi[self._fine_level].assign(0.0)
         self._rhs[self._fine_level].assign(b)
-        self.vcycle()
+        with timed_region('h_multigrid_vcycle'):
+            self.vcycle()
         phi.assign(self._phi[self._fine_level])
 
     def apply(self,pc,x,y):
@@ -112,7 +114,8 @@ class hMultigrid(object):
         with self._rhs[self._fine_level].dat.vec as v:
             v.array[:] = x.array[:]
         self._phi[self._fine_level].assign(0.0)
-        self.vcycle()
+        with timed_region('h_multigrid_vcycle'):
+            self.vcycle()
         with self._phi[self._fine_level].dat.vec_ro as v:
             y.array[:] = v.array[:]
 
@@ -203,7 +206,8 @@ class hpMultigrid(object):
         '''
         with self._rhs_tmp.dat.vec as v:
             v.array[:] = x.array[:]
-        self.solve(self._rhs_tmp,self._phi_tmp)
+        with timed_region('hp_multigrid_vcycle'):
+            self.solve(self._rhs_tmp,self._phi_tmp)
         with self._phi_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
 

@@ -2,6 +2,7 @@ from firedrake import *
 
 from pressuresolver.vertical_normal import *
 from mixedarray import *
+from pyop2.profiling import timed_function
 
 class MixedOperatorUPB(object):
     '''Matrix free operator for mixed Gravity wave system
@@ -51,6 +52,7 @@ class MixedOperatorUPB(object):
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
 
+    @timed_function("mixed_operator") 
     def apply(self,u,p,b,r_u,r_p,r_b):
         '''Apply the operator to a mixed field.
         
@@ -146,6 +148,7 @@ class MixedOperatorUP(object):
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
 
+    @timed_function("mixed_operator") 
     def apply(self,u,p,r_u,r_p):
         '''Apply the operator to a mixed field.
         

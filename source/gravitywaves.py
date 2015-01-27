@@ -99,6 +99,7 @@ class Solver(object):
         self._schur_diagonal_only = schur_diagonal_only
         self._matrixfree=matrixfree
         self._orography = orography
+        self._ksp_monitor = ksp_monitor
         if (self._orography):
             # Solve UPB system
             self._W3 = W3
@@ -124,7 +125,6 @@ class Solver(object):
             self._ksp.setOperators(op)
             self._ksp.setTolerances(rtol=self._tolerance,max_it=self._maxiter)
             self._ksp.setType(self._ksp_type)
-            self._ksp_monitor = ksp_monitor
             self._ksp.setMonitor(self._ksp_monitor)
             self._logger.write('  Mixed KSP type = '+str(self._ksp.getType()))
             pc = self._ksp.getPC()
@@ -252,7 +252,6 @@ class Solver(object):
         else:
             vert_norm = VerticalNormal(self._W3.mesh())
             if (self._matrixfree):
-                # NOT IMPLEMENTED YET
                 utest = TestFunction(self._W2)
                 ptest = TestFunction(self._W3)
                 # Solve UPB system
@@ -295,7 +294,7 @@ class Solver(object):
                          'fieldsplit_1_mg_levels_ksp_max_it': 1,
                          'fieldsplit_1_mg_levels_pc_type': 'bjacobi',
                          'fieldsplit_1_mg_levels_sub_pc_type': 'ilu',
-                         'ksp_monitor': True}
+                         'ksp_monitor': False}
                 a_up = (  ptest*ptrial \
                         + self._dt_half_c2*ptest*div(utrial) \
                         - self._dt_half*div(utest)*ptrial \
@@ -306,17 +305,23 @@ class Solver(object):
                 vmixed = Function(self._Wmixed)
                 L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,vert_norm.zhat*r_b) \
                        + ptest*r_p) * self._dx
-                solve(a_up == L_up,vmixed,
-                      solver_parameters=sparams,
-                      bcs=bcs)
+                up_problem = LinearVariationalProblem(a_up, L_up, vmixed, bcs=bcs)
+                up_solver = LinearVariationalSolver(up_problem, solver_parameters=sparams)
+                ksp = up_solver.snes.getKSP()
+                ksp.setMonitor(self._ksp_monitor)
+                with self._ksp_monitor:
+                    up_solver.solve()
                 self._u.assign(vmixed.sub(0))
                 self._p.assign(vmixed.sub(1))
 
             L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
             a_b = btest*TrialFunction(self._Wb)*self._dx
             b_tmp = Function(self._Wb)
-            solve(a_b == L_b,b_tmp,solver_parameters={'ksp_type':'cg',
-                                                'pc_type':'jacobi'})
+            b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
+            b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
+                                                                            'pc_type':'jacobi'})
+            with timed_region('Mb_divide'):
+                b_solver.solve()
             self._b = assemble(r_b-self._dt_half_N2*b_tmp)
 
         return self._u, self._p, self._b

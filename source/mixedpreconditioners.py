@@ -4,6 +4,7 @@ from mixedarray import *
 from auxilliary.logger import *
 from pressuresolver.vertical_normal import *
 from pressuresolver.mu_tilde import *
+from pyop2.profiling import timed_function, timed_region
 
 petsc4py.init(sys.argv)
 
@@ -135,7 +136,8 @@ class MixedPreconditionerUPB(object):
         self._Pp = Function(self._W3)
         self._Pb = Function(self._Wb)
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
-        
+
+    @timed_function("mixed_preconditioner") 
     def solve(self,r_u,r_p,r_b,u,p,b):
         '''Preconditioner solve.
 
@@ -156,19 +158,23 @@ class MixedPreconditionerUPB(object):
             p.assign(0.0)
             self._pressure_solver.solve(r_p,p)
             # Velocity solve
-            self._mutilde.divide(r_u,u)
+            with timed_region('mutilde_divide'):
+                self._mutilde.divide(r_u,u)
             # Buoyancy solve
-            solve(self._Mb,b,r_b,solver_parameters=self._solver_param_b)
+            with timed_region('Mb_divide'):
+                solve(self._Mb,b,r_b,solver_parameters=self._solver_param_b)
         else:
             # Modified RHS for velocity 
-            solve(self._Mb,self._tmp_b,r_b,solver_parameters=self._solver_param_b)
+            with timed_region('Mb_divide'):
+                solve(self._Mb,self._tmp_b,r_b,solver_parameters=self._solver_param_b)
             assemble(self._dt_half * dot(self._utest,self._zhat.zhat) \
                                    * self._tmp_b * self._dx,
                      tensor=self._rtilde_u)
             self._rtilde_u += r_u
             if (self._matrixfree_prec):
                 # Modified RHS for pressure
-                self._mutilde.divide(self._rtilde_u,self._tmp_u)
+                with timed_region('mutilde_divide'):
+                    self._mutilde.divide(self._rtilde_u,self._tmp_u)
                 assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                          tensor=self._rtilde_p)
                 self._rtilde_p += r_p
@@ -179,7 +185,8 @@ class MixedPreconditionerUPB(object):
                 assemble(self._dt_half * div(self._utest) * p*self._dx,
                          tensor=self._tmp_u)
                 self._tmp_u += self._rtilde_u
-                self._mutilde.divide(self._tmp_u,u)
+                with timed_region('mutilde_divide'):
+                    self._mutilde.divide(self._tmp_u,u)
             else:
                 m_p = assemble(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx)
                 m_u = assemble(dot(TestFunction(self._W2),TrialFunction(self._W2))*self._dx)
@@ -197,7 +204,8 @@ class MixedPreconditionerUPB(object):
             assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
                      tensor=self._tmp_b)
             self._tmp_b += r_b
-            solve(self._Mb,b,self._tmp_b,solver_parameters=self._solver_param_b)
+            with timed_region('Mb_divide'):
+                solve(self._Mb,b,self._tmp_b,solver_parameters=self._solver_param_b)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
@@ -295,6 +303,7 @@ class MixedPreconditionerUP(object):
         self._Pp = Function(self._W3)
         self._mixedarray = MixedArray(self._W2,self._W3)
         
+    @timed_function("mixed_preconditioner") 
     def solve(self,r_u,r_p,u,p):
         '''Preconditioner solve.
 
@@ -314,7 +323,8 @@ class MixedPreconditionerUP(object):
             self._mutilde.divide(r_u,u)
         else:
             # Modified RHS for pressure
-            self._mutilde.divide(r_u,self._tmp_u)
+            with timed_region('mutilde_divide'):
+                self._mutilde.divide(r_u,self._tmp_u)
             assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                        tensor=self._rtilde_p)
             self._rtilde_p += r_p
@@ -325,7 +335,8 @@ class MixedPreconditionerUP(object):
             assemble(self._dt_half * div(self._utest) * p*self._dx,
                      tensor=self._tmp_u)
             self._tmp_u += self._rtilde_u
-            self._mutilde.divide(self._tmp_u,u)
+            with timed_region('mutilde_divide'):
+                self._mutilde.divide(self._tmp_u,u)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
