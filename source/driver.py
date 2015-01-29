@@ -391,6 +391,9 @@ def main(parameter_filename=None):
     conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
     logger.write('')
 
+    del pressure_solver
+    del gravitywave_solver_matrixfree
+
     with timed_region('petsc_solver_setup'):
         # Construct mixed gravity wave solver
         gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
