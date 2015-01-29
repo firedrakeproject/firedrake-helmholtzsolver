@@ -54,6 +54,8 @@ export PYTHONPATH=${WORK}/Library/mpi4py/lib/python2.7/site-packages/:${PYTHONPA
 export PYTHONPATH=$FDRAKEWORK/petsc4py/cray-gnu-shared/lib/python2.7/site-packages/:${PYTHONPATH}
 export PYTHONPATH=$FDRAKEWORK/PyOP2:${PYTHONPATH}
 export PYTHONPATH=$FDRAKEWORK/firedrake:${PYTHONPATH}
+export PYTHONPATH=$FDRAKEWORK/COFFEE/build/lib:${PYTHONPATH}
+export PYTHONPATH=$FDRAKEWORK/ffc/build/lib.linux-x86_64-2.7/:${PYTHONPATH}
 export PYTHONPATH=$HELMHOLTZSOURCEDIR:${PYTHONPATH}
 export PETSC_OPTIONS=-log_summary
 # Prevent matplotlib from accessing /home
