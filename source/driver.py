@@ -394,6 +394,7 @@ def main(parameter_filename=None):
                     u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
     
         conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
+        mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
         logger.write('')
     
         del pressure_solver
