@@ -14,9 +14,9 @@ if (__name__ == '__main__'):
     rundir = sys.argv[1]
 
     # Weak scaling experiment
-    ref_count_coarse_list = (4,5,6)
-    ppn_list = (6,24,24)
-    nodes_list = (1,1,4)
+    ref_count_coarse_list = (1,2,3,4)
+    ppn_list = (1,6,24,24)
+    nodes_list = (1,1,1,4)
 
     for ref_count_coarse, ppn, nodes in zip(ref_count_coarse_list,
                                            ppn_list,
