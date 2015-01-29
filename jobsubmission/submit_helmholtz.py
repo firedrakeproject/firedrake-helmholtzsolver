@@ -36,7 +36,7 @@ if (__name__ == '__main__'):
                         jobname='helmholtz',
                         nodes=nodes,
                         ppn=ppn,
-                        queue='debug',
+                        queue='standard',
                         parameterfilename=parameterfilename)
         job.save_to_file(jobscriptfilename)
 

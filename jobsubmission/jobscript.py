@@ -10,7 +10,7 @@ class Jobscript(object):
                  nodes=1,
                  walltime_minutes=5,
                  walltime_hours=0,
-                 queue='debug',
+                 queue='short',
                  parameterfilename='parameters.in',
                  apruncmd=''):
         '''Class representing a job specificatin.
