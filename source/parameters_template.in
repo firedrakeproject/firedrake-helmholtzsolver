@@ -7,6 +7,8 @@ General:
     speed_c = 300.0                 # Sound wave speed [m/s]
     speed_N = 0.01                  # Buoyancy frequency [1/s]
     orography = True                # Assume orography in outer loop
+    solve_matrixfree = True         # Use matrix-free solver?
+    solve_petsc = True              # Use PETSc solver
 
 ################################################################################ 
 # Output parameters

@@ -44,7 +44,11 @@ def initialise_parameters(filename=None):
         # Buoyancy frequency
         'speed_N':0.01, # 1/s
         # Assume orography?
-        'orography':False})
+        'orography':False,
+        # PETSc solve?
+        'solve_petsc':True,
+        # Matrixfree solve?
+        'solve_matrixfree':True})
 
     # Output parameters
     param_output = Parameters('Output',
@@ -279,82 +283,6 @@ def main(parameter_filename=None):
     mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
     pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
 
-    with timed_region('matrixfree_solver_setup'):
-    # Construct smoother hierarchies and coarse grid solver
-        presmoother_hierarchy = HierarchyContainer(Jacobi,
-                                    zip(op_Hhat_hierarchy),
-                                        mu_relax=param_multigrid['mu_relax'],
-                                        n_smooth=param_multigrid['n_presmooth'])
-
-        postsmoother_hierarchy = HierarchyContainer(Jacobi,
-                                    zip(op_Hhat_hierarchy),
-                                        mu_relax=param_multigrid['mu_relax'],
-                                        n_smooth=param_multigrid['n_postsmooth'])
-
-        coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-                                   mu_relax=param_multigrid['mu_relax'],
-                                   n_smooth=param_multigrid['n_coarsesmooth'])
-
-        hmultigrid = hMultigrid(W3_hierarchy,
-                                op_Hhat_hierarchy,
-                                presmoother_hierarchy,
-                                postsmoother_hierarchy,
-                                coarsegrid_solver)
-
-        if (param_mixed['higher_order']):
-            op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
-            presmoother = Jacobi(op_Hhat,
-                                 mu_relax=param_multigrid['mu_relax'],
-                                 n_smooth=param_multigrid['n_presmooth'])
-            postsmoother = Jacobi(op_Hhat,
-                                  mu_relax=param_multigrid['mu_relax'],
-                                  n_smooth=param_multigrid['n_postsmooth'])
-            preconditioner = hpMultigrid(hmultigrid,
-                                         op_Hhat,
-                                         presmoother,
-                                         postsmoother)
-        else:
-            preconditioner = hmultigrid
-
-        mutilde = Mutilde(W2,Wb,omega_N,
-                          tolerance_b=1.E-1,maxiter_b=10,
-                          tolerance_u=1.E-1,maxiter_u=10)
-
-        op_H = Operator_H(W3,W2,mutilde,omega_c)
-
-
-        # Construct pressure solver based on operator and preconditioner 
-        # built above
-        pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
-                                              preconditioner,
-                                              param_pressure['ksp_type'],
-                                              ksp_monitor=pressure_ksp_monitor,
-                                              tolerance=param_pressure['tolerance'],
-                                              maxiter=param_pressure['maxiter'])
-
-        # Construct mixed gravity wave solver
-        gravitywave_solver_matrixfree = gravitywaves.Solver(W2,W3,Wb,
-                                                 dt,
-                                                 param_general['speed_c'],
-                                                 param_general['speed_N'],
-                                                 ksp_type=param_mixed['ksp_type'],
-                                                 schur_diagonal_only = \
-                                                   param_mixed['schur_diagonal_only'],
-                                                 ksp_monitor=mixed_ksp_monitor,
-                                                 tolerance=param_mixed['tolerance'],
-                                                 maxiter=param_mixed['maxiter'],
-                                                 matrixfree=True,
-                                                 orography=param_general['orography'],
-                                                 pressure_solver=pressure_solver)
-
-
-    comm = MPI.COMM_WORLD
-    if (comm.Get_rank() == 0):
-        xml_root = ET.Element("SolverInformation")
-        xml_tree = ET.ElementTree(xml_root)
-        gravitywave_solver_matrixfree.add_to_xml(xml_root,"gravitywave_solver")
-        xml_tree.write('solver.xml')
-
     # Right hand side function
     r_u = Function(W2)
     r_p = Function(W3)
@@ -362,92 +290,184 @@ def main(parameter_filename=None):
     r_b = Function(Wb)
     expression = Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))')
 
-    # Warm up run
-    if (param_general['warmup_run']):
-        logger.write('Warmup...')
-        stdout_save = sys.stdout
-        with timed_region("warmup"), PETSc.Log().Stage("warmup"):
-            with open(os.devnull,'w') as sys.stdout:
-                r_u.assign(0.0)
-                r_p.project(expression)
-                r_b.assign(0.0)
-                u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
-        sys.stdout = stdout_save
-        # Reset timers
-        profiling.reset_timers()
-        logger.write('...done')
+    if (param_general['solve_matrixfree']):
+        with timed_region('matrixfree_solver_setup'):
+        # Construct smoother hierarchies and coarse grid solver
+            presmoother_hierarchy = HierarchyContainer(Jacobi,
+                                        zip(op_Hhat_hierarchy),
+                                            mu_relax=param_multigrid['mu_relax'],
+                                            n_smooth=param_multigrid['n_presmooth'])
+
+            postsmoother_hierarchy = HierarchyContainer(Jacobi,
+                                        zip(op_Hhat_hierarchy),
+                                            mu_relax=param_multigrid['mu_relax'],
+                                            n_smooth=param_multigrid['n_postsmooth'])
+
+            coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                       mu_relax=param_multigrid['mu_relax'],
+                                       n_smooth=param_multigrid['n_coarsesmooth'])
+
+            hmultigrid = hMultigrid(W3_hierarchy,
+                                    op_Hhat_hierarchy,
+                                    presmoother_hierarchy,
+                                    postsmoother_hierarchy,
+                                    coarsegrid_solver)
+
+            if (param_mixed['higher_order']):
+                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+                presmoother = Jacobi(op_Hhat,
+                                     mu_relax=param_multigrid['mu_relax'],
+                                     n_smooth=param_multigrid['n_presmooth'])
+                postsmoother = Jacobi(op_Hhat,
+                                      mu_relax=param_multigrid['mu_relax'],
+                                      n_smooth=param_multigrid['n_postsmooth'])
+                preconditioner = hpMultigrid(hmultigrid,
+                                             op_Hhat,
+                                             presmoother,
+                                             postsmoother)
+            else:
+                preconditioner = hmultigrid
+
+            mutilde = Mutilde(W2,Wb,omega_N,
+                              tolerance_b=1.E-1,maxiter_b=10,
+                              tolerance_u=1.E-1,maxiter_u=10)
+
+            op_H = Operator_H(W3,W2,mutilde,omega_c)
+
+
+            # Construct pressure solver based on operator and preconditioner 
+            # built above
+            pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
+                                                  preconditioner,
+                                                  param_pressure['ksp_type'],
+                                                  ksp_monitor=pressure_ksp_monitor,
+                                                  tolerance=param_pressure['tolerance'],
+                                                  maxiter=param_pressure['maxiter'])
+
+            # Construct mixed gravity wave solver
+            gravitywave_solver_matrixfree = gravitywaves.Solver(W2,W3,Wb,
+                                                     dt,
+                                                     param_general['speed_c'],
+                                                     param_general['speed_N'],
+                                                     ksp_type=param_mixed['ksp_type'],
+                                                     schur_diagonal_only = \
+                                                       param_mixed['schur_diagonal_only'],
+                                                     ksp_monitor=mixed_ksp_monitor,
+                                                     tolerance=param_mixed['tolerance'],
+                                                     maxiter=param_mixed['maxiter'],
+                                                     matrixfree=True,
+                                                     orography=param_general['orography'],
+                                                     pressure_solver=pressure_solver)
+
+
+        comm = MPI.COMM_WORLD
+        if (comm.Get_rank() == 0):
+            xml_root = ET.Element("SolverInformation")
+            xml_tree = ET.ElementTree(xml_root)
+            gravitywave_solver_matrixfree.add_to_xml(xml_root,"gravitywave_solver")
+            xml_tree.write('solver.xml')
+
+        # Warm up run
+        if (param_general['warmup_run']):
+            logger.write('Warmup...')
+            stdout_save = sys.stdout
+            with timed_region("warmup"), PETSc.Log().Stage("warmup"):
+                with open(os.devnull,'w') as sys.stdout:
+                    r_u.assign(0.0)
+                    r_p.project(expression)
+                    r_b.assign(0.0)
+                    u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+            sys.stdout = stdout_save
+            # Reset timers
+            profiling.reset_timers()
+            logger.write('...done')
+            logger.write('')
+
+        r_u.assign(0.0)
+        r_p.project(expression)
+        r_b.assign(0.0)
+
+        logger.write('*** Matrix free solve ***')
+        with timed_region("matrixfree mixed system solve"):
+            with PETSc.Log().Stage("solve_matrixfree"):
+                with PETSc.Log().Event("Full matrixfree solve"):
+                    u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+    
+        conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
         logger.write('')
+    
+        del pressure_solver
+        del gravitywave_solver_matrixfree
+        if (logger.rank == 0):
+            profiling.summary()
+        # If requested, write fields to disk
+        if (param_output['savetodisk']):
+            # Write output to disk
+            DFile_u = File(os.path.join(param_output['output_dir'],
+                                        'matrixfree_velocity.pvd'))
+            DFile_u << u
+            DFile_p = File(os.path.join(param_output['output_dir'],
+                                        'matrixfree_pressure.pvd'))
+            DFile_p << p
+            DFile_b = File(os.path.join(param_output['output_dir'],
+                                        'matrixfree_buoyancy.pvd'))
+            DFile_b << b
 
-    r_u.assign(0.0)
-    r_p.project(expression)
-    r_b.assign(0.0)
+    if (param_general['solve_petsc']):
+        with timed_region('petsc_solver_setup'):
+            # Construct mixed gravity wave solver
+            gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
+                                                     dt,
+                                                     param_general['speed_c'],
+                                                     param_general['speed_N'],
+                                                     ksp_type=param_mixed['ksp_type'],
+                                                     schur_diagonal_only = \
+                                                       param_mixed['schur_diagonal_only'],
+                                                     ksp_monitor=mixed_ksp_monitor,
+                                                     tolerance=param_mixed['tolerance'],
+                                                     maxiter=param_mixed['maxiter'],
+                                                     matrixfree=False,
+                                                     orography=param_general['orography'],
+                                                     pressure_solver=None)
 
-    logger.write('*** Matrix free solve ***')
-    with timed_region("matrixfree mixed system solve"):
-        with PETSc.Log().Stage("solve_matrixfree"):
-            with PETSc.Log().Event("Full matrixfree solve"):
-                u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+        # Warm up run
+        if (param_general['warmup_run']):
+            logger.write('Warmup...')
+            stdout_save = sys.stdout
+            with timed_region("warmup"), PETSc.Log().Stage("warmup"):
+                with open(os.devnull,'w') as sys.stdout:
+                    r_u.assign(0.0)
+                    r_p.project(expression)
+                    r_b.assign(0.0)
+                    u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
+            sys.stdout = stdout_save
+            # Reset timers
+            profiling.reset_timers()
+            logger.write('...done')
+            logger.write('')
 
-    conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
-    logger.write('')
-
-    del pressure_solver
-    del gravitywave_solver_matrixfree
-
-    with timed_region('petsc_solver_setup'):
-        # Construct mixed gravity wave solver
-        gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
-                                                 dt,
-                                                 param_general['speed_c'],
-                                                 param_general['speed_N'],
-                                                 ksp_type=param_mixed['ksp_type'],
-                                                 schur_diagonal_only = \
-                                                   param_mixed['schur_diagonal_only'],
-                                                 ksp_monitor=mixed_ksp_monitor,
-                                                 tolerance=param_mixed['tolerance'],
-                                                 maxiter=param_mixed['maxiter'],
-                                                 matrixfree=False,
-                                                 orography=param_general['orography'],
-                                                 pressure_solver=None)
-
-    # Warm up run
-    if (param_general['warmup_run']):
-        logger.write('Warmup...')
-        stdout_save = sys.stdout
-        with timed_region("warmup"), PETSc.Log().Stage("warmup"):
-            with open(os.devnull,'w') as sys.stdout:
-                r_u.assign(0.0)
-                r_p.project(expression)
-                r_b.assign(0.0)
-                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
-        sys.stdout = stdout_save
-        # Reset timers
-        profiling.reset_timers()
-        logger.write('...done')
-        logger.write('')
-
-    logger.write('*** PETSc solve ***')
-    with timed_region("petsc mixed system solve"):
-        with PETSc.Log().Stage("solve_petsc"):
-            with PETSc.Log().Event("Full PETSc solve"):
-                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
-    conv_hist_filename = os.path.join(param_output['output_dir'],'history_petsc.dat')
-    mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
-
-    # If requested, write fields to disk
-    if (param_output['savetodisk']):
-        # Write output to disk
-        DFile_u = File(os.path.join(param_output['output_dir'],
-                                    'velocity.pvd'))
-        DFile_u << u
-        DFile_p = File(os.path.join(param_output['output_dir'],
-                                    'pressure.pvd'))
-        DFile_p << p
-        DFile_b = File(os.path.join(param_output['output_dir'],
-                                    'buoyancy.pvd'))
-        DFile_b << b
-    if (logger.rank == 0):
-        profiling.summary()
+        logger.write('*** PETSc solve ***')
+        with timed_region("petsc mixed system solve"):
+            with PETSc.Log().Stage("solve_petsc"):
+                with PETSc.Log().Event("Full PETSc solve"):
+                    u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
+        conv_hist_filename = os.path.join(param_output['output_dir'],'history_petsc.dat')
+        mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
+        if (logger.rank == 0):
+            profiling.summary()
+    
+        # If requested, write fields to disk
+        if (param_output['savetodisk']):
+            # Write output to disk
+            DFile_u = File(os.path.join(param_output['output_dir'],
+                                        'petsc_velocity.pvd'))
+            DFile_u << u
+            DFile_p = File(os.path.join(param_output['output_dir'],
+                                        'petsc_pressure.pvd'))
+            DFile_p << p
+            DFile_b = File(os.path.join(param_output['output_dir'],
+                                        'petsc_buoyancy.pvd'))
+            DFile_b << b
 
 ##########################################################
 # Call main program
