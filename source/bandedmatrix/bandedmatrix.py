@@ -5,6 +5,7 @@ from ufl import HDiv
 from firedrake import *
 from firedrake.ffc_interface import compile_form
 from firedrake.fiat_utils import *
+import socket
 
 class BandedMatrix(object):
     '''Generalised block banded matrix.
@@ -92,6 +93,10 @@ class BandedMatrix(object):
                             'n_nodemap_col':len(self._nodemap_col)}
         self._lu = None
         self._ipiv = None
+        hostname = socket.gethostname()
+        self._libs = []
+        if (hostname == 'Eikes-MacBook-Pro.local'):
+            self._libs = ['lapack','lapacke']
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -640,7 +645,7 @@ class BandedMatrix(object):
         kernel = op2.Kernel(kernel_code % param_dict, 'lu_decompose',
                             cpp=True,
                             headers=['#include "lapacke.h"'],
-                            libs=["lapack","lapacke"])
+                            libs=self._libs)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
@@ -666,7 +671,7 @@ class BandedMatrix(object):
         kernel = op2.Kernel(kernel_code % param_dict, 'lu_solve',
                             cpp=True,
                             headers=['#include "lapacke.h"'],
-                            libs=["lapack","lapacke"])
+                            libs=self._libs)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._lu(op2.WRITE,self._Vcell.cell_node_map()),
@@ -748,7 +753,7 @@ class BandedMatrix(object):
         kernel = op2.Kernel(kernel_code % param_dict, 'spai',
                             cpp=True,
                             headers=['#include "lapacke.h"'],
-                            libs=["lapack","lapacke"])
+                            libs=self._libs)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
