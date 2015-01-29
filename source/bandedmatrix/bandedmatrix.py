@@ -95,7 +95,8 @@ class BandedMatrix(object):
         self._ipiv = None
         hostname = socket.gethostname()
         self._libs = []
-        if (hostname == 'Eikes-MacBook-Pro.local'):
+        if ( ('Eikes-MacBook-Pro.local' in hostname) or \
+             ('eduroam.bath.ac.uk' in hostname) ):
             self._libs = ['lapack','lapacke']
 
     def _get_nodemap(self,fs):
