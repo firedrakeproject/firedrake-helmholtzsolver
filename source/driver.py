@@ -347,21 +347,6 @@ def main(parameter_filename=None):
                                                  orography=param_general['orography'],
                                                  pressure_solver=pressure_solver)
 
-    with timed_region('petsc_solver_setup'):
-        # Construct mixed gravity wave solver
-        gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
-                                                 dt,
-                                                 param_general['speed_c'],
-                                                 param_general['speed_N'],
-                                                 ksp_type=param_mixed['ksp_type'],
-                                                 schur_diagonal_only = \
-                                                   param_mixed['schur_diagonal_only'],
-                                                 ksp_monitor=mixed_ksp_monitor,
-                                                 tolerance=param_mixed['tolerance'],
-                                                 maxiter=param_mixed['maxiter'],
-                                                 matrixfree=False,
-                                                 orography=param_general['orography'],
-                                                 pressure_solver=None)
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):
@@ -387,10 +372,6 @@ def main(parameter_filename=None):
                 r_p.project(expression)
                 r_b.assign(0.0)
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
-                r_u.assign(0.0)
-                r_p.project(expression)
-                r_b.assign(0.0)
-                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
         sys.stdout = stdout_save
         # Reset timers
         profiling.reset_timers()
@@ -406,8 +387,42 @@ def main(parameter_filename=None):
         with PETSc.Log().Stage("solve_matrixfree"):
             with PETSc.Log().Event("Full matrixfree solve"):
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+
     conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
     logger.write('')
+
+    with timed_region('petsc_solver_setup'):
+        # Construct mixed gravity wave solver
+        gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
+                                                 dt,
+                                                 param_general['speed_c'],
+                                                 param_general['speed_N'],
+                                                 ksp_type=param_mixed['ksp_type'],
+                                                 schur_diagonal_only = \
+                                                   param_mixed['schur_diagonal_only'],
+                                                 ksp_monitor=mixed_ksp_monitor,
+                                                 tolerance=param_mixed['tolerance'],
+                                                 maxiter=param_mixed['maxiter'],
+                                                 matrixfree=False,
+                                                 orography=param_general['orography'],
+                                                 pressure_solver=None)
+
+    # Warm up run
+    if (param_general['warmup_run']):
+        logger.write('Warmup...')
+        stdout_save = sys.stdout
+        with timed_region("warmup"), PETSc.Log().Stage("warmup"):
+            with open(os.devnull,'w') as sys.stdout:
+                r_u.assign(0.0)
+                r_p.project(expression)
+                r_b.assign(0.0)
+                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
+        sys.stdout = stdout_save
+        # Reset timers
+        profiling.reset_timers()
+        logger.write('...done')
+        logger.write('')
+
     logger.write('*** PETSc solve ***')
     with timed_region("petsc mixed system solve"):
         with PETSc.Log().Stage("solve_petsc"):
