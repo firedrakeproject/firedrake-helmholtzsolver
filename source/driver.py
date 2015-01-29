@@ -23,6 +23,7 @@ from parameters import Parameters
 from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
+from firedrake.petsc import PETSc
 
 r_earth = 6.371E6 # Earth radius in m (= 6371 km)
 
@@ -42,8 +43,6 @@ def initialise_parameters(filename=None):
         'speed_c':300.0, # m/s
         # Buoyancy frequency
         'speed_N':0.01, # 1/s
-        # Solve using the matrixfree preconditioner / solver?
-        'matrixfree':False,
         # Assume orography?
         'orography':False})
 
@@ -277,6 +276,9 @@ def main(parameter_filename=None):
       omega_c,
       omega_N)
     
+    mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
+    pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
+
     with timed_region('matrixfree_solver_setup'):
     # Construct smoother hierarchies and coarse grid solver
         presmoother_hierarchy = HierarchyContainer(Jacobi,
@@ -320,8 +322,6 @@ def main(parameter_filename=None):
 
         op_H = Operator_H(W3,W2,mutilde,omega_c)
 
-        mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
-        pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
 
         # Construct pressure solver based on operator and preconditioner 
         # built above
@@ -333,8 +333,7 @@ def main(parameter_filename=None):
                                               maxiter=param_pressure['maxiter'])
 
         # Construct mixed gravity wave solver
-        gravitywave_solver = gravitywaves.Solver(W2,W3,Wb,
-                                                 pressure_solver,
+        gravitywave_solver_matrixfree = gravitywaves.Solver(W2,W3,Wb,
                                                  dt,
                                                  param_general['speed_c'],
                                                  param_general['speed_N'],
@@ -344,14 +343,31 @@ def main(parameter_filename=None):
                                                  ksp_monitor=mixed_ksp_monitor,
                                                  tolerance=param_mixed['tolerance'],
                                                  maxiter=param_mixed['maxiter'],
-                                                 matrixfree=param_general['matrixfree'],
-                                                 orography=param_general['orography'])
+                                                 matrixfree=True,
+                                                 orography=param_general['orography'],
+                                                 pressure_solver=pressure_solver)
+
+    with timed_region('petsc_solver_setup'):
+        # Construct mixed gravity wave solver
+        gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
+                                                 dt,
+                                                 param_general['speed_c'],
+                                                 param_general['speed_N'],
+                                                 ksp_type=param_mixed['ksp_type'],
+                                                 schur_diagonal_only = \
+                                                   param_mixed['schur_diagonal_only'],
+                                                 ksp_monitor=mixed_ksp_monitor,
+                                                 tolerance=param_mixed['tolerance'],
+                                                 maxiter=param_mixed['maxiter'],
+                                                 matrixfree=False,
+                                                 orography=param_general['orography'],
+                                                 pressure_solver=None)
 
     comm = MPI.COMM_WORLD
     if (comm.Get_rank() == 0):
         xml_root = ET.Element("SolverInformation")
         xml_tree = ET.ElementTree(xml_root)
-        gravitywave_solver.add_to_xml(xml_root,"gravitywave_solver")
+        gravitywave_solver_matrixfree.add_to_xml(xml_root,"gravitywave_solver")
         xml_tree.write('solver.xml')
 
     # Right hand side function
@@ -365,12 +381,16 @@ def main(parameter_filename=None):
     if (param_general['warmup_run']):
         logger.write('Warmup...')
         stdout_save = sys.stdout
-        with timed_region("warmup"):
+        with timed_region("warmup"), PETSc.Log().Stage("warmup"):
             with open(os.devnull,'w') as sys.stdout:
                 r_u.assign(0.0)
                 r_p.project(expression)
                 r_b.assign(0.0)
-                u,p,b = gravitywave_solver.solve(r_u,r_p,r_b)
+                u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+                r_u.assign(0.0)
+                r_p.project(expression)
+                r_b.assign(0.0)
+                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
         sys.stdout = stdout_save
         # Reset timers
         profiling.reset_timers()
@@ -381,9 +401,19 @@ def main(parameter_filename=None):
     r_p.project(expression)
     r_b.assign(0.0)
 
-    with timed_region("mixed system solve"):
-        u,p,b = gravitywave_solver.solve(r_u,r_p,r_b)
-    conv_hist_filename = os.path.join(param_output['output_dir'],'history.dat')
+    logger.write('*** Matrix free solve ***')
+    with timed_region("matrixfree mixed system solve"):
+        with PETSc.Log().Stage("solve_matrixfree"):
+            with PETSc.Log().Event("Full matrixfree solve"):
+                u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+    conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
+    logger.write('')
+    logger.write('*** PETSc solve ***')
+    with timed_region("petsc mixed system solve"):
+        with PETSc.Log().Stage("solve_petsc"):
+            with PETSc.Log().Event("Full PETSc solve"):
+                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
+    conv_hist_filename = os.path.join(param_output['output_dir'],'history_petsc.dat')
     mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
 
     # If requested, write fields to disk
@@ -407,11 +437,11 @@ def main(parameter_filename=None):
 if (__name__ == '__main__'):
     # Create parallel logger
     logger = Logger()
-    if (len(sys.argv) > 2):
+    if (len(sys.argv) < 2):
         logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
         sys.exit(1)
     parameter_filename = None
-    if (len(sys.argv) == 2):
+    if (len(sys.argv) >= 2):
         parameter_filename = sys.argv[1]
     main(parameter_filename)
 

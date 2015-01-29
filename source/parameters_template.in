@@ -6,7 +6,6 @@ General:
     nu_cfl = 10.0                   # CFL number
     speed_c = 300.0                 # Sound wave speed [m/s]
     speed_N = 0.01                  # Buoyancy frequency [1/s]
-    matrixfree = True               # Use the matrix-free preconditioner
     orography = True                # Assume orography in outer loop
 
 ################################################################################ 

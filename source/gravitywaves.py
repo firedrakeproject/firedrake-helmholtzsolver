@@ -74,7 +74,6 @@ class Solver(object):
     '''
     def __init__(self,
                  W2,W3,Wb,
-                 pressure_solver,
                  dt,c,N,
                  ksp_type='gmres',
                  orography=False,
@@ -82,7 +81,8 @@ class Solver(object):
                  ksp_monitor=None,
                  maxiter=100,
                  tolerance=1.E-6,
-                 matrixfree=True):
+                 matrixfree=True,
+                 pressure_solver=None):
         self._ksp_type = ksp_type
         self._logger = Logger()
         self._Wb = Wb
