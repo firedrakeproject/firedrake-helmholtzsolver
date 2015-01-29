@@ -50,6 +50,8 @@ class KSPMonitor(object):
     def __enter__(self):
         '''Print information at beginning of iteration.
         '''
+        self.iterations = []
+        self.resnorm = []
         self.its = 0
         if (self.verbose >= 1):
             self.logger.write('')
