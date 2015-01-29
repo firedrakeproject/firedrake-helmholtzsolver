@@ -431,6 +431,8 @@ def main(parameter_filename=None):
     if (logger.rank == 0):
         profiling.summary()
 
+    logger.write('END OF SOLVE')
+
 ##########################################################
 # Call main program
 ##########################################################
