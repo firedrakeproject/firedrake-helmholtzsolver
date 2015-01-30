@@ -31,14 +31,12 @@ LOGFILE=output.log
 module swap PrgEnv-cray PrgEnv-gnu
 module unload python
 module add anaconda
-module use /work/y07/y07/fdrake/modules
-module load firedrake
+module use /home/n02/n02/eike/modules
 
-module load fdrake-build-env
-module load fdrake-python-env
+module load firedrake-local
 
-export PETSC_DIR=/work/n02/n02/eike/git_workspace/petsc
-export PETSC_ARCH=cray-gnu-shared
+export CC=cc
+export CXX=CC
 export FIREDRAKE_FFC_KERNEL_CACHE_DIR=$WORK/firedrake-cache
 export PYOP2_DEBUG=0
 export PYOP2_NO_FORK_AVAILABLE=1
@@ -47,17 +45,6 @@ export PYOP2_BACKEND_COMPILER=gnu
 export PYOP2_SIMD_ISA=avx
 export PYOP2_CACHE_DIR=$WORK/pyop2-cache
 export LD_LIBRARY_PATH=$ANACONDA_LIB:$LD_LIBRARY_PATH
-export FDRAKEWORK=${WORK}/git_workspace/
-export PYTHONPATH=$FDRAKEWORK/firedrake-bench:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/pybench:${PYTHONPATH}
-export PYTHONPATH=${WORK}/Library/mpi4py/lib/python2.7/site-packages/:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/petsc4py/cray-gnu-shared/lib/python2.7/site-packages/:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/PyOP2:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/firedrake:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/COFFEE/build/lib:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/ffc/build/lib.linux-x86_64-2.7/:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/fiat/build/lib/:${PYTHONPATH}
-export PYTHONPATH=$FDRAKEWORK/ufl/build/lib/:${PYTHONPATH}
 export PYTHONPATH=$HELMHOLTZSOURCEDIR:${PYTHONPATH}
 export PETSC_OPTIONS=-log_summary
 # Prevent matplotlib from accessing /home
@@ -69,14 +56,14 @@ export MPICH_NEMESIS_ASYNC_PROGRESS=MC
 export MPICH_MAX_THREAD_SAFETY=multiple
 unset MPICH_CPUMASK_DISPLAY
 
-echo -n Started at | tee -a $LOGFILE
-date | tee -a $LOGFILE
-
 echo | tee -a $LOGFILE
 echo Running helmholtz 2>&1  | tee -a $LOGFILE
 echo | tee -a $LOGFILE
 echo "PBS_JOBID = ${PBS_JOBID}" 2>&1  | tee -a $LOGFILE
 echo | tee -a $LOGFILE
+
+echo -n Started at | tee -a $LOGFILE
+date | tee -a $LOGFILE
 
 aprun -n %(ptotal)d -N %(ppn)d -S %(pnuma)d python ${HELMHOLTZSOURCEDIR}/driver.py %(parameterfile)s 2>&1  | tee -a $LOGFILE
 
