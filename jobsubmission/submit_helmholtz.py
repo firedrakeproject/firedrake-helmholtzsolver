@@ -14,7 +14,7 @@ if (__name__ == '__main__'):
     rundir = sys.argv[1]
 
     # Weak scaling experiment
-    ref_count_coarse_list = (1,2,3,4)
+    ref_count_coarse_list = (0,1,2,3)
     ppn_list = (1,6,24,24)
     nodes_list = (1,1,1,4)
 
@@ -33,6 +33,7 @@ if (__name__ == '__main__'):
 
         # Create job script
         job = Jobscript('jobscript_helmholtz.tpl',
+                        walltime_minutes=15,
                         jobname='helmholtz',
                         nodes=nodes,
                         ppn=ppn,
