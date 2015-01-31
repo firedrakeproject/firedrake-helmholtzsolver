@@ -98,7 +98,7 @@ class BandedMatrix(object):
         if ( ('Eikes-MacBook-Pro.local' in hostname) or \
              ('eduroam.bath.ac.uk' in hostname) or \
              ('Eikes-MBP' in hostname) ):
-            self._libs = ['lapack','lapacke']
+            self._libs = ['lapack','lapacke','cblas','blas']
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -347,20 +347,34 @@ class BandedMatrix(object):
           for (int i=0;i<%(A_n_row)d;++i) {
             u_tmp[i] = u[0][i];
           }
-          // Loop over matrix rows
-          for (int i=0;i<%(A_n_row)d;++i) {
-            double s = 0;
-            // Work out column loop bounds
-            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
-            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
-            // Loop over columns
-            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
-               s += A[0][%(A_bandwidth)d*i+(j-j_m)] * u_tmp[j];
+        '''
+        if (self._alpha == self._beta):
+            kernel_code +='''
+            cblas_dgbmv(CblasColMajor,CblasTrans,
+                        %(A_n_col)d,%(A_n_row)d,
+                        %(A_gamma_m)d,%(A_gamma_p)d,
+                        1.0,A[0],%(A_bandwidth)d,
+                        u_tmp,1,0.0,u[0],1);
+            '''
+        else:
+            kernel_code += '''
+            // Loop over matrix rows
+            for (int i=0;i<%(A_n_row)d;++i) {
+              double s = 0;
+              // Work out column loop bounds
+              int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+              int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+              // Loop over columns
+              for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+                 s += A[0][%(A_bandwidth)d*i+(j-j_m)] * u_tmp[j];
+              }
+              u[0][i] = s;
             }
-            u[0][i] = s;
-          }
-        }'''
-        kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True)
+            '''
+        kernel_code +='''}'''
+        kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True,
+                            headers=['#include "cblas.h"'],
+                            libs=self._libs)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
@@ -375,23 +389,36 @@ class BandedMatrix(object):
         assert(u.function_space() == self._fs_col)
         assert(v.function_space() == self._fs_row)
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        kernel_code = '''void axpy(double **A,
-                                   double **u,
-                                   double **v) {
-          // Loop over matrix rows
-          for (int i=0;i<%(A_n_row)d;++i) {
-            double s = 0;
-            // Work out column loop bounds
-            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
-            int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
-            // Loop over columns
-            for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
-               s += A[0][%(A_bandwidth)d*i+(j-j_m)] * u[0][j];
-            }
-            v[0][i] += s;
-          }
-        }'''
-        kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True)
+        if (self._alpha == self._beta):
+            kernel_code = '''void axpy(double **A,
+                                       double **u,
+                                       double **v) {
+              cblas_dgbmv(CblasColMajor,CblasTrans,
+                          %(A_n_col)d,%(A_n_row)d,
+                          %(A_gamma_m)d,%(A_gamma_p)d,
+                          1.0,A[0],%(A_bandwidth)d,
+                          u[0],1,1.0,v[0],1);
+            }'''
+        else:
+            kernel_code = '''void axpy(double **A,
+                                       double **u,
+                                       double **v) {
+              // Loop over matrix rows
+              for (int i=0;i<%(A_n_row)d;++i) {
+                double s = 0;
+                // Work out column loop bounds
+                int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+                int j_p = (int) floor((%(A_alpha)d*i+%(A_gamma_m)d)/%(A_beta)f);
+                // Loop over columns
+                for (int j=std::max(0,j_m);j<std::min(%(A_n_col)d,j_p+1);++j) {
+                   s += A[0][%(A_bandwidth)d*i+(j-j_m)] * u[0][j];
+                }
+                v[0][i] += s;
+              }
+            }'''
+        kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True,
+                            headers=['#include "cblas.h"'],
+                            libs=self._libs)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
