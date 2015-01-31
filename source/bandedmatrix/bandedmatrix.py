@@ -34,8 +34,11 @@ class BandedMatrix(object):
         :arg beta: Parameter :math:`\\beta`
         :arg gamma_m: Lower bound :math:`\\gamma_-`
         :arg gamma_p: Upper bound :math:`\\gamma_+`
+        :arg use_blas_for_axpy: Use BLAS routine dgbmv in axpy operation for matrices
+            with :math:`\\alpha = \\beta`
         '''
-    def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None):
+    def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None,
+                 use_blas_for_axpy=False):
         # Function spaces
         self._fs_row = fs_row
         self._fs_col = fs_col
@@ -99,6 +102,7 @@ class BandedMatrix(object):
              ('eduroam.bath.ac.uk' in hostname) or \
              ('Eikes-MBP' in hostname) ):
             self._libs = ['lapack','lapacke','cblas','blas']
+        self._use_blas_for_axpy = False
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -348,7 +352,7 @@ class BandedMatrix(object):
             u_tmp[i] = u[0][i];
           }
         '''
-        if (self._alpha == self._beta):
+        if (self._alpha == self._beta) and self._use_blas_for_axpy:
             kernel_code +='''
             cblas_dgbmv(CblasColMajor,CblasTrans,
                         %(A_n_col)d,%(A_n_row)d,
@@ -389,7 +393,7 @@ class BandedMatrix(object):
         assert(u.function_space() == self._fs_col)
         assert(v.function_space() == self._fs_row)
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        if (self._alpha == self._beta):
+        if (self._alpha == self._beta) and self._use_blas_for_axpy:
             kernel_code = '''void axpy(double **A,
                                        double **u,
                                        double **v) {
