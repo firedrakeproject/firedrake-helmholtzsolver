@@ -327,6 +327,7 @@ def main(parameter_filename=None):
                                              postsmoother)
             else:
                 preconditioner = hmultigrid
+                op_Hhat = op_Hhat_hierarchy[-1]
 
             mutilde = Mutilde(W2,Wb,omega_N,
                               tolerance_b=1.E-1,maxiter_b=10,

@@ -304,10 +304,10 @@ class Operator_Hhat(object):
         :arg x: PETSc vector representing the field to be multiplied.
         :arg y: PETSc vector representing the result.
         '''
-        with self.phi_tmp.dat.vec as v:
+        with self._phi_tmp.dat.vec as v:
             v.array[:] = x.array[:]
-        self.res_tmp = self.apply(self.phi_tmp)
-        with self.res_tmp.dat.vec_ro as v:
+        self._res_tmp = self.apply(self._phi_tmp)
+        with self._res_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
     
     def residual(self,b,phi):
