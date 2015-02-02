@@ -216,9 +216,7 @@ class Operator_Hhat(object):
             # Calculate action of B_h^T
             assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
             self._Hhat_v.ax(self._phi_tmp)
-        return assemble(self._M_phi + \
-                        self._omega_c2*self._BT_B_h_phi + \
-                        self._phi_tmp)
+        return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
 
     def vertical_diagonal(self):
