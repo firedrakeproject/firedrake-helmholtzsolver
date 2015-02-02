@@ -130,6 +130,7 @@ class Operator_Hhat(object):
         self._W2_v = W2_v
         self._omega_c = omega_c
         self._omega_N = omega_N
+        self._omega = self._omega_c**2/(1.+self._omega_N**2)
         self._omega_c2 = Constant(omega_c**2)
         self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
@@ -169,8 +170,7 @@ class Operator_Hhat(object):
         M_phi = BandedMatrix(self._W3,self._W3)
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
-        self._Hhat_v = M_phi.matadd(BT_v.matmul(self._Mu_vinv.matmul(B_v)),
-                                    omega=omega_c**2/(1.+self._omega_N**2))
+        self._Hhat_v = M_phi.matadd(BT_v.matmul(self._Mu_vinv.matmul(B_v)),omega=self._omega)
         self._bcs = [DirichletBC(self._W2_v, 0.0, "bottom"),
                      DirichletBC(self._W2_v, 0.0, "top")]
 
@@ -293,7 +293,7 @@ class Operator_Hhat(object):
 
         # Add everything up       
         delta_h.scale(self._omega_c**2)
-        B_v_Mu_vinv_B_v_T.scale(self._omega_c**2/(1.+self._omega_N**2))
+        B_v_Mu_vinv_B_v_T.scale(self._omega)
         return M_phi.matadd(delta_h.matadd(B_v_Mu_vinv_B_v_T))
 
     def mult(self,mat,x,y):

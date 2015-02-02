@@ -88,7 +88,7 @@ def test_operator_Hhat(W3_coarse,
         op_vert.ax(phi)
         mat_vert[i] = phi.dat.data[i]
 
-    assert np.allclose(mat - mat_vert, 0.0)
+    assert np.allclose(mat - mat_vert, 0.0,atol=1.E-5)
 
 ##############################################################
 # M A I N
