@@ -157,8 +157,20 @@ class Operator_Hhat(object):
         # Lumped mass matrices.
         self._Mu_h = LumpedMass(self._W2_h)
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
-        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,vertical_bcs=True)
+        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
+                               vertical_bcs=True)
         self._Mu_vinv = Mu_v.spai()
+        B_v = BandedMatrix(self._W2_v,self._W3)
+        B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
+                              vertical_bcs=True)
+        BT_v = BandedMatrix(self._W3,self._W2_v)
+        BT_v.assemble_ufl_form(TestFunction(self._W3)*div(TrialFunction(self._W2_v))*self._dx,
+                               vertical_bcs=True)
+        M_phi = BandedMatrix(self._W3,self._W3)
+        M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
+                                vertical_bcs=True)
+        self._Hhat_v = M_phi.matadd(BT_v.matmul(self._Mu_vinv.matmul(B_v)),
+                                    omega=omega_c**2/(1.+self._omega_N**2))
         self._bcs = [DirichletBC(self._W2_v, 0.0, "bottom"),
                      DirichletBC(self._W2_v, 0.0, "top")]
 
@@ -203,21 +215,11 @@ class Operator_Hhat(object):
             self._Mu_h.divide(self._B_h_phi)
             # Calculate action of B_h^T
             assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
-            # Calculate action of B_v
-            self._phi_tmp.assign(phi)
-            assemble(self._B_v_phi_form, tensor=self._B_v_phi)
-            # Set boundary nodes to zero
-            self._apply_bcs(self._B_v_phi)
-            # divide by vertical velocity mass matrix
-            self._Mu_vinv.ax(self._B_v_phi)
-            # Calculate action of B_v^T
-            assemble(self._BT_B_v_phi_form, tensor=self._BT_B_v_phi)
-
-            # Calculate action of pressure mass matrix
-            assemble(self._M_phi_form, tensor=self._M_phi)
+            self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._M_phi + \
                         self._omega_c2*self._BT_B_h_phi + \
-                        self._const2*self._BT_B_v_phi)
+                        self._phi_tmp)
+
 
     def vertical_diagonal(self):
         '''Construct the block-diagonal matrix :math:`\hat{H}_z` which only 
