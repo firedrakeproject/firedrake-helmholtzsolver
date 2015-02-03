@@ -596,7 +596,8 @@ class BandedMatrix(object):
         for label, matrix in zip(('A','B','C'),(self,other,result)):
             param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
         param_dict.update({'omega':omega})
-        kernel_code = '''void matadd(double **A,
+        kernel_code = '''void matadd(double *c_omega,
+                                     double **A,
                                      double **B,
                                      double **C) {
           for (int i=0;i<%(C_n_row)d;++i) {
@@ -610,13 +611,15 @@ class BandedMatrix(object):
               C[0][%(C_bandwidth)d*i+(j-j_m_C)] += A[0][%(A_bandwidth)d*i+(j-j_m_A)];
             }
             for (int j=std::max(0,j_m_B);j<std::min(%(B_n_col)d,j_p_B+1);++j) {
-              C[0][%(C_bandwidth)d*i+(j-j_m_C)] += %(omega)f*B[0][%(B_bandwidth)d*i+(j-j_m_B)];
+              C[0][%(C_bandwidth)d*i+(j-j_m_C)] += c_omega[0]*B[0][%(B_bandwidth)d*i+(j-j_m_B)];
             }
           }
         }'''
         kernel = op2.Kernel(kernel_code % param_dict, 'matadd',cpp=True)
+        c_omega = Constant(omega)
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
+                     c_omega.dat(op2.READ),
                      self._data(op2.READ,self._Vcell.cell_node_map()),
                      other._data(op2.READ,self._Vcell.cell_node_map()),
                      result._data(op2.WRITE,self._Vcell.cell_node_map()))

@@ -30,6 +30,7 @@ class Operator_H(object):
         self._W2 = W2
         self._mutilde = mutilde
         self._omega_c = omega_c
+        self._omega_c2 = Constant(self._omega_c**2)
         self._dx = self._W3.mesh()._dx
         self._phi_test = TestFunction(self._W3)
         self._u_test = TestFunction(self._W2)
@@ -59,7 +60,7 @@ class Operator_H(object):
         self._mutilde.divide(BT_phi,Mutildeinv_BT_phi)
         B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
         M_phi_phi = self._phi_test*phi*self._dx
-        return assemble(M_phi_phi + self._omega_c**2*B_Mutildeinv_BT_phi)
+        return assemble(M_phi_phi + self._omega_c2*B_Mutildeinv_BT_phi)
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.

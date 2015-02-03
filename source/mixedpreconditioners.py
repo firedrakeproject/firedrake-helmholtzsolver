@@ -67,6 +67,7 @@ class MixedPreconditionerUPB(object):
         self._W3 = W3
         self._Wb = Wb
         self._omega_N = 0.5*dt*N
+        self._omega_N2 = Constant(self._omega_N**2)
         self._dt_half = Constant(0.5*dt)
         self._dt_half_N2 = Constant(0.5*dt*N**2)
         self._dt_half_c2 = Constant(0.5*dt*c**2)
@@ -103,7 +104,7 @@ class MixedPreconditionerUPB(object):
             self._a = (  self._mptest*self._mptrial \
                        + self._dt_half_c2*self._mptest*div(self._mutrial) \
                        - self._dt_half*div(self._mutest)*self._mptrial \
-                       + (dot(self._mutest,self._mutrial) + self._omega_N**2 \
+                       + (dot(self._mutest,self._mutrial) + self._omega_N2 \
                             * dot(self._mutest,self._zhat.zhat) \
                             * dot(self._mutrial,self._zhat.zhat)) \
                       )*self._dx
@@ -278,6 +279,7 @@ class MixedPreconditionerUP(object):
         self._W3 = W3
         self._Wb = Wb
         self._omega_N = 0.5*dt*N
+        self._omega_N2 = Constant(0.5*dt*N)
         self._dt_half = Constant(0.5*dt)
         self._dt_half_N2 = Constant(0.5*dt*N**2)
         self._dt_half_c2 = Constant(0.5*dt*c**2)
