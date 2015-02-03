@@ -23,6 +23,7 @@ class VelocityMassPrec(object):
     def __init__(self,W2,omega_N):
         self._W2 = W2
         self._omega_N = omega_N
+        self._omega_N2 = Constant(self._omega_N**2)
         self._mesh = self._W2.mesh()
         self._dx = self._mesh._dx
         u_test = TestFunction(self._W2)
@@ -34,7 +35,7 @@ class VelocityMassPrec(object):
         bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                DirichletBC(self._W2, 0.0, "top")]
         self._Mu = assemble((dot(u_test,u_trial)
-                            +self._omega_N**2*dot(u_test,zhat)*dot(u_trial,zhat))*self._dx,
+                            +self._omega_N2*dot(u_test,zhat)*dot(u_trial,zhat))*self._dx,
                             bcs=bcs)
 
     def apply(self,pc,x,y):
@@ -106,6 +107,7 @@ class Mutilde(object):
         self._Wb = Wb
         self._mesh = self._W2.mesh()
         self._omega_N = omega_N
+        self._omega_N2 = Constant(self._omega_N**2)
         self._pointwise_elimination = pointwise_elimination
         self._tolerance_b = tolerance_b
         self._tolerance_u = tolerance_u
@@ -124,7 +126,7 @@ class Mutilde(object):
         if (self._pointwise_elimination):
             self._u_trial = TrialFunction(self._W2)
             self._Mutilde = assemble((dot(self._u_test,self._u_trial) + \
-                                     self._omega_N**2*dot(self._u_test,self._zhat) * \
+                                     self._omega_N2*dot(self._u_test,self._zhat) * \
                                                       dot(self._u_trial,self._zhat))*self._dx,
                                      bcs=self._bcs)
             self._solver_param_u = {'ksp_type':'cg',
@@ -184,7 +186,7 @@ class Mutilde(object):
         self._apply_bcs(u)
         if (self._pointwise_elimination):
             tmp = assemble((dot(self._u_test,u) + \
-                             self._omega_N**2*dot(self._u_test,self._zhat) \
+                             self._omega_N2*dot(self._u_test,self._zhat) \
                                              *dot(self._zhat,u))*self._dx)
         else:
             Mbinv_QT_u = Function(self._Wb)
@@ -192,7 +194,7 @@ class Mutilde(object):
             solve(self._Mb,Mbinv_QT_u,QT_u,solver_parameters=self._solver_param_b)
             Q_Mbinv_QT_u = dot(self._u_test,self._zhat*Mbinv_QT_u)*self._dx
             Mu_u = dot(self._u_test,u)*self._dx
-            tmp = assemble(Mu_u+self._omega_N**2*Q_Mbinv_QT_u)
+            tmp = assemble(Mu_u+self._omega_N2*Q_Mbinv_QT_u)
         self._apply_bcs(tmp)
         return tmp
 
