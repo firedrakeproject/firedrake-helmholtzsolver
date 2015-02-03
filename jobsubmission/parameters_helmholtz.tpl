@@ -50,7 +50,7 @@ Pressure solve:
 # Multigrid parameters
 ############################################################################### 
 Multigrid:
-    mu_relax = 1.0                  # multigrid smoother relaxation factor
+    mu_relax = 0.8                  # multigrid smoother relaxation factor
     n_presmooth = 1                 # presmoothing steps
     n_postsmooth = 1                # postsmoothing steps
     n_coarsesmooth = 1              # number of coarse grid smoothing steps
