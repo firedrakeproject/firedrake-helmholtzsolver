@@ -14,7 +14,7 @@ class Jacobi(object):
         :class:`smooth()`.
     '''
     def __init__(self,operator,
-                 mu_relax=2./3.,
+                 mu_relax=4./5.,
                  n_smooth=1,
                  *args):
         self._operator = operator
