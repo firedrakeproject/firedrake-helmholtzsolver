@@ -4,60 +4,6 @@ from firedrake import *
 from firedrake.ffc_interface import compile_form
 import xml.etree.cElementTree as _WT
 
-class FullMass(object):
-    '''Class for full velocity mass matrix which can be expressed in UFL.
-
-    This class provides methods for multiplying and dividing by the full mass matrix
-    in a HDiv velocity space. Note that this implementation is not very efficient as 
-    the mass matrix is assembled in the constructor and inverted explicity using the built-in
-    PETSc solver when the :func:`divide` method is called.
-
-    :arg W2: Velocity space the mass matrix is built on
-    :arg tolerance: Solution tolerance in divide method
-    '''
-    def __init__(self,W2,tolerance=1E-9):
-        self._tolerance = tolerance
-        self._W2 = W2
-        self._w = TestFunction(self._W2)
-        self._dx = self._W2.mesh()._dx
-        v = TrialFunction(self._W2)
-        self._a_mass = assemble(dot(self._w,v)*self._dx)
-
-    def add_to_xml(self,parent,function):
-        '''Add to existing xml tree.
-
-        :arg parent: Parent node to be added to
-        :arg function: Function of object
-        '''
-        e = ET.SubElement(parent,function)
-        e.set("type",type(self).__name__)
-        v_str = str(self._W2.ufl_element().shortstr())
-        e.set("velocity_space",v_str)
-            
-    def multiply(self,u):
-        '''Multiply by mass matrix
-
-        In-place multiply a velocity field by the mass matrix.
-
-        :arg u: velocity field to multiply (will be modified in-place)
-        '''
-        u_out = assemble(dot(self._w,u)*self._dx)
-        u.assign(u_out)
-            
-    def divide(self,u):
-        '''Divide by mass matrix
-
-        In-place divide a velocity field by the mass matrix. Note that this
-        requires a global solve.
-
-        :arg u: velocity field to divide (will be modified in-place)
-        '''
-        u_out = Function(self._W2)
-        solve(self._a_mass, u_out, u,
-              solver_parameters={'ksp_type': 'cg',
-                                 'pc_type':'jacobi',
-                                 'ksp_rtol':self._tolerance})
-        u.assign(u_out)
 
 class LumpedMass(object):
     '''Class for lumped velocity mass matrix.
@@ -67,25 +13,24 @@ class LumpedMass(object):
     (in particular this does not require a global solve), but is less
     accurate. Here we use the diagonal elements of the full mass matrix
 
-    :arg W2: HDiv velocity space
+    :arg ufl_form: UFL form to assemble, e.g. ``dot(u,v)*dx``
     '''
-    def __init__(self,W2):
-        self._W2 = W2
+    def __init__(self,ufl_form):
+        self._ufl_form = ufl_form
+        fs = [x.function_space() for x in self._ufl_form.arguments()]
+        assert (fs[0] == fs[1])
+        self._W2 = fs[0]
         self._mesh = self._W2.mesh()
-        self._dx = self._mesh._dx
         self.project_solver_param = {'ksp_type':'cg',
                                      'pc_type':'jacobi'}
         nlocaldof = self._W2.cell_node_map().arity 
 
         V_cells = FunctionSpace(self._mesh,'DG',0)
 
-        u = TestFunction(self._W2)
-        v = TrialFunction(self._W2)
-
         # Build local stencil of full mass matrix
         param_coffee_old = parameters["coffee"]["O2"]
         parameters["coffee"]["O2"] = False
-        mass = dot(u,v)*self._dx
+        mass = self._ufl_form 
         compiled_form = compile_form(mass, 'mass')[0]
         mass_kernel = compiled_form[6]
         coords = compiled_form[3]
@@ -143,7 +88,7 @@ class LumpedMass(object):
         u_SBR = Function(self._W2)
         u_SBR.project(Expression(('0','-x[2]','x[1]')),
                       solver_parameters=self.project_solver_param)
-        energy_full = assemble(dot(u_SBR,u_SBR)*self._dx)
+        energy_full = action(action(self._ufl_form,u_SBR),u_SBR) 
         Mu_SBR = Function(self._W2)
         Mu_SBR.assign(u_SBR)
         self.multiply(Mu_SBR)

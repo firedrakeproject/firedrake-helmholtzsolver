@@ -157,7 +157,7 @@ class Operator_Hhat(object):
         self._BT_B_v_phi = Function(self._W3)
 
         # Lumped mass matrices.
-        self._Mu_h = LumpedMass(self._W2_h)
+        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
