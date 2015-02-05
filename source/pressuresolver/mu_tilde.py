@@ -229,13 +229,14 @@ class Mutilde(object):
         '''
         if (self._pointwise_elimination):
             self._apply_bcs(u)
-            solve(self._Mutilde,r_u,u,
-                  solver_parameters=self._solver_param_u,
-                  bcs=self._bcs)
             if self._lumped:
                 r_u.assign(u)
                 self._lumped_mass.divide(r_u)
                 self._apply_bcs(r_u)
+            else:
+                solve(self._Mutilde,r_u,u,
+                      solver_parameters=self._solver_param_u,
+                      bcs=self._bcs)
         else:
             with u.dat.vec_ro as v:
                 self._rhs.array[:] = v.array[:]
