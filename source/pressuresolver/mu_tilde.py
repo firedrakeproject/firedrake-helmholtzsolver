@@ -2,6 +2,7 @@ from firedrake import *
 import sys, petsc4py
 import numpy as np
 from vertical_normal import *
+from lumpedmass import *
 from auxilliary.ksp_monitor import *
 
 petsc4py.init(sys.argv)
@@ -101,10 +102,12 @@ class Mutilde(object):
     '''
     def __init__(self,W2,Wb,omega_N,
                  pointwise_elimination=True,
+                 lumped=False,
                  tolerance_b=1.E-5,maxiter_b=1000,
                  tolerance_u=1.E-5,maxiter_u=1000):
         self._W2 = W2
         self._Wb = Wb
+        self._lumped = lumped
         self._mesh = self._W2.mesh()
         self._omega_N = omega_N
         self._omega_N2 = Constant(self._omega_N**2)
@@ -125,16 +128,20 @@ class Mutilde(object):
                      DirichletBC(self._W2, 0.0, "top")]
         if (self._pointwise_elimination):
             self._u_trial = TrialFunction(self._W2)
-            self._Mutilde = assemble((dot(self._u_test,self._u_trial) + \
+            ufl_form = (dot(self._u_test,self._u_trial) + \
                                      self._omega_N2*dot(self._u_test,self._zhat) * \
-                                                      dot(self._u_trial,self._zhat))*self._dx,
-                                     bcs=self._bcs)
+                                                    dot(self._u_trial,self._zhat))*self._dx
+            self._Mutilde = assemble(ufl_form,bcs=self._bcs)
             self._solver_param_u = {'ksp_type':'cg',
                                    'ksp_rtol':self._tolerance_u,
                                    'ksp_max_it':self._maxiter_u,
                                    'ksp_monitor':False,
                                    'pc_type':'jacobi'}
+            if (self._lumped):
+                self._lumped_mass = LumpedMass(ufl_form)
+                
         else:
+            assert (not self._lumped)
             self._Mb = assemble(self._b_test*self._b_trial*self._dx)
             self._solver_param_b = {'ksp_type':'cg',
                                     'ksp_rtol':self._tolerance_b,
@@ -225,6 +232,10 @@ class Mutilde(object):
             solve(self._Mutilde,r_u,u,
                   solver_parameters=self._solver_param_u,
                   bcs=self._bcs)
+            if self._lumped:
+                r_u.assign(u)
+                self._lumped_mass.divide(r_u)
+                self._apply_bcs(r_u)
         else:
             with u.dat.vec_ro as v:
                 self._rhs.array[:] = v.array[:]
