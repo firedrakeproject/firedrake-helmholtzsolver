@@ -102,7 +102,7 @@ class Mutilde(object):
     '''
     def __init__(self,W2,Wb,omega_N,
                  pointwise_elimination=True,
-                 lumped=False,
+                 lumped=True,
                  tolerance_b=1.E-5,maxiter_b=1000,
                  tolerance_u=1.E-5,maxiter_u=1000):
         self._W2 = W2
