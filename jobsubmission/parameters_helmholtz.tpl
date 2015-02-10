@@ -6,7 +6,6 @@ General:
     nu_cfl = 2.0                   # CFL number
     speed_c = 300.0                 # Sound wave speed [m/s]
     speed_N = 0.01                  # Buoyancy frequency [1/s]
-    orography = False                # Assume orography in outer loop
     solve_matrixfree = True         # Use matrix-free solver?
     solve_petsc = True              # Use PETSc solver
 
