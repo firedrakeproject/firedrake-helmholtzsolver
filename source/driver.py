@@ -43,8 +43,6 @@ def initialise_parameters(filename=None):
         'speed_c':300.0, # m/s
         # Buoyancy frequency
         'speed_N':0.01, # 1/s
-        # Assume orography?
-        'orography':False,
         # PETSc solve?
         'solve_petsc':True,
         # Matrixfree solve?
@@ -358,7 +356,6 @@ def main(parameter_filename=None):
                                                      tolerance=param_mixed['tolerance'],
                                                      maxiter=param_mixed['maxiter'],
                                                      matrixfree=True,
-                                                     orography=param_general['orography'],
                                                      pressure_solver=pressure_solver)
 
 
@@ -430,7 +427,6 @@ def main(parameter_filename=None):
                                                      tolerance=param_mixed['tolerance'],
                                                      maxiter=param_mixed['maxiter'],
                                                      matrixfree=False,
-                                                     orography=param_general['orography'],
                                                      pressure_solver=None)
 
         # Warm up run
