@@ -330,6 +330,7 @@ def main(parameter_filename=None):
                 op_Hhat = op_Hhat_hierarchy[-1]
 
             mutilde = Mutilde(W2,Wb,omega_N,
+                              lumped=(not param_mixed['higher_order']),
                               tolerance_b=1.E-1,maxiter_b=10,
                               tolerance_u=1.E-1,maxiter_u=10)
 

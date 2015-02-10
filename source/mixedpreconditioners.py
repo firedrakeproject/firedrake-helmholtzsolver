@@ -293,6 +293,7 @@ class MixedPreconditionerUP(object):
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
         self._mutilde = Mutilde(self._W2,self._Wb,self._omega_N,
+                                lumped=self._pressure_solver._operator._mutilde._lumped,
                                 tolerance_b=tolerance_b,maxiter_b=maxiter_b,
                                 tolerance_u=tolerance_u,maxiter_u=maxiter_u)
         # Temporary functions
