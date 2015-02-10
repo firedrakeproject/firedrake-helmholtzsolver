@@ -95,6 +95,7 @@ class Mutilde(object):
             :math:`\omega_N=\\frac{\Delta t}{2}N`
         :arg pointwise_elimination: Can the buoyancy be eliminated pointwise
             (this is possible in the absence of orography)
+        :arg lumped: Lump mass matrix
         :arg tolerance_b: Tolerance for buoyancy mass solve
         :arg maxiter_b: Maximal number of iterations for buoyancy mass solve
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve
