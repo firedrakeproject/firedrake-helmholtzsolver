@@ -32,6 +32,7 @@ class LumpedMass(object):
         parameters["coffee"]["O2"] = False
         mass = self._ufl_form 
         compiled_form = compile_form(mass, 'mass')[0]
+        parameters["coffee"]["O2"] = param_coffee_old
         mass_kernel = compiled_form[6]
         coords = compiled_form[3]
         coefficients = compiled_form[4]
@@ -42,7 +43,6 @@ class LumpedMass(object):
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(mass_kernel,mass_matrix.cell_set,*args)
-        parameters["coffee"]["O2"] = param_coffee_old
 
         self._data = Function(self._W2)
 

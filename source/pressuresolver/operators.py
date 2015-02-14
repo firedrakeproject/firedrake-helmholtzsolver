@@ -1,6 +1,7 @@
 from firedrake import *
 from lumpedmass import *
 import xml.etree.cElementTree as ET
+from firedrake.ffc_interface import compile_form
 from pyop2.profiling import timed_function, timed_region
 from mpi4py import MPI
 from bandedmatrix import *
@@ -243,8 +244,11 @@ class Operator_Hhat(object):
         B_v_Mu_vinv_B_v_T = B_v.matmul(self._Mu_vinv.matmul(B_v_T))
 
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
+        param_coffee_old = parameters["coffee"]["O2"]
+        parameters["coffee"]["O2"] = False
         ufl_form = phi_test*div(w_h_trial)*self._dx
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
+        parameters["coffee"]["O2"] = param_coffee_old
         kernel = compiled_form[6]
         coords = compiled_form[3]
         coefficients = compiled_form[4]
@@ -253,8 +257,6 @@ class Operator_Hhat(object):
         ndof_velocity_h = arguments[1].cell_node_map().arity
         
         # Build LMA for B_h
-        param_coffee_old = parameters["coffee"]["O2"]
-        parameters["coffee"]["O2"] = False
         V_lma = FunctionSpace(self._mesh,'DG',0)
         lma_B_h = Function(V_lma, val=op2.Dat(V_lma.node_set**(ndof_pressure*ndof_velocity_h)))
         args = [lma_B_h.dat(op2.INC, lma_B_h.cell_node_map()[op2.i[0]]), 
@@ -262,7 +264,6 @@ class Operator_Hhat(object):
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma_B_h.cell_set, *args)
-        parameters["coffee"]["O2"] = param_coffee_old
 
         # Build LMA representation for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
         lma_delta_h = Function(V_lma, val=op2.Dat(V_lma.node_set**(ndof_pressure**2)))
