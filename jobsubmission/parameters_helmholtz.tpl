@@ -3,7 +3,7 @@
 ###############################################################################
 General:
     warmup_run = True               # Carry out a warmup run first?
-    nu_cfl = 2.0                   # CFL number
+    nu_cfl = %(nu_cfl)f             # CFL number
     speed_c = 300.0                 # Sound wave speed [m/s]
     speed_N = 0.01                  # Buoyancy frequency [1/s]
     solve_matrixfree = True         # Use matrix-free solver?
@@ -42,9 +42,9 @@ Mixed system:
 # Pressure solve parameters
 ############################################################################### 
 Pressure solve:
-    ksp_type = cg                   # KSP type for PETSc solver
+    ksp_type = %(pressure_ksp)s     # KSP type for PETSc solver
     tolerance = 1.E-14              # tolerance
-    maxiter = 1                   # maximal number of iterations
+    maxiter = %(pressure_maxiter)d  # maximal number of iterations
     verbose = 1                     # verbosity level
 
 ############################################################################### 
