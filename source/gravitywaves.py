@@ -219,7 +219,7 @@ class Solver(object):
             sparams={'pc_type': 'fieldsplit',
                      'pc_fieldsplit_type': 'schur',
                      'ksp_type': 'gmres',
-                     'ksp_max_it': 30,
+                     'ksp_max_it': 100,
                      'ksp_rtol':self._tolerance,
                      'pc_fieldsplit_schur_fact_type': 'FULL',
                      'pc_fieldsplit_schur_precondition': 'selfp',
