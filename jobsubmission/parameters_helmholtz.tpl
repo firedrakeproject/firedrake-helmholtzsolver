@@ -35,7 +35,7 @@ Mixed system:
     higher_order = %(higher_order)s # Use higher order discretisation?
     schur_diagonal_only = False     # Use diagonal only in Schur complement?
     tolerance = 1.E-5               # tolerance
-    maxiter = 20                    # maximal number of iterations
+    maxiter = 100                    # maximal number of iterations
     verbose = 2                     # verbosity level
 
 ############################################################################### 
