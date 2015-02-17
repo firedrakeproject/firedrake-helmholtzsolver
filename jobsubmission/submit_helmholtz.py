@@ -88,7 +88,7 @@ def vary_cfl(rundir,higher_order):
         pressure_ksp = 'preonly'
         pressure_maxiter = 1
 
-    for nu_cfl in (2., 4., 6., 8.):
+    for nu_cfl in (2., 4., 6., 8., 16., 32., 64.):
         d = {'ref_count_coarse':ref_count_coarse,
              'higher_order':higher_order,
              'n_level':n_level,
@@ -111,7 +111,7 @@ if (__name__ == '__main__'):
         sys.exit(1)
     rundir = sys.argv[1]
 
-    higher_order = True
+    higher_order = False
 
 #    weak_scaling(rundir,higher_order)
     vary_cfl(rundir,higher_order)
