@@ -1,4 +1,5 @@
 from firedrake import *
+from firedrake.petsc import PETSc
 
 class MixedArray(object):
     '''Class for combining the mixed dof vectors
@@ -19,12 +20,26 @@ class MixedArray(object):
         self._min_idx = []
         self._max_idx = []
         self._ndof_total = 0
+        self._iset = []
         for fs in args:
             ndof = fs.dof_dset.size
             self._ndof.append(ndof)
-            self._min_idx.append(self._ndof_total)
+            min_idx = self._ndof_total
+            self._min_idx.append(min_idx)
             self._ndof_total+=ndof
-            self._max_idx.append(self._ndof_total)
+            max_idx = self._ndof_total
+            self._max_idx.append(max_idx)
+        # Build IndexSets
+        v = PETSc.Vec().create()
+        v.setSizes((self._ndof_total,None))
+        v.setUp()
+        for fs, min_idx, max_idx in zip(args,self._min_idx,self._max_idx):
+            global_min_idx=v.owner_range[0] + min_idx
+            iset = PETSc.IS().createStride(max_idx-min_idx,
+                                           first=global_min_idx,
+                                           step=1,
+                                           comm=PETSc.COMM_SELF)
+            self._iset.append(iset)
 
     def range(self,i):
         '''Range (min,max) for :math:`x^{(i)}`-dof-vector.
@@ -52,6 +67,7 @@ class MixedArray(object):
         for i,x in enumerate(args):
             min_idx,max_idx = self.range(i)
             v.array[min_idx:max_idx] = x.array[:]
+            
 
     def split(self,v,*args):
         '''Split field given as combined vector v into the components
@@ -61,5 +77,7 @@ class MixedArray(object):
             :arg *args: Resulting individual fields
         '''
         for i,x in enumerate(args):
-            min_idx,max_idx = self.range(i)
-            x.array[:] = v.array[min_idx:max_idx]
+            iset = self._iset[i]
+            tmp = v.getSubVector(iset)
+            tmp.copy(x)
+            v.restoreSubVector(iset, tmp)

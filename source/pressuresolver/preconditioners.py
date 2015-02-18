@@ -1,5 +1,6 @@
 import xml.etree.cElementTree as ET
 from firedrake import *
+from firedrake.petsc import PETSc
 from pyop2.profiling import timed_function, timed_region
 
 class hMultigrid(object):
@@ -36,6 +37,12 @@ class hMultigrid(object):
         self._dx = [self._W3_hierarchy[level].mesh()._dx
                     for level in range(len(self._W3_hierarchy))]
         self._operator = operator_hierarchy[self._fine_level] 
+        with self._rhs[self._fine_level].dat.vec as v:
+            ndof = self._W3_hierarchy[self._fine_level].dof_dset.size
+            self._iset = PETSc.IS().createStride(ndof,
+                                                 first=v.owner_range[0],
+                                                 step=1,
+                                                 comm=PETSc.COMM_SELF)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -112,7 +119,9 @@ class hMultigrid(object):
         :arg y: PETSc vector representing the solution pressure space.
         '''
         with self._rhs[self._fine_level].dat.vec as v:
-            v.array[:] = x.array[:]
+            tmp = x.getSubVector(self._iset)
+            x.copy(v)
+            x.restoreSubVector(self._iset, tmp)
         self._phi[self._fine_level].assign(0.0)
         with timed_region('h_multigrid_vcycle'):
             self.vcycle()
@@ -155,6 +164,11 @@ class hpMultigrid(object):
         self._a_mass_low = assemble(self._W3_low_test*TrialFunction(self._W3_low)*self._dx)
         self._phi_tmp = Function(self._W3)
         self._rhs_tmp = Function(self._W3)
+        with self._rhs_tmp.dat.vec as v:
+            self._iset = PETSc.IS().createStride(self._W3.dof_dset.size,
+                                                 first=v.owner_range[0],
+                                                 step=1,
+                                                 comm=PETSc.COMM_SELF)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -204,8 +218,11 @@ class hpMultigrid(object):
             space
         :arg y: PETSc vector representing the solution pressure space.
         '''
+        
         with self._rhs_tmp.dat.vec as v:
-            v.array[:] = x.array[:]
+            tmp = x.getSubVector(self._iset)
+            x.copy(v)
+            x.restoreSubVector(self._iset, tmp)
         with timed_region('hp_multigrid_vcycle'):
             self.solve(self._rhs_tmp,self._phi_tmp)
         with self._phi_tmp.dat.vec_ro as v:

@@ -1,4 +1,5 @@
 from firedrake import *
+from firedrake.petsc import PETSc
 from lumpedmass import *
 import xml.etree.cElementTree as ET
 from firedrake.ffc_interface import compile_form
@@ -40,6 +41,12 @@ class Operator_H(object):
         self._res_tmp = Function(self._W3)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
+        with self._phi_tmp.dat.vec as v:
+            self._iset = PETSc.IS().createStride(self._W3.dof_dset.size,
+                                                 first=v.owner_range[0],
+                                                 step=1,
+                                                 comm=PETSc.COMM_SELF)
+            
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -72,7 +79,9 @@ class Operator_H(object):
         :arg y: PETSc vector representing the result.
         '''
         with self._phi_tmp.dat.vec as v:
-            v.array[:] = x.array[:]
+            tmp = x.getSubVector(self._iset)
+            x.copy(v)
+            x.restoreSubVector(self._iset, tmp)
         self._res_tmp = self.apply(self._phi_tmp)
         with self._res_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
@@ -175,6 +184,11 @@ class Operator_Hhat(object):
         self._Hhat_v = M_phi.matadd(BT_v.matmul(self._Mu_vinv.matmul(B_v)),omega=self._omega)
         self._bcs = [DirichletBC(self._W2_v, 0.0, "bottom"),
                      DirichletBC(self._W2_v, 0.0, "top")]
+        with self._phi_tmp.dat.vec as v:
+            self._iset = PETSc.IS().createStride(self._W3.dof_dset.size,
+                                                 first=v.owner_range[0],
+                                                 step=1,
+                                                 comm=PETSc.COMM_SELF)
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -307,7 +321,9 @@ class Operator_Hhat(object):
         :arg y: PETSc vector representing the result.
         '''
         with self._phi_tmp.dat.vec as v:
-            v.array[:] = x.array[:]
+            tmp = x.getSubVector(self._iset)
+            x.copy(v)
+            x.restoreSubVector(self._iset, tmp)
         self._res_tmp = self.apply(self._phi_tmp)
         with self._res_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
