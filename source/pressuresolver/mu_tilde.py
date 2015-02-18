@@ -47,7 +47,6 @@ class Mutilde(object):
         :arg omega_N: Positive constant related to buoyancy frequency,
             :math:`\omega_N=\\frac{\Delta t}{2}N`
         :arg lumped: Lump mass matrix
-        :arg maxiter_b: Maximal number of iterations for buoyancy mass solve
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve
         :arg maxiter_u: Maximal number of iterations for :math:`\\tilde{M}_u` solve
     '''
@@ -75,11 +74,11 @@ class Mutilde(object):
                                  self._omega_N2*dot(self._u_test,self._zhat) * \
                                                 dot(self._u_trial,self._zhat))*self._dx
         self._Mutilde = assemble(ufl_form,bcs=self._bcs)
-        self._solver_param_u = {'ksp_type':'cg',
-                                'ksp_rtol':self._tolerance_u,
-                                'ksp_max_it':self._maxiter_u,
-                                'ksp_monitor':False,
-                               'pc_type':'jacobi'}
+        self._solver_param = {'ksp_type':'cg',
+                              'ksp_rtol':self._tolerance_u,
+                              'ksp_max_it':self._maxiter_u,
+                              'ksp_monitor':False,
+                              'pc_type':'jacobi'}
         if (self._lumped):
             self._lumped_mass = LumpedMass(ufl_form)
 
@@ -132,5 +131,5 @@ class Mutilde(object):
             self._apply_bcs(r_u)
         else:
             solve(self._Mutilde,r_u,u,
-                  solver_parameters=self._solver_param_u,
+                  solver_parameters=self._solver_param,
                   bcs=self._bcs)
