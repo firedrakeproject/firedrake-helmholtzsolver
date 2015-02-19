@@ -329,7 +329,6 @@ def main(parameter_filename=None):
 
             mutilde = Mutilde(W2,Wb,omega_N,
                               lumped=(not param_mixed['higher_order']),
-                              tolerance_b=1.E-1,maxiter_b=10,
                               tolerance_u=1.E-1,maxiter_u=10)
 
             op_H = Operator_H(W3,W2,mutilde,omega_c)

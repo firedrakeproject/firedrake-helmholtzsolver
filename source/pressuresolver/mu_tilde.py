@@ -9,53 +9,6 @@ petsc4py.init(sys.argv)
 
 from petsc4py import PETSc
 
-class VelocityMassPrec(object):
-    '''Preconditioner for the modified velocity mass matrix :math:`\\tilde{M}_u`
-    
-    The preconditioner is the inverse of the velocity matrix 
-    :math:`M_u+\omega_N^2 M_u^{(v)}`, i.e. the velocity mass matrix plus 
-    :math:`\omega_N^2` times the vertical part of the mass matrix.
-    This preconditioner is required by :class:`.Mutilde`.
-
-    :arg W2: Velocity space
-    :arg omega_N: real positive number related to buoyancy frequency,
-        :math:`\omega_N=\\frac{\Delta t}{2}N`
-    '''
-    def __init__(self,W2,omega_N):
-        self._W2 = W2
-        self._omega_N = omega_N
-        self._omega_N2 = Constant(self._omega_N**2)
-        self._mesh = self._W2.mesh()
-        self._dx = self._mesh._dx
-        u_test = TestFunction(self._W2)
-        u_trial = TrialFunction(self._W2)
-        self._u_tmp = Function(self._W2)
-        self._P_u_tmp = Function(self._W2)
-        vertical_normal = VerticalNormal(self._mesh)
-        zhat = vertical_normal.zhat
-        bcs = [DirichletBC(self._W2, 0.0, "bottom"),
-               DirichletBC(self._W2, 0.0, "top")]
-        self._Mu = assemble((dot(u_test,u_trial)
-                            +self._omega_N2*dot(u_test,zhat)*dot(u_trial,zhat))*self._dx,
-                            bcs=bcs)
-
-    def apply(self,pc,x,y):
-        '''PETSc interface for preconditioner solve.
-
-        PETSc interface wrapper for the :func:`solve` method.
-
-        :arg x: PETSc vector representing the right hand side in velocity space
-        :arg y: PETSc vector representing the solution in pressure space.
-        '''
-        with self._u_tmp.dat.vec as v:
-            v.array[:] = x.array[:]
-        solve(self._Mu,self._P_u_tmp,self._u_tmp,
-              solver_parameters={'ksp_rtol':1.E-6,
-                                 'ksp_type':'cg',
-                                 'pc_type':'jacobi'})
-        with self._P_u_tmp.dat.vec_ro as v:
-            y.array[:] = v.array[:]
-
 
 class Mutilde(object):
     '''Class representing the operator :math:`\\tilde{M}_u`.
@@ -93,18 +46,12 @@ class Mutilde(object):
         :arg Wb: Function space for buoyancy
         :arg omega_N: Positive constant related to buoyancy frequency,
             :math:`\omega_N=\\frac{\Delta t}{2}N`
-        :arg pointwise_elimination: Can the buoyancy be eliminated pointwise
-            (this is possible in the absence of orography)
         :arg lumped: Lump mass matrix
-        :arg tolerance_b: Tolerance for buoyancy mass solve
-        :arg maxiter_b: Maximal number of iterations for buoyancy mass solve
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve
         :arg maxiter_u: Maximal number of iterations for :math:`\\tilde{M}_u` solve
     '''
     def __init__(self,W2,Wb,omega_N,
-                 pointwise_elimination=True,
                  lumped=True,
-                 tolerance_b=1.E-5,maxiter_b=1000,
                  tolerance_u=1.E-5,maxiter_u=1000):
         self._W2 = W2
         self._Wb = Wb
@@ -112,71 +59,28 @@ class Mutilde(object):
         self._mesh = self._W2.mesh()
         self._omega_N = omega_N
         self._omega_N2 = Constant(self._omega_N**2)
-        self._pointwise_elimination = pointwise_elimination
-        self._tolerance_b = tolerance_b
         self._tolerance_u = tolerance_u
-        self._maxiter_b = maxiter_b
         self._maxiter_u = maxiter_u
         self._u_tmp = Function(self._W2)
         self._res_tmp = Function(self._W2)
         self._u_test = TestFunction(self._W2)
-        self._b_test = TestFunction(self._Wb)
-        self._b_trial = TrialFunction(self._Wb)
         self._dx = self._mesh._dx
         vertical_normal = VerticalNormal(self._mesh)
         self._zhat = vertical_normal.zhat
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
-        if (self._pointwise_elimination):
-            self._u_trial = TrialFunction(self._W2)
-            ufl_form = (dot(self._u_test,self._u_trial) + \
-                                     self._omega_N2*dot(self._u_test,self._zhat) * \
-                                                    dot(self._u_trial,self._zhat))*self._dx
-            self._Mutilde = assemble(ufl_form,bcs=self._bcs)
-            self._solver_param_u = {'ksp_type':'cg',
-                                   'ksp_rtol':self._tolerance_u,
-                                   'ksp_max_it':self._maxiter_u,
-                                   'ksp_monitor':False,
-                                   'pc_type':'jacobi'}
-            if (self._lumped):
-                self._lumped_mass = LumpedMass(ufl_form)
-                
-        else:
-            assert (not self._lumped)
-            self._Mb = assemble(self._b_test*self._b_trial*self._dx)
-            self._solver_param_b = {'ksp_type':'cg',
-                                    'ksp_rtol':self._tolerance_b,
-                                    'ksp_max_it':self._maxiter_b,
-                                    'ksp_monitor':False,
-                                    'pc_type':'jacobi'}
-            n = self._W2.dof_dset.size
-            self._u = PETSc.Vec()
-            self._u.create()
-            self._u.setSizes((n, None))
-            self._u.setFromOptions()
-            self._rhs = self._u.duplicate()
-
-            op = PETSc.Mat().create()
-            op.setSizes(((n, None), (n, None)))
-            op.setType(op.Type.PYTHON)
-            op.setPythonContext(self)
-            op.setUp()
-
-            self._ksp = PETSc.KSP()
-            self._ksp.create()
-            self._ksp.setOptionsPrefix('Mutilde_')
-            self._ksp.setOperators(op)
-            self._ksp.setTolerances(rtol=self._tolerance_u,
-                                    max_it=self._maxiter_u)
-            self._ksp.setType('cg')
-
-            #self._ksp.setMonitor(KSPMonitor())
-
-            pc = self._ksp.getPC()
-            pc.setType(pc.Type.PYTHON)
-            velocity_mass_prec = VelocityMassPrec(self._W2,self._omega_N)
-            pc.setPythonContext(velocity_mass_prec)
-
+        self._u_trial = TrialFunction(self._W2)
+        ufl_form = (dot(self._u_test,self._u_trial) + \
+                                 self._omega_N2*dot(self._u_test,self._zhat) * \
+                                                dot(self._u_trial,self._zhat))*self._dx
+        self._Mutilde = assemble(ufl_form,bcs=self._bcs)
+        self._solver_param = {'ksp_type':'cg',
+                              'ksp_rtol':self._tolerance_u,
+                              'ksp_max_it':self._maxiter_u,
+                              'ksp_monitor':False,
+                              'pc_type':'jacobi'}
+        if (self._lumped):
+            self._lumped_mass = LumpedMass(ufl_form)
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -192,17 +96,9 @@ class Mutilde(object):
         :arg u: Velocity function to be multiplied by :math:`\\tilde{M}_u`.
         '''
         self._apply_bcs(u)
-        if (self._pointwise_elimination):
-            tmp = assemble((dot(self._u_test,u) + \
-                             self._omega_N2*dot(self._u_test,self._zhat) \
-                                             *dot(self._zhat,u))*self._dx)
-        else:
-            Mbinv_QT_u = Function(self._Wb)
-            QT_u = assemble(dot(self._zhat*self._b_test,u)*self._dx)
-            solve(self._Mb,Mbinv_QT_u,QT_u,solver_parameters=self._solver_param_b)
-            Q_Mbinv_QT_u = dot(self._u_test,self._zhat*Mbinv_QT_u)*self._dx
-            Mu_u = dot(self._u_test,u)*self._dx
-            tmp = assemble(Mu_u+self._omega_N2*Q_Mbinv_QT_u)
+        tmp = assemble((dot(self._u_test,u) + \
+                         self._omega_N2*dot(self._u_test,self._zhat) \
+                                       *dot(self._zhat,u))*self._dx)
         self._apply_bcs(tmp)
         return tmp
 
@@ -228,19 +124,12 @@ class Mutilde(object):
         :arg u: Velocity field to be multiplied
         :arg r_u: Resulting velocity field
         '''
-        if (self._pointwise_elimination):
-            self._apply_bcs(u)
-            if self._lumped:
-                r_u.assign(u)
-                self._lumped_mass.divide(r_u)
-                self._apply_bcs(r_u)
-            else:
-                solve(self._Mutilde,r_u,u,
-                      solver_parameters=self._solver_param_u,
-                      bcs=self._bcs)
+        self._apply_bcs(u)
+        if self._lumped:
+            r_u.assign(u)
+            self._lumped_mass.divide(r_u)
+            self._apply_bcs(r_u)
         else:
-            with u.dat.vec_ro as v:
-                self._rhs.array[:] = v.array[:]
-            self._ksp.solve(self._rhs,self._u)
-            with r_u.dat.vec as v:
-                v.array[:] = self._u.array[:]
+            solve(self._Mutilde,r_u,u,
+                  solver_parameters=self._solver_param,
+                  bcs=self._bcs)

@@ -55,7 +55,6 @@ class MixedPreconditioner(object):
                  dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
-                 tolerance_b=1.E-5,maxiter_b=1000,
                  tolerance_u=1.E-5,maxiter_u=1000):
         self._pressure_solver = pressure_solver
         self._W2 = W2
@@ -77,7 +76,6 @@ class MixedPreconditioner(object):
         self._btest = TestFunction(self._Wb)
         self._mutilde = Mutilde(self._W2,self._Wb,self._omega_N,
                                 lumped=self._pressure_solver._operator._mutilde._lumped,
-                                tolerance_b=tolerance_b,maxiter_b=maxiter_b,
                                 tolerance_u=tolerance_u,maxiter_u=maxiter_u)
         # Temporary functions
         self._rtilde_u = Function(self._W2)

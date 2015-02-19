@@ -6,14 +6,16 @@ from fixtures import *
 
 @pytest.fixture(params=[False,True])
 def mutilde(request,W2,Wb):
-    '''Return a multilde object both with and without pointwise elimination.
+    '''Return a multilde object
     
-    :arg request: Use pointwise elimination?
+    :arg request: Use lumping?
     :arg W2: Hdiv velocity space
     :arg Wb: buoyancy space
     '''
     omega_N = 2.0
-    return Mutilde(W2,Wb,omega_N,pointwise_elimination=request.param)
+    return Mutilde(W2,Wb,omega_N,
+                   tolerance_u=1.E-10,
+                   lumped=request.param)
 
 @pytest.fixture
 def bcs(W2):
@@ -78,10 +80,7 @@ def test_mutilde_apply(W2,Wb,mutilde,velocity_expression,bcs):
     for bc in bcs:
         bc.apply(w)
 
-    if mutilde._pointwise_elimination:
-        atol=1.E-5
-    else:
-        atol=1.E-8
+    atol=1.E-5
     print 'Maximum difference = ', np.max(v.dat.data - w.dat.data)
     assert np.allclose(v.dat.data - w.dat.data, 0.0, atol=atol) 
 
@@ -94,13 +93,16 @@ def test_mutilde_inverse(W2,Wb,mutilde,velocity_expression):
     :arg mutilde: Matrix :math:`\\tilde{M}_u` as returned by the fixture
     :arg velocity_expression: Analytical expression for velocity function
     '''
-    u = Function(W2)
-    w = Function(W2)
-    u.project(velocity_expression)
-    v = mutilde.apply(u)
-    mutilde.divide(v,w)
-    print 'Maximum difference = ', np.max(u.dat.data - w.dat.data)
-    assert np.allclose(u.dat.data - w.dat.data, 0.0) 
+    if (mutilde._lumped):
+        print 'Skipping tested for lumped \\tilde{M}_u...'
+    else:
+        u = Function(W2)
+        w = Function(W2)
+        u.project(velocity_expression)
+        v = mutilde.apply(u)
+        mutilde.divide(v,w)
+        print 'Maximum difference = ', np.max(u.dat.data - w.dat.data)
+        assert np.allclose(u.dat.data - w.dat.data, 0.0) 
 
 ##############################################################
 # M A I N
