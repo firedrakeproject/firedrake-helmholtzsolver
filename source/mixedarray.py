@@ -38,7 +38,7 @@ class MixedArray(object):
             iset = PETSc.IS().createStride(max_idx-min_idx,
                                            first=global_min_idx,
                                            step=1,
-                                           comm=PETSc.COMM_SELF)
+                                           comm=v.comm)
             self._iset.append(iset)
 
     def range(self,i):

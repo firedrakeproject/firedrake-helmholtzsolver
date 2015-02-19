@@ -42,7 +42,7 @@ class hMultigrid(object):
             self._iset = PETSc.IS().createStride(ndof,
                                                  first=v.owner_range[0],
                                                  step=1,
-                                                 comm=PETSc.COMM_SELF)
+                                                 comm=v.comm)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -168,7 +168,7 @@ class hpMultigrid(object):
             self._iset = PETSc.IS().createStride(self._W3.dof_dset.size,
                                                  first=v.owner_range[0],
                                                  step=1,
-                                                 comm=PETSc.COMM_SELF)
+                                                 comm=v.comm)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.

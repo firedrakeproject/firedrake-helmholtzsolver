@@ -45,7 +45,7 @@ class Operator_H(object):
             self._iset = PETSc.IS().createStride(self._W3.dof_dset.size,
                                                  first=v.owner_range[0],
                                                  step=1,
-                                                 comm=PETSc.COMM_SELF)
+                                                 comm=v.comm)
             
 
     def _apply_bcs(self,u):
