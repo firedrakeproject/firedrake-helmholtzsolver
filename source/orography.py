@@ -48,9 +48,7 @@ class Mountain(object):
             if (y < %(WIDTH)f) {
                 double rho = 1. + 0.5*(1.-(r-%(REARTH)f)/%(HATMOS)f)
                           * %(HEIGHT)f*(1.+cos(%(PI)f*y/%(WIDTH)f))/r;
-                x[0] *= rho;
-                x[1] *= rho;
-                x[2] *= rho;
+                for(int i=0;i<3;++i) x[i] *= rho;
             }
         '''
         d = {'N0':self.n[0],'N1':self.n[1],'N2':self.n[2],
