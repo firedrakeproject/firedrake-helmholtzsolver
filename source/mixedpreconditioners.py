@@ -107,7 +107,7 @@ class MixedPreconditioner(object):
             self._mutilde.divide(r_u,u)
         else:
             # Modified RHS for pressure
-            with timed_region('mutilde_divide'):
+            with timed_region('mutilde_divide_schur'):
                 self._mutilde.divide(r_u,self._tmp_u)
             assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                        tensor=self._rtilde_p)
@@ -119,7 +119,7 @@ class MixedPreconditioner(object):
             assemble(self._dt_half * div(self._utest) * p*self._dx,
                      tensor=self._tmp_u)
             self._tmp_u += self._rtilde_u
-            with timed_region('mutilde_divide'):
+            with timed_region('mutilde_divide_schur'):
                 self._mutilde.divide(self._tmp_u,u)
 
     def apply(self,pc,x,y):

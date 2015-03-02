@@ -4,6 +4,7 @@ import numpy as np
 from vertical_normal import *
 from lumpedmass import *
 from auxilliary.ksp_monitor import *
+from pyop2.profiling import timed_function, timed_region
 
 petsc4py.init(sys.argv)
 
@@ -116,6 +117,7 @@ class Mutilde(object):
         with self._res_tmp.dat.vec_ro as v:
             y.array[:] = v.array[:]
 
+    @timed_function("mutilde_divide")
     def divide(self,u,r_u):
         '''Multiply a velocity field by the inverse of the matrix.
         
