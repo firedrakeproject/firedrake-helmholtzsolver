@@ -64,7 +64,9 @@ def initialise_parameters(filename=None):
         # Thickness of spherical shell
         'thickness':1.0E4, # m (=10km)
         # Number of multigrid levels
-        'nlevel':4})
+        'nlevel':4,
+        # Enable orography
+        'orography':False})
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
@@ -344,18 +346,21 @@ def main(parameter_filename=None):
                                                   maxiter=param_pressure['maxiter'])
 
             # Construct mixed gravity wave solver
-            gravitywave_solver_matrixfree = gravitywaves.Solver(W2,W3,Wb,
-                                                     dt,
-                                                     param_general['speed_c'],
-                                                     param_general['speed_N'],
-                                                     ksp_type=param_mixed['ksp_type'],
-                                                     schur_diagonal_only = \
-                                                       param_mixed['schur_diagonal_only'],
-                                                     ksp_monitor=mixed_ksp_monitor,
-                                                     tolerance=param_mixed['tolerance'],
-                                                     maxiter=param_mixed['maxiter'],
-                                                     matrixfree=True,
-                                                     pressure_solver=pressure_solver)
+            if (param_grid['orography']):
+                Solver = gravitywaves.MatrixFreeSolverOrography
+            else:
+                Solver = gravitywaves.MatrixFreeSolver
+            gravitywave_solver_matrixfree = Solver(W2,W3,Wb,
+                                                   dt,
+                                                   param_general['speed_c'],
+                                                   param_general['speed_N'],
+                                                   ksp_type=param_mixed['ksp_type'],
+                                                   schur_diagonal_only = \
+                                                     param_mixed['schur_diagonal_only'],
+                                                   ksp_monitor=mixed_ksp_monitor,
+                                                   tolerance=param_mixed['tolerance'],
+                                                   maxiter=param_mixed['maxiter'],
+                                                   pressure_solver=pressure_solver)
 
 
         comm = MPI.COMM_WORLD
@@ -415,18 +420,14 @@ def main(parameter_filename=None):
     if (param_general['solve_petsc']):
         with timed_region('petsc_solver_setup'):
             # Construct mixed gravity wave solver
-            gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
+            gravitywave_solver_petsc = gravitywaves.PETScSolver(W2,W3,Wb,
                                                      dt,
                                                      param_general['speed_c'],
                                                      param_general['speed_N'],
                                                      ksp_type=param_mixed['ksp_type'],
-                                                     schur_diagonal_only = \
-                                                       param_mixed['schur_diagonal_only'],
                                                      ksp_monitor=mixed_ksp_monitor,
                                                      tolerance=param_mixed['tolerance'],
-                                                     maxiter=param_mixed['maxiter'],
-                                                     matrixfree=False,
-                                                     pressure_solver=None)
+                                                     maxiter=param_mixed['maxiter'])
 
         # Warm up run
         if (param_general['warmup_run']):
