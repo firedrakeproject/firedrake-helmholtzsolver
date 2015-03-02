@@ -16,6 +16,7 @@ from pressuresolver.smoothers import *
 from pressuresolver.mu_tilde import *
 from pressuresolver.lumpedmass import *
 from pressuresolver.hierarchy import *
+from orography import *
 from auxilliary.logger import *
 from auxilliary.ksp_monitor import *
 import profile_wrapper
@@ -64,9 +65,16 @@ def initialise_parameters(filename=None):
         # Thickness of spherical shell
         'thickness':1.0E4, # m (=10km)
         # Number of multigrid levels
-        'nlevel':4,
+        'nlevel':4})
+
+    # Orography parameters
+    param_orography = Parameters('Orography',
         # Enable orography
-        'orography':False})
+        {'enabled':False,
+        # Height of mountain in m
+         'height':2.E3,
+        # Width of mountain in m
+         'width':1.E4})
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
@@ -109,6 +117,7 @@ def initialise_parameters(filename=None):
         for param in (param_general,
                       param_output,
                       param_grid,
+                      param_orography,
                       param_mixed,
                       param_pressure,
                       param_multigrid):
@@ -119,6 +128,7 @@ def initialise_parameters(filename=None):
     all_param = (param_general,
                  param_output,
                  param_grid,
+                 param_orography,
                  param_mixed,
                  param_pressure,
                  param_multigrid)
@@ -128,19 +138,18 @@ def initialise_parameters(filename=None):
 
     return all_param
 
-def build_mesh_hierarchy(ref_count_coarse,
-                         nlevel,
-                         nlayer,
-                         thickness):
+def build_mesh_hierarchy(param_grid,param_orography):
     '''Build extruded mesh hierarchy.
 
     Build mesh hierarchy based on an extruded icosahedral mesh.
 
-    :arg ref_count_coarse: Number of refinement steps to build coarse mesh
-    :arg nlevel: Number of multigrid levels
-    :arg nlayer: Number of vertical layers
-    :arg thickness: Thickness of speherical shell
+    :arg param_grid: Grid parameters
+    :arg param_orography: Orography parameters
     '''
+    ref_count_coarse = param_grid['ref_count_coarse']
+    nlevel = param_grid['nlevel']
+    nlayer = param_grid['nlayer']
+    thickness = param_grid['thickness']
     # Create coarsest mesh
     coarse_host_mesh = IcosahedralSphereMesh(r_earth,
                                              refinement_level=ref_count_coarse)
@@ -149,6 +158,17 @@ def build_mesh_hierarchy(ref_count_coarse,
                                            layers=nlayer,
                                            extrusion_type='radial',
                                            layer_height= thickness/nlayer)
+    # Distort grid, if required
+    if param_orography['enabled']:
+        directions = ((1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1))
+        for n in directions:            
+            mountain = Mountain(n,
+                                param_orography['width'],
+                                param_orography['height'],
+                                r_earth,
+                                thickness)
+            for mesh in mesh_hierarchy:
+                mountain.distort(mesh)
     return mesh_hierarchy
 
 def build_function_spaces(mesh_hierarchy,
@@ -241,6 +261,7 @@ def main(parameter_filename=None):
     param_general, \
     param_output, \
     param_grid, \
+    param_orography, \
     param_mixed, \
     param_pressure, \
     param_multigrid = initialise_parameters(parameter_filename)
@@ -250,10 +271,7 @@ def main(parameter_filename=None):
     if (logger.rank == 0):
         if (not os.path.exists(param_output['output_dir'])):
             os.mkdir(param_output['output_dir'])
-    mesh_hierarchy = build_mesh_hierarchy(param_grid['ref_count_coarse'],
-                                          param_grid['nlevel'],
-                                          param_grid['nlayer'],
-                                          param_grid['thickness'])
+    mesh_hierarchy = build_mesh_hierarchy(param_grid,param_orography)
 
     # Extract mesh on finest level
     mesh = mesh_hierarchy[-1]
@@ -346,7 +364,7 @@ def main(parameter_filename=None):
                                                   maxiter=param_pressure['maxiter'])
 
             # Construct mixed gravity wave solver
-            if (param_grid['orography']):
+            if (param_orography['enabled']):
                 Solver = gravitywaves.MatrixFreeSolverOrography
             else:
                 Solver = gravitywaves.MatrixFreeSolver

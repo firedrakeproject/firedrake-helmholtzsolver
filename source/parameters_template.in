@@ -25,7 +25,14 @@ Grid:
     nlayer = 4                      # Number of vertical layers
     thickness = 1.E4                # Thickness of spherical shell [m]
     nlevel = 4                      # Number of multigrid levels
-    orography = False               # Use grid with orography
+
+################################################################################ 
+# Orography parameters
+################################################################################ 
+Orography:
+    enabled = True                 # Enable orography?
+    height = 2.E3                   # Height of mountain in [m]
+    width = 2.E3                   # Width of mountain in [m]
 
 ################################################################################ 
 # Mixed system parameters
