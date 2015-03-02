@@ -26,8 +26,6 @@ from pyop2 import profiling
 from pyop2.profiling import timed_region
 from firedrake.petsc import PETSc
 
-r_earth = 6.371E6 # Earth radius in m (= 6371 km)
-
 def initialise_parameters(filename=None):
     '''Set default parameters and read from file.
 
@@ -62,6 +60,8 @@ def initialise_parameters(filename=None):
         {'ref_count_coarse':3,
         # Number of vertical layers
         'nlayer':4,
+        # Radius of earth [m]
+        'r_earth':6.371E6,
         # Thickness of spherical shell
         'thickness':1.0E4, # m (=10km)
         # Number of multigrid levels
@@ -150,6 +150,7 @@ def build_mesh_hierarchy(param_grid,param_orography):
     nlevel = param_grid['nlevel']
     nlayer = param_grid['nlayer']
     thickness = param_grid['thickness']
+    r_earth = param_grid['r_earth']
     # Create coarsest mesh
     coarse_host_mesh = IcosahedralSphereMesh(r_earth,
                                              refinement_level=ref_count_coarse)
@@ -279,7 +280,7 @@ def main(parameter_filename=None):
     logger.write('Number of cells on finest grid = '+str(ncells))
 
     # Set time step size dt such that c*dt/dx = nu_cfl
-    dx = 2.*r_earth/math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+    dx = 2.*param_grid['r_earth']/math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
     dt = param_general['nu_cfl']/param_general['speed_c']*dx
     logger.write('dx = '+('%12.3f' % (1.E-3*dx))+' km,  dt = '+('%12.3f' % dt)+' s')
     omega_c = 0.5*param_general['speed_c']*dt
