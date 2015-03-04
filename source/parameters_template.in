@@ -8,6 +8,7 @@ General:
     speed_N = 0.01                  # Buoyancy frequency [1/s]
     solve_matrixfree = True         # Use matrix-free solver?
     solve_petsc = True              # Use PETSc solver
+    n_gaussian = 16                 # Number of Gaussians for initialisation
 
 ################################################################################ 
 # Output parameters

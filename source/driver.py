@@ -18,6 +18,7 @@ from pressuresolver.lumpedmass import *
 from pressuresolver.hierarchy import *
 from auxilliary.logger import *
 from auxilliary.ksp_monitor import *
+from auxilliary.gaussian_expression import *
 import profile_wrapper
 from parameters import Parameters
 from mpi4py import MPI
@@ -25,7 +26,8 @@ from pyop2 import profiling
 from pyop2.profiling import timed_region
 from firedrake.petsc import PETSc
 
-r_earth = 6.371E6 # Earth radius in m (= 6371 km)
+#r_earth = 6.371E6 # Earth radius in m (= 6371 km)
+r_earth = 10.E3
 
 def initialise_parameters(filename=None):
     '''Set default parameters and read from file.
@@ -46,7 +48,9 @@ def initialise_parameters(filename=None):
         # PETSc solve?
         'solve_petsc':True,
         # Matrixfree solve?
-        'solve_matrixfree':True})
+        'solve_matrixfree':True,
+        # Number of Gaussians in initial condition
+        'n_gaussian':16})
 
     # Output parameters
     param_output = Parameters('Output',
@@ -286,7 +290,8 @@ def main(parameter_filename=None):
     r_p = Function(W3)
     p = Function(W3)
     r_b = Function(Wb)
-    expression = Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))')
+    g = MultipleGaussianExpression(param_general['n_gaussian'],r_earth,param_grid['thickness'])
+    expression = Expression(str(g))
 
     if (param_general['solve_matrixfree']):
         with timed_region('matrixfree_solver_setup'):
