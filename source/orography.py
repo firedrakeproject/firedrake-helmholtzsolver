@@ -44,7 +44,7 @@ class Mountain(object):
         kernel = '''
             double r = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
             double rn = (x[0]*%(N0)f+x[1]*%(N1)f+x[2]*%(N2)f);
-            double y = r*acos(rn/r);
+            double y = %(REARTH)f*acos(rn/r);
             if (y < %(WIDTH)f) {
                 double rho = 1. + 0.5*(1.-(r-%(REARTH)f)/%(HATMOS)f)
                           * %(HEIGHT)f*(1.+cos(%(PI)f*y/%(WIDTH)f))/r;
