@@ -8,6 +8,7 @@ General:
     speed_N = 0.01                  # Buoyancy frequency [1/s]
     solve_matrixfree = True         # Use matrix-free solver?
     solve_petsc = True              # Use PETSc solver
+    n_gaussian = 16                 # Number of Gaussians for initialisation
 
 ################################################################################ 
 # Output parameters
@@ -23,8 +24,17 @@ Grid:
     ref_count_coarse = 3            # Number of refinement levels to construct 
                                     # coarsest multigrid level
     nlayer = 4                      # Number of vertical layers
+    r_earth = 6.371E6               # Radius of earth
     thickness = 1.E4                # Thickness of spherical shell [m]
     nlevel = 4                      # Number of multigrid levels
+
+################################################################################ 
+# Orography parameters
+################################################################################ 
+Orography:
+    enabled = True                 # Enable orography?
+    height = 2.E3                   # Height of mountain in [m]
+    width = 2.E3                   # Width of mountain in [m]
 
 ################################################################################ 
 # Mixed system parameters

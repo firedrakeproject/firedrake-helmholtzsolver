@@ -16,16 +16,16 @@ from pressuresolver.smoothers import *
 from pressuresolver.mu_tilde import *
 from pressuresolver.lumpedmass import *
 from pressuresolver.hierarchy import *
+from orography import *
 from auxilliary.logger import *
 from auxilliary.ksp_monitor import *
+from auxilliary.gaussian_expression import *
 import profile_wrapper
 from parameters import Parameters
 from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
 from firedrake.petsc import PETSc
-
-r_earth = 6.371E6 # Earth radius in m (= 6371 km)
 
 def initialise_parameters(filename=None):
     '''Set default parameters and read from file.
@@ -46,7 +46,9 @@ def initialise_parameters(filename=None):
         # PETSc solve?
         'solve_petsc':True,
         # Matrixfree solve?
-        'solve_matrixfree':True})
+        'solve_matrixfree':True,
+        # Number of Gaussians in initial condition
+        'n_gaussian':16})
 
     # Output parameters
     param_output = Parameters('Output',
@@ -61,10 +63,21 @@ def initialise_parameters(filename=None):
         {'ref_count_coarse':3,
         # Number of vertical layers
         'nlayer':4,
+        # Radius of earth [m]
+        'r_earth':6.371E6,
         # Thickness of spherical shell
         'thickness':1.0E4, # m (=10km)
         # Number of multigrid levels
         'nlevel':4})
+
+    # Orography parameters
+    param_orography = Parameters('Orography',
+        # Enable orography
+        {'enabled':False,
+        # Height of mountain in m
+         'height':2.E3,
+        # Width of mountain in m
+         'width':1.E4})
 
     # Mixed system parameters
     param_mixed = Parameters('Mixed system',
@@ -107,6 +120,7 @@ def initialise_parameters(filename=None):
         for param in (param_general,
                       param_output,
                       param_grid,
+                      param_orography,
                       param_mixed,
                       param_pressure,
                       param_multigrid):
@@ -117,6 +131,7 @@ def initialise_parameters(filename=None):
     all_param = (param_general,
                  param_output,
                  param_grid,
+                 param_orography,
                  param_mixed,
                  param_pressure,
                  param_multigrid)
@@ -126,19 +141,19 @@ def initialise_parameters(filename=None):
 
     return all_param
 
-def build_mesh_hierarchy(ref_count_coarse,
-                         nlevel,
-                         nlayer,
-                         thickness):
+def build_mesh_hierarchy(param_grid,param_orography):
     '''Build extruded mesh hierarchy.
 
     Build mesh hierarchy based on an extruded icosahedral mesh.
 
-    :arg ref_count_coarse: Number of refinement steps to build coarse mesh
-    :arg nlevel: Number of multigrid levels
-    :arg nlayer: Number of vertical layers
-    :arg thickness: Thickness of speherical shell
+    :arg param_grid: Grid parameters
+    :arg param_orography: Orography parameters
     '''
+    ref_count_coarse = param_grid['ref_count_coarse']
+    nlevel = param_grid['nlevel']
+    nlayer = param_grid['nlayer']
+    thickness = param_grid['thickness']
+    r_earth = param_grid['r_earth']
     # Create coarsest mesh
     coarse_host_mesh = IcosahedralSphereMesh(r_earth,
                                              refinement_level=ref_count_coarse)
@@ -147,6 +162,17 @@ def build_mesh_hierarchy(ref_count_coarse,
                                            layers=nlayer,
                                            extrusion_type='radial',
                                            layer_height= thickness/nlayer)
+    # Distort grid, if required
+    if param_orography['enabled']:
+        directions = ((1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1))
+        for n in directions:            
+            mountain = Mountain(n,
+                                param_orography['width'],
+                                param_orography['height'],
+                                r_earth,
+                                thickness)
+            for mesh in mesh_hierarchy:
+                mountain.distort(mesh)
     return mesh_hierarchy
 
 def build_function_spaces(mesh_hierarchy,
@@ -239,6 +265,7 @@ def main(parameter_filename=None):
     param_general, \
     param_output, \
     param_grid, \
+    param_orography, \
     param_mixed, \
     param_pressure, \
     param_multigrid = initialise_parameters(parameter_filename)
@@ -248,10 +275,7 @@ def main(parameter_filename=None):
     if (logger.rank == 0):
         if (not os.path.exists(param_output['output_dir'])):
             os.mkdir(param_output['output_dir'])
-    mesh_hierarchy = build_mesh_hierarchy(param_grid['ref_count_coarse'],
-                                          param_grid['nlevel'],
-                                          param_grid['nlayer'],
-                                          param_grid['thickness'])
+    mesh_hierarchy = build_mesh_hierarchy(param_grid,param_orography)
 
     # Extract mesh on finest level
     mesh = mesh_hierarchy[-1]
@@ -259,7 +283,7 @@ def main(parameter_filename=None):
     logger.write('Number of cells on finest grid = '+str(ncells))
 
     # Set time step size dt such that c*dt/dx = nu_cfl
-    dx = 2.*r_earth/math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+    dx = 2.*param_grid['r_earth']/math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
     dt = param_general['nu_cfl']/param_general['speed_c']*dx
     logger.write('dx = '+('%12.3f' % (1.E-3*dx))+' km,  dt = '+('%12.3f' % dt)+' s')
     omega_c = 0.5*param_general['speed_c']*dt
@@ -286,7 +310,10 @@ def main(parameter_filename=None):
     r_p = Function(W3)
     p = Function(W3)
     r_b = Function(Wb)
-    expression = Expression('exp(-0.5*(x[0]*x[0]+x[1]*x[1])/(0.25*0.25))')
+    g = MultipleGaussianExpression(param_general['n_gaussian'],
+                                   param_grid['r_earth'],
+                                   param_grid['thickness'])
+    expression = Expression(str(g))
 
     if (param_general['solve_matrixfree']):
         with timed_region('matrixfree_solver_setup'):
@@ -329,7 +356,7 @@ def main(parameter_filename=None):
 
             mutilde = Mutilde(W2,Wb,omega_N,
                               lumped=(not param_mixed['higher_order']),
-                              tolerance_u=1.E-1,maxiter_u=10)
+                              tolerance_u=1.E-1,maxiter_u=100)
 
             op_H = Operator_H(W3,W2,mutilde,omega_c)
 
@@ -344,18 +371,21 @@ def main(parameter_filename=None):
                                                   maxiter=param_pressure['maxiter'])
 
             # Construct mixed gravity wave solver
-            gravitywave_solver_matrixfree = gravitywaves.Solver(W2,W3,Wb,
-                                                     dt,
-                                                     param_general['speed_c'],
-                                                     param_general['speed_N'],
-                                                     ksp_type=param_mixed['ksp_type'],
-                                                     schur_diagonal_only = \
-                                                       param_mixed['schur_diagonal_only'],
-                                                     ksp_monitor=mixed_ksp_monitor,
-                                                     tolerance=param_mixed['tolerance'],
-                                                     maxiter=param_mixed['maxiter'],
-                                                     matrixfree=True,
-                                                     pressure_solver=pressure_solver)
+            if (param_orography['enabled']):
+                Solver = gravitywaves.MatrixFreeSolverOrography
+            else:
+                Solver = gravitywaves.MatrixFreeSolver
+            gravitywave_solver_matrixfree = Solver(W2,W3,Wb,
+                                                   dt,
+                                                   param_general['speed_c'],
+                                                   param_general['speed_N'],
+                                                   ksp_type=param_mixed['ksp_type'],
+                                                   schur_diagonal_only = \
+                                                     param_mixed['schur_diagonal_only'],
+                                                   ksp_monitor=mixed_ksp_monitor,
+                                                   tolerance=param_mixed['tolerance'],
+                                                   maxiter=param_mixed['maxiter'],
+                                                   pressure_solver=pressure_solver)
 
 
         comm = MPI.COMM_WORLD
@@ -415,18 +445,14 @@ def main(parameter_filename=None):
     if (param_general['solve_petsc']):
         with timed_region('petsc_solver_setup'):
             # Construct mixed gravity wave solver
-            gravitywave_solver_petsc = gravitywaves.Solver(W2,W3,Wb,
+            gravitywave_solver_petsc = gravitywaves.PETScSolver(W2,W3,Wb,
                                                      dt,
                                                      param_general['speed_c'],
                                                      param_general['speed_N'],
                                                      ksp_type=param_mixed['ksp_type'],
-                                                     schur_diagonal_only = \
-                                                       param_mixed['schur_diagonal_only'],
                                                      ksp_monitor=mixed_ksp_monitor,
                                                      tolerance=param_mixed['tolerance'],
-                                                     maxiter=param_mixed['maxiter'],
-                                                     matrixfree=False,
-                                                     pressure_solver=None)
+                                                     maxiter=param_mixed['maxiter'])
 
         # Warm up run
         if (param_general['warmup_run']):
