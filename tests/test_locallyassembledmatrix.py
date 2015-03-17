@@ -84,6 +84,44 @@ def test_matmul(W2,W3,velocity_expression):
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
+def test_matadd(W2,W3,velocity_expression):
+    '''Matrix matrix addition.
+
+        Calculate :math:`v=(M_u + \omega^2 D^T D)u` where :math:`D` is the weak derivative
+        and :math:`M_u` is the velocity mass matrix.
+        This is achieved by assembling the matrices :math:`M_u`, :math:`D` and :math:`D^T`
+        and comparing this to the expression obtained by evaluating the expression in UFL.
+    
+    :arg W3: L2 discontinuous function space
+    :arg W2: HDiv function space
+    :arg velocity_expression: Analytical expression for velocity
+    '''
+    u = Function(W2)
+    phi = Function(W3)
+    u.project(velocity_expression)
+    omega = 2.0
+    
+    u_test = TestFunction(W2)
+    u_trial = TrialFunction(W2)
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+
+    form_Mu = dot(u_test,u_trial)*dx
+    form_D = phi_test*div(u_trial)*dx
+    form_DT = div(u_test)*phi_trial*dx
+    
+    mat_Mu = LocallyAssembledMatrix(W2,W2,form_Mu)
+    mat_D = LocallyAssembledMatrix(W3,W2,form_D)
+    mat_DT = LocallyAssembledMatrix(W2,W3,form_DT)
+    mat_sum = mat_Mu.matadd(mat_DT.matmul(mat_D),omega)
+    
+    v = mat_sum.ax(u)
+
+    phi = assemble(action(form_D,u))
+    v_ufl = assemble(action(form_Mu,u))+omega*assemble(action(form_DT,phi))
+
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+
 def test_inverse(W3,pressure_expression):
     '''Test DG mass matrix action in place.
 

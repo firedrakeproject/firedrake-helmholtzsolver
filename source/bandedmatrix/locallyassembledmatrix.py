@@ -154,8 +154,7 @@ class LocallyAssembledMatrix(object):
             assert(result._ndof_col == self._ndof_col)
         else:
             result = LocallyAssembledMatrix(self._fs_row,other._fs_col)
-        c_omega = Constant(omega)
-        result._data = self._data + c_omega*other._data
+        result._data = self._data + omega*other._data
         return result
 
     def inverse(self,result=None): 
