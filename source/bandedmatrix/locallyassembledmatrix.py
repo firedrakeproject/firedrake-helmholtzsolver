@@ -103,6 +103,34 @@ class LocallyAssembledMatrix(object):
                      v.dat(op2.INC,v.cell_node_map()))
         return v
 
+    def transpose(self,result=None):
+        '''Locally transpose matrix :math:`B=A^T`
+
+            :arg result: Resulting matrix :`B=A^T`
+        '''
+        if (result != None):
+            assert(result._ndof_row == self._ndof_col)
+            assert(result._ndof_col == other._ndof_row)
+        else:
+            result = LocallyAssembledMatrix(self._fs_col,self._fs_row)
+        param_dict = {}
+        for label, matrix in zip(('A','B'),(self,result)):
+            param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
+        kernel_code = '''void transpose(double **A,
+                                        double **B) {
+          for(int i=0;i<%(A_n_row)d;++i) {
+            for(int j=0;j<%(A_n_col)d;++j) {
+              B[0][%(B_n_col)d*j+i] = A[0][%(A_n_col)d*i+j];
+            }
+          }
+        }'''
+        kernel = op2.Kernel(kernel_code % param_dict, 'transpose')
+        op2.par_loop(kernel,
+                     self._mesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+
+        return result
     def matmul(self,other,result=None):
         '''Locally multiply matrices :math:`C=AB`
 

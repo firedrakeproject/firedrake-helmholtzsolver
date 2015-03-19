@@ -122,6 +122,27 @@ def test_matadd(W2,W3,velocity_expression):
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
+def test_transpose(W2,W3,pressure_expression):
+    '''Test transpose of derivative matrix.
+
+        Assemble :math:`D_{ij}=p_i div(u_j)\;dx`, transpose it and apply it to a
+        pressure field. Compare this to applying the corresponding form to the
+        field directly.
+
+        :arg W2: HDiv velocity space
+        :arg W3: L2 pressure space
+        :arge pressure_expression: Analytical expression for pressure
+    '''
+    p = Function(W3)
+    p.interpolate(pressure_expression)
+    mat_D = LocallyAssembledMatrix(W3,W2,TestFunction(W3)*div(TrialFunction(W2))*dx)
+    mat_DT = mat_D.transpose()
+    u = mat_DT.ax(p)
+
+    u_ufl = assemble(div(TestFunction(W2))*p*dx)
+
+    assert np.allclose(norm(assemble(u_ufl - u)), 0.0)
+
 def test_inverse(W3,pressure_expression):
     '''Test DG mass matrix action in place.
 
