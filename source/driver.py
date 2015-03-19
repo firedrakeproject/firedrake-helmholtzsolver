@@ -470,6 +470,10 @@ def main(parameter_filename=None):
             logger.write('...done')
             logger.write('')
 
+        r_u.assign(0.0)
+        r_p.project(expression)
+        r_b.assign(0.0)
+
         logger.write('*** PETSc solve ***')
         with timed_region("petsc mixed system solve"):
             with PETSc.Log().Stage("solve_petsc"):
