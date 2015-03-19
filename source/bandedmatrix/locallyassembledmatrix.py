@@ -185,6 +185,13 @@ class LocallyAssembledMatrix(object):
         result._data = self._data + omega*other._data
         return result
 
+    def scale(self,omega=1.0):
+        '''Multiply by a factor in place
+    
+            :arg omega: Scaling factor    
+        '''
+        self._data *= omega
+
     def inverse(self,result=None): 
         '''Calculate local inverse :math:`C=A^{-1}`
 
