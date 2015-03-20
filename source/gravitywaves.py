@@ -384,6 +384,7 @@ class PETScSolver(object):
         self._p = Function(self._W3)
         self._b = Function(self._Wb)
         self._dx = self._W3._mesh._dx
+        self.vert_norm = VerticalNormal(self._W3.mesh())
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -405,33 +406,19 @@ class PETScSolver(object):
         e.set("N",('%e' % self._N))
         e.set("maxiter",str(self._maxiter))
         e.set("tolerance",str(self._tolerance))
-        
 
-    def solve(self,r_u,r_p,r_b):
-        '''Solve Gravity system using nested iteration and return result.
+    def up_solver_setup(self,r_u,r_p,r_b,vmixed):
+        '''Set up the solver for the mixed system for given RHS.
 
-        Solve the mixed linear system for right hand sides :math:`r_u`,
-        :math:`r_p` and :math:`r_b`. The full velocity mass matrix is used in the outer
-        iteration and the pressure correction system is solved with the 
-        specified :class:`pressure_solver` in an inner iteration.
+            This method constructs the LinearVariationalProblem and the
+            LinearVariationalSolver for the mixed system. Setup is moved to a separate
+            method so that we can extract the solver without actually solving.
 
-        Return the solution :math:`u`, :math:`p`, :math:`b`.
-
-        See `Notes in LaTeX <./GravityWaves.pdf>`_ for more details of the
-        algorithm.
-
-        :arg r_u: right hand side for velocity equation
-        :arg r_p: right hand side for pressure equation
-        :arg r_b: right hand side for buoyancy equation
+            :arg r_u: RHS for velocity
+            :arg r_p: RHS for pressure
+            :arg r_p: RHS for buoyancy
+            :arg vmixed: Mixed solution vector (output)
         '''
-        # Fields for solution
-        self._u.assign(0.0)
-        self._p.assign(0.0)
-        self._b.assign(0.0)
-                
-        btest = TestFunction(self._Wb)
-
-        vert_norm = VerticalNormal(self._W3.mesh())
         # Calculate RHS
         utest, ptest = TestFunctions(self._Wmixed)
         utrial, ptrial = TrialFunctions(self._Wmixed)
@@ -460,21 +447,46 @@ class PETScSolver(object):
                 + self._dt_half_c2*ptest*div(utrial) \
                 - self._dt_half*div(utest)*ptrial \
                 + (dot(utest,utrial) + self._omega_N2 \
-                    * dot(utest,vert_norm.zhat) \
-                    * dot(utrial,vert_norm.zhat)) \
+                    * dot(utest,self.vert_norm.zhat) \
+                    * dot(utrial,self.vert_norm.zhat)) \
                )*self._dx
-        vmixed = Function(self._Wmixed)
-        L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,vert_norm.zhat*r_b) \
+        L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,self.vert_norm.zhat*r_b) \
                + ptest*r_p) * self._dx
         up_problem = LinearVariationalProblem(a_up, L_up, vmixed, bcs=bcs)
         up_solver = LinearVariationalSolver(up_problem, solver_parameters=sparams)
         ksp = up_solver.snes.getKSP()
         ksp.setMonitor(self._ksp_monitor)
+        return up_solver
+
+    def solve(self,r_u,r_p,r_b):
+        '''Solve Gravity system using nested iteration and return result.
+
+        Solve the mixed linear system for right hand sides :math:`r_u`,
+        :math:`r_p` and :math:`r_b`. The full velocity mass matrix is used in the outer
+        iteration and the pressure correction system is solved with the 
+        specified :class:`pressure_solver` in an inner iteration.
+
+        Return the solution :math:`u`, :math:`p`, :math:`b`.
+
+        See `Notes in LaTeX <./GravityWaves.pdf>`_ for more details of the
+        algorithm.
+
+        :arg r_u: right hand side for velocity equation
+        :arg r_p: right hand side for pressure equation
+        :arg r_b: right hand side for buoyancy equation
+        '''
+        # Fields for solution
+        self._u.assign(0.0)
+        self._p.assign(0.0)
+        self._b.assign(0.0)
+        vmixed = Function(self._Wmixed)
+        up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
         with self._ksp_monitor:
             up_solver.solve()
         self._u.assign(vmixed.sub(0))
         self._p.assign(vmixed.sub(1))
-        L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
+        btest = TestFunction(self._Wb)
+        L_b = dot(btest*self.vert_norm.zhat,self._u)*self._dx
         a_b = btest*TrialFunction(self._Wb)*self._dx
         b_tmp = Function(self._Wb)
         b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
