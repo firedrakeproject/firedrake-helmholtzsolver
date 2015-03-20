@@ -71,11 +71,10 @@ class hMultigrid(object):
         else:
             # Recursion on all other levels
             # Only initialise solution to zero on the coarser levels
-            initial_phi_is_zero = not (level == self._fine_level)
             # Presmoother
             self._presmoother_hierarchy[level].smooth(self._rhs[level],
               self._phi[level],
-              initial_phi_is_zero=initial_phi_is_zero)
+              initial_phi_is_zero=True)
             self._residual[level].assign(self._operator_hierarchy[level].residual(
               self._rhs[level],
               self._phi[level]))
