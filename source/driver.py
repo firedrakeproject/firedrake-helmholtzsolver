@@ -475,14 +475,44 @@ def main(parameter_filename=None):
         r_b.assign(0.0)
 
         logger.write('*** PETSc solve ***')
+
         with timed_region("petsc mixed system solve"):
             with PETSc.Log().Stage("solve_petsc"):
                 with PETSc.Log().Event("Full PETSc solve"):
                     u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
         conv_hist_filename = os.path.join(param_output['output_dir'],'history_petsc.dat')
         mixed_ksp_monitor.save_convergence_history(conv_hist_filename)
+
+        vmixed = Function(W2 * W3)
+        up_solver = gravitywave_solver_petsc.up_solver
+        ksp = up_solver.snes.getKSP()
+        ksp_hdiv, ksp_schur = ksp.getPC().getFieldSplitSubKSP()
+
+        # HDiv space
+        op_hdiv, op_pc_hdiv = ksp_hdiv.getOperators()
+        pc_hdiv = ksp_hdiv.getPC()
+        x, y = op_pc_hdiv.getVecs()
+        x.setArray(np.random.rand(x.getLocalSize()))
+        pc_hdiv.apply(x,y)
+        with timed_region('pc_hdiv'):
+            pc_hdiv.apply(x,y)
+
+        # Pressure space
+        op_schur, op_pc_schur = ksp_schur.getOperators()
+        pc_schur = ksp_schur.getPC()
+        x, y = op_pc_schur.getVecs()
+        x.setArray(np.random.rand(x.getLocalSize()))
+        y = x.duplicate()
+        op_pc_schur.mult(x,y)
+        with timed_region('op_schur'):
+            op_pc_schur.mult(x,y)
+        pc_schur.apply(x,y)
+        with timed_region('pc_schur'):
+            pc_schur.apply(x,y)
+
         if (logger.rank == 0):
             profiling.summary()
+
     
         # If requested, write fields to disk
         if (param_output['savetodisk']):

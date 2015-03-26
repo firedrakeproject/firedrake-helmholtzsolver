@@ -480,9 +480,9 @@ class PETScSolver(object):
         self._p.assign(0.0)
         self._b.assign(0.0)
         vmixed = Function(self._Wmixed)
-        up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
+        self.up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
         with self._ksp_monitor:
-            up_solver.solve()
+            self.up_solver.solve()
         self._u.assign(vmixed.sub(0))
         self._p.assign(vmixed.sub(1))
         btest = TestFunction(self._Wb)
