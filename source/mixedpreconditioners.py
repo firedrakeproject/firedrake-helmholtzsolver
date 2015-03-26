@@ -208,12 +208,6 @@ class MixedPreconditionerOrography(object):
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
         # Buoyancy mass matrix
-        self._Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx)
-        self._solver_param_b = {'ksp_type':'cg',
-                                'ksp_rtol':tolerance_b,
-                                'ksp_max_it':maxiter_b,
-                                'ksp_monitor':False,
-                                'pc_type':'jacobi'}
         self._mutilde = Mutilde(self._W2,self._Wb,self._omega_N,
                                 lumped=self._pressure_solver._operator._mutilde._lumped,
                                 tolerance_u=tolerance_u,maxiter_u=maxiter_u)
@@ -229,6 +223,12 @@ class MixedPreconditionerOrography(object):
         self._Pp = Function(self._W3)
         self._Pb = Function(self._Wb)
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
+        Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx)
+        self._linearsolver_b = LinearSolver(Mb,solver_parameters={'ksp_type':'cg',
+                                                                  'ksp_rtol':tolerance_b,
+                                                                  'ksp_max_it':maxiter_b,
+                                                                  'ksp_monitor':False,
+                                                                  'pc_type':'jacobi'})
 
     @timed_function("mixed_preconditioner") 
     def solve(self,r_u,r_p,r_b,u,p,b):
@@ -255,11 +255,11 @@ class MixedPreconditionerOrography(object):
                 self._mutilde.divide(r_u,u)
             # Buoyancy solve
             with timed_region('Mb_divide'):
-                solve(self._Mb,b,r_b,solver_parameters=self._solver_param_b)
+                self._linearsolver_b.solve(b,r_b)
         else:
             # Modified RHS for velocity 
             with timed_region('Mb_divide'):
-                solve(self._Mb,self._tmp_b,r_b,solver_parameters=self._solver_param_b)
+                self._linearsolver_b.solve(self._tmp_b,r_b)
             assemble(self._dt_half * dot(self._utest,self._zhat.zhat) \
                                    * self._tmp_b * self._dx,
                      tensor=self._rtilde_u)
@@ -284,7 +284,7 @@ class MixedPreconditionerOrography(object):
                      tensor=self._tmp_b)
             self._tmp_b += r_b
             with timed_region('Mb_divide_schur'):
-                solve(self._Mb,b,self._tmp_b,solver_parameters=self._solver_param_b)
+                self._linearsolver_b.solve(b,self._tmp_b)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
