@@ -75,12 +75,13 @@ class Mutilde(object):
                                  self._omega_N2*dot(self._u_test,self._zhat) * \
                                                 dot(self._u_trial,self._zhat))*self._dx
         self._Mutilde = assemble(ufl_form,bcs=self._bcs)
-        self._solver_param = {'ksp_type':'preonly',
-                              'ksp_rtol':self._tolerance_u,
-                              'ksp_max_it':self._maxiter_u,
-                              'ksp_monitor':False,
-                              'pc_type':'bjacobi',
-                              'sub_pc_type':'ilu'}
+        solver_param = {'ksp_type':'preonly',
+                        'ksp_rtol':self._tolerance_u,
+                        'ksp_max_it':self._maxiter_u,
+                        'ksp_monitor':False,
+                        'pc_type':'bjacobi',
+                        'sub_pc_type':'ilu'}
+        self._linearsolver = LinearSolver(self._Mutilde,solver_parameters=solver_param)
         if (self._lumped):
             self._lumped_mass = LumpedMass(ufl_form)
 
