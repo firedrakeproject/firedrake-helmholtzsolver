@@ -134,6 +134,4 @@ class Mutilde(object):
             self._lumped_mass.divide(r_u)
             self._apply_bcs(r_u)
         else:
-            solve(self._Mutilde,r_u,u,
-                  solver_parameters=self._solver_param,
-                  bcs=self._bcs)
+            self._linearsolver.solve(r_u,u)
