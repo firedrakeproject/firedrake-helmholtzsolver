@@ -163,7 +163,7 @@ class hpMultigrid(object):
                                                  first=v.owner_range[0],
                                                  step=1,
                                                  comm=v.comm)
-        ndof = 6
+        ndof = len(self._W3.cell_node_map().values[0])
         d = {'NDOF':ndof,'INV_NDOF':1./float(ndof)}
         self._kernel_restrict = '''
           double tmp = 0.0;
