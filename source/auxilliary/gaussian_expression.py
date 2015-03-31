@@ -1,6 +1,20 @@
 import math
 import numpy as np
 
+def init_random(seed,verbose=False):
+    '''Initialise random number generator with fixed seed.
+
+        This is required to obtain reproducible results.
+
+        :arg seed: Seed for numpy random number generator
+        :arg verbose: Verbosity level
+    '''
+    np.random.seed(seed)
+    if (verbose):
+        r, = np.random.rand(1)
+        print 'random number = ',r
+
+
 class GaussianExpression(object):
     '''Expression for Gaussian.
 
