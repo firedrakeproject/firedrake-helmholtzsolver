@@ -155,11 +155,11 @@ class Operator_Hhat(object):
         self._dx = self._mesh._dx
 
         # Forms for operator applications
-        self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
+        self._assembled_B_h_form = assemble(div(w_h)*TrialFunction(self._W3)*self._dx)
         self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
         self._B_h_phi = Function(self._W2_h)
         self._B_v_phi = Function(self._W2_v)
-        self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
+        self._assembled_BT_h_form = assemble(self._psi*div(TrialFunction(self._W2_h))*self._dx)
         self._BT_B_v_phi_form = self._psi*div(self._B_v_phi)*self._dx
         self._M_phi_form = self._psi*self._phi_tmp*self._dx
         self._M_phi = Function(self._W3)
@@ -226,11 +226,15 @@ class Operator_Hhat(object):
         with timed_region('apply_operator_Hhat_'+self._timer_label):
             # Calculate action of B_h
             self._phi_tmp.assign(phi)
-            assemble(self._B_h_phi_form, tensor=self._B_h_phi)
+            with self._B_h_phi.dat.vec as v:
+                with phi.dat.vec_ro as x:
+                    self._assembled_B_h_form.M.handle.mult(x,v)
             # divide by horizontal velocity mass matrix
             self._Mu_h.divide(self._B_h_phi)
             # Calculate action of B_h^T
-            assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
+            with self._BT_B_h_phi.dat.vec as v:
+                with self._B_h_phi.dat.vec_ro as x:
+                    self._assembled_BT_h_form.M.handle.mult(x,v)
             self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
