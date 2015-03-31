@@ -154,13 +154,8 @@ class hpMultigrid(object):
         self._W3 = self._operator._W3
         self._W3_low = self._hmultigrid._W3_hierarchy[-1]
         self._rhs_low = Function(self._W3_low)
-        self._dphi = Function(self._W3)
         self._dphi_low = Function(self._W3_low)
         self._dx = self._W3._mesh._dx
-        self._W3_test = TestFunction(self._W3)
-        self._W3_low_test = TestFunction(self._W3_low)
-        self._a_mass = assemble(self._W3_test*TrialFunction(self._W3)*self._dx)
-        self._a_mass_low = assemble(self._W3_low_test*TrialFunction(self._W3_low)*self._dx)
         self._phi_tmp = Function(self._W3)
         self._rhs_tmp = Function(self._W3)
         with self._rhs_tmp.dat.vec as v:
@@ -168,6 +163,21 @@ class hpMultigrid(object):
                                                  first=v.owner_range[0],
                                                  step=1,
                                                  comm=v.comm)
+        ndof = 6
+        d = {'NDOF':ndof,'INV_NDOF':1./float(ndof)}
+        self._kernel_restrict = '''
+          double tmp = 0.0;
+          for(int i=0;i<%(NDOF)d;++i) {
+            tmp += phi_high[0][i];
+          }
+          phi_low[0][0] = tmp;
+        ''' % d
+        self._kernel_prolongadd = '''
+          double tmp = %(INV_NDOF)f*phi_low[0][0];
+          for(int i=0;i<%(NDOF)d;++i) {
+            phi_high[0][i] += tmp;
+          }
+        ''' % d
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -202,9 +212,8 @@ class hpMultigrid(object):
         # h-multigrid in lower order space
         self._hmultigrid.solve(self._rhs_low,self._dphi_low)
         # Prolongate correction back to higher order space...
-        self.prolong(self._dphi_low,self._dphi)
         # ... and add to solution in higher order space
-        phi.assign(phi+self._dphi)
+        self.prolongadd(self._dphi_low,phi)
         # Postsmooth
         self._postsmoother.smooth(b,phi,initial_phi_is_zero=False)
 
@@ -235,10 +244,11 @@ class hpMultigrid(object):
         :arg phi_high: Function in higher order space
         :arg phi_low: Resulting function in lower order space
         '''
-        L = assemble(self._W3_low_test*phi_high*self._dx)
-        solve(self._a_mass_low,phi_low,L)
+        par_loop(self._kernel_restrict,self._dx,
+                 {'phi_high':(phi_high,READ),
+                  'phi_low':(phi_low,WRITE)})
 
-    def prolong(self,phi_low, phi_high):
+    def prolongadd(self,phi_low, phi_high):
         '''Prolongate to higher order space.
     
         Project a function in the lower order space onto the higher order space
@@ -246,6 +256,6 @@ class hpMultigrid(object):
         :arg phi_low: Function in lower order space
         :arg phi_high: Resulting function in higher order space
         '''
-        L = assemble(self._W3_test*phi_low*self._dx)
-        solve(self._a_mass,phi_high,L)
-
+        par_loop(self._kernel_prolongadd,self._dx,
+                 {'phi_low':(phi_low,READ),
+                  'phi_high':(phi_high,INC)})
