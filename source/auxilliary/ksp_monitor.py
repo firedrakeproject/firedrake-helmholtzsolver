@@ -17,6 +17,7 @@ class KSPMonitor(object):
         self.iterations = []
         self.resnorm = []
         self.t_start = 0.0
+        self.t_start_iter = 0.0
         self.t_finish = 0.0
         self.its = 0
 
@@ -42,6 +43,8 @@ class KSPMonitor(object):
                 s += '      ----'
             self.logger.write(s)
         self.its += 1
+        if (self.its == 1):
+            self.t_start_iter = time.clock()
         self.rnorm = rnorm
         self.iterations.append(its)
         self.resnorm.append(rnorm)
@@ -84,9 +87,11 @@ class KSPMonitor(object):
             self.logger.write(s)
         if (self.verbose >= 1):
             t_elapsed = self.t_finish - self.t_start
+            t_elapsed_iter = self.t_finish - self.t_start_iter
             s = '  KSP '+('%20s' % self.label)
-            s += (' t_solve = %10.6f s' % t_elapsed)
-            s += (' t_iter = %10.6f s' % (t_elapsed/niter))
+            s += (' t_solve = %8.4f s' % t_elapsed)
+            s += (' t_iter = %8.4f s' % (t_elapsed_iter/niter))
+            s += (' [%8.4f s' % (self.t_start_iter-self.t_start))+']'
             self.logger.write(s)
             self.logger.write('')
         return False

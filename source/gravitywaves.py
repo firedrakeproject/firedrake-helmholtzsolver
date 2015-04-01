@@ -215,13 +215,13 @@ class MatrixFreeSolver(IterativeSolver):
         with self._u.dat.vec as u, \
              self._p.dat.vec as p:
             self._mixedarray.split(self._x,u,p)
-        L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
-        a_b = btest*TrialFunction(self._Wb)*self._dx
-        b_tmp = Function(self._Wb)
-        b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
-        b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
+        with timed_region('Buoyancy solver'):
+            L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
+            a_b = btest*TrialFunction(self._Wb)*self._dx
+            b_tmp = Function(self._Wb)
+            b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
+            b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
                                                                         'pc_type':'jacobi'})
-        with timed_region('Mb_divide'):
             b_solver.solve()
         self._b = assemble(r_b-self._dt_half_N2*b_tmp)
         return self._u, self._p, self._b
@@ -480,20 +480,21 @@ class PETScSolver(object):
         self._p.assign(0.0)
         self._b.assign(0.0)
         vmixed = Function(self._Wmixed)
-        self.up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
+        with timed_region('solver_setup'):
+            self.up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
         with self._ksp_monitor:
             self.up_solver.solve()
-        self._u.assign(vmixed.sub(0))
-        self._p.assign(vmixed.sub(1))
-        btest = TestFunction(self._Wb)
-        L_b = dot(btest*self.vert_norm.zhat,self._u)*self._dx
-        a_b = btest*TrialFunction(self._Wb)*self._dx
-        b_tmp = Function(self._Wb)
-        b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
-        b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
+        with timed_region('buoyancy solve'):
+            self._u.assign(vmixed.sub(0))
+            self._p.assign(vmixed.sub(1))
+            btest = TestFunction(self._Wb)
+            L_b = dot(btest*self.vert_norm.zhat,self._u)*self._dx
+            a_b = btest*TrialFunction(self._Wb)*self._dx
+            b_tmp = Function(self._Wb)
+            b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
+            b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
                                                                         'pc_type':'jacobi'})
-        with timed_region('Mb_divide'):
             b_solver.solve()
-        self._b = assemble(r_b-self._dt_half_N2*b_tmp)
+            self._b = assemble(r_b-self._dt_half_N2*b_tmp)
         return self._u, self._p, self._b
 
