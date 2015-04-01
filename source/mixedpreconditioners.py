@@ -86,6 +86,11 @@ class MixedPreconditioner(object):
         self._Pu = Function(self._W2)
         self._Pp = Function(self._W3)
         self._mixedarray = MixedArray(self._W2,self._W3)
+        self._mat_schur1 = assemble(- self._dt_half_c2 * self._ptest * \
+                                    div(TrialFunction(self._W2)) * self._dx).M.handle
+        self._mat_schur2 = assemble(self._dt_half * div(self._utest) * \
+                                    TrialFunction(self._W3)*self._dx).M.handle
+
         
     @timed_function("mixed_preconditioner") 
     def solve(self,r_u,r_p,u,p):
@@ -107,19 +112,22 @@ class MixedPreconditioner(object):
             self._mutilde.divide(r_u,u)
         else:
             # Modified RHS for pressure
-            with timed_region('mutilde_divide_schur'):
+            with timed_region('schur_pressure_rhs'):
                 self._mutilde.divide(r_u,self._tmp_u)
-            assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
-                       tensor=self._rtilde_p)
-            self._rtilde_p += r_p
+
+                with self._rtilde_p.dat.vec as v:
+                    with self._tmp_u.dat.vec_ro as x:
+                        self._mat_schur1.mult(x,v)
+                self._rtilde_p += r_p
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(self._rtilde_p,p)
             # Backsubstitution for velocity 
-            assemble(self._dt_half * div(self._utest) * p*self._dx,
-                     tensor=self._tmp_u)
-            self._tmp_u += self._rtilde_u
-            with timed_region('mutilde_divide_schur'):
+            with timed_region('schur_velocity_backsubstitution'):
+                with self._tmp_u.dat.vec as v:
+                    with p.dat.vec_ro as x:
+                        self._mat_schur2.mult(x,v)
+                self._tmp_u += r_u
                 self._mutilde.divide(self._tmp_u,u)
 
     def apply(self,pc,x,y):
