@@ -155,16 +155,25 @@ class Operator_Hhat(object):
         self._dx = self._mesh._dx
 
         # Forms for operator applications
-        self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
         self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
         self._B_h_phi = Function(self._W2_h)
         self._B_v_phi = Function(self._W2_v)
-        self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
         self._BT_B_v_phi_form = self._psi*div(self._B_v_phi)*self._dx
         self._M_phi_form = self._psi*self._phi_tmp*self._dx
         self._M_phi = Function(self._W3)
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
+
+        self._mat_B_h = \
+          assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
+        self._mat_BT_h = \
+          assemble(TestFunction(self._W3)*div(TrialFunction(self._W2_h))*self._dx).M.handle
+        tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
+        diag = tmp_Mu_h.M.handle.getDiagonal()
+        diag.reciprocal()
+        tmp_m = self._mat_B_h.duplicate(copy=True)
+        tmp_m.diagonalScale(L=diag,R=None)
+        self._mat_Hhat_h = self._mat_BT_h.matMult(tmp_m)
 
         # Lumped mass matrices.
         self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
@@ -224,13 +233,10 @@ class Operator_Hhat(object):
         :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''
         with timed_region('apply_operator_Hhat_'+self._timer_label):
-            # Calculate action of B_h
             self._phi_tmp.assign(phi)
-            assemble(self._B_h_phi_form, tensor=self._B_h_phi)
-            # divide by horizontal velocity mass matrix
-            self._Mu_h.divide(self._B_h_phi)
-            # Calculate action of B_h^T
-            assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
+            with self._BT_B_h_phi.dat.vec as v:
+                with phi.dat.vec_ro as x:
+                    self._mat_Hhat_h.mult(x,v)
             self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
