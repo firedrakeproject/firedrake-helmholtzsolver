@@ -49,13 +49,16 @@ class MixedPreconditioner(object):
         :arg pressure_solver: Solver in pressure space
         :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
             substitution with triagular matrices
+        :arg preassemble: Preassemble the operators for building the modified RHS
+            and for the back-substitution
     '''
     def __init__(self,
                  W2,W3,Wb,
                  dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
-                 tolerance_u=1.E-5,maxiter_u=1000):
+                 tolerance_u=1.E-5,maxiter_u=1000,
+                 preassemble=False):
         self._pressure_solver = pressure_solver
         self._W2 = W2
         self._W3 = W3
@@ -66,6 +69,7 @@ class MixedPreconditioner(object):
         self._dt_half_N2 = Constant(0.5*dt*N**2)
         self._dt_half_c2 = Constant(0.5*dt*c**2)
         self._diagonal_only = diagonal_only
+        self._preassemble = preassemble
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
         self._dx = self._mesh._dx
@@ -86,10 +90,11 @@ class MixedPreconditioner(object):
         self._Pu = Function(self._W2)
         self._Pp = Function(self._W3)
         self._mixedarray = MixedArray(self._W2,self._W3)
-        self._mat_schur1 = assemble(- self._dt_half_c2 * self._ptest * \
-                                    div(TrialFunction(self._W2)) * self._dx).M.handle
-        self._mat_schur2 = assemble(self._dt_half * div(self._utest) * \
-                                    TrialFunction(self._W3)*self._dx).M.handle
+        if (self._preassemble):
+            self._mat_schur1 = assemble(- self._dt_half_c2 * self._ptest * \
+                                        div(TrialFunction(self._W2)) * self._dx).M.handle
+            self._mat_schur2 = assemble(self._dt_half * div(self._utest) * \
+                                        TrialFunction(self._W3)*self._dx).M.handle
 
         
     @timed_function("mixed_preconditioner") 
@@ -114,19 +119,27 @@ class MixedPreconditioner(object):
             # Modified RHS for pressure
             with timed_region('schur_pressure_rhs'):
                 self._mutilde.divide(r_u,self._tmp_u)
-
-                with self._rtilde_p.dat.vec as v:
-                    with self._tmp_u.dat.vec_ro as x:
-                        self._mat_schur1.mult(x,v)
+                if (self._preassemble):
+                    with self._rtilde_p.dat.vec as v:
+                        with self._tmp_u.dat.vec_ro as x:
+                            self._mat_schur1.mult(x,v)
+                else:
+                    assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
+                             tensor=self._rtilde_p)
                 self._rtilde_p += r_p
+
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(self._rtilde_p,p)
             # Backsubstitution for velocity 
             with timed_region('schur_velocity_backsubstitution'):
-                with self._tmp_u.dat.vec as v:
-                    with p.dat.vec_ro as x:
-                        self._mat_schur2.mult(x,v)
+                if (self._preassemble):
+                    with self._tmp_u.dat.vec as v:
+                        with p.dat.vec_ro as x:
+                            self._mat_schur2.mult(x,v)
+                else:
+                    assemble(self._dt_half * div(self._utest) * p*self._dx,
+                        tensor=self._tmp_u)                    
                 self._tmp_u += r_u
                 self._mutilde.divide(self._tmp_u,u)
 
