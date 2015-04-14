@@ -129,13 +129,15 @@ class Operator_Hhat(object):
         :math:`\omega_c=\\frac{\Delta t}{2}c`
     :arg omega_N: Positive real constant, related to buoyancy frequency
         :math:`\omega_c=\\frac{\Delta t}{2}N`
+    :arg preassemble_horizontal: Pre-assemble horizontal part of the operator
     '''
     def __init__(self,
                  W3,
                  W2_h,
                  W2_v,
                  omega_c,
-                 omega_N):
+                 omega_N,
+                 preassemble_horizontal=False):
         self._W3 = W3
         self._W2_h = W2_h
         self._W2_v = W2_v
@@ -144,6 +146,7 @@ class Operator_Hhat(object):
         self._omega = self._omega_c**2/(1.+self._omega_N**2)
         self._omega_c2 = Constant(omega_c**2)
         self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
+        self._preassemble_horizontal = preassemble_horizontal
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
         self._timer_label = str(ncells)
         w_h = TestFunction(self._W2_h)
@@ -164,16 +167,20 @@ class Operator_Hhat(object):
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
 
-        self._mat_B_h = \
-          assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
-        self._mat_BT_h = \
-          assemble(TestFunction(self._W3)*div(TrialFunction(self._W2_h))*self._dx).M.handle
-        tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
-        diag = tmp_Mu_h.M.handle.getDiagonal()
-        diag.reciprocal()
-        tmp_m = self._mat_B_h.duplicate(copy=True)
-        tmp_m.diagonalScale(L=diag,R=None)
-        self._mat_Hhat_h = self._mat_BT_h.matMult(tmp_m)
+        if (self._preassemble_horizontal):
+            self._mat_B_h = \
+              assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
+            self._mat_BT_h = \
+              assemble(TestFunction(self._W3)*div(TrialFunction(self._W2_h))*self._dx).M.handle
+            tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
+            diag = tmp_Mu_h.M.handle.getDiagonal()
+            diag.reciprocal()
+            tmp_m = self._mat_B_h.duplicate(copy=True)
+            tmp_m.diagonalScale(L=diag,R=None)
+            self._mat_Hhat_h = self._mat_BT_h.matMult(tmp_m)
+        else:
+            self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
+            self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
 
         # Lumped mass matrices.
         self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
@@ -234,9 +241,18 @@ class Operator_Hhat(object):
         '''
         with timed_region('apply_operator_Hhat_'+self._timer_label):
             self._phi_tmp.assign(phi)
-            with self._BT_B_h_phi.dat.vec as v:
-                with phi.dat.vec_ro as x:
-                    self._mat_Hhat_h.mult(x,v)
+            if (self._preassemble_horizontal):
+                with self._BT_B_h_phi.dat.vec as v:
+                    with phi.dat.vec_ro as x:
+                        self._mat_Hhat_h.mult(x,v)
+            else:
+                # Calculate action of B_h
+                assemble(self._B_h_phi_form, tensor=self._B_h_phi)
+                # divide by horizontal velocity mass matrix
+                self._Mu_h.divide(self._B_h_phi)
+                # Calculate action of B_h^T
+                assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)            
+                
             self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
