@@ -23,14 +23,17 @@ class MixedOperator(object):
         :arg dt: Positive real number, time step size
         :arg c: Positive real number, speed of sound waves
         :arg N: Positive real number, buoyancy frequency
+        :arg preassemble: Assemble operator? If this flag is set, the operator will be
+            preassembled and the matrix applied each time. Otherwise the action of ther
+            operator will be recomputed every time. 
     '''
-    def __init__(self,W2,W3,
-                      dt,c,N):
+    def __init__(self,W2,W3,dt,c,N,preassemble=True):
         self._W2 = W2
         self._W3 = W3
         self._dt_half = Constant(0.5*dt)
         self._dt_half_c2 = Constant(0.5*dt*c**2)
         self._omega_N2 = Constant((0.5*dt*N)**2)
+        self._preassemble = preassemble
         self._utest = TestFunction(self._W2)
         self._ptest = TestFunction(self._W3)
         self._utrial = TrialFunction(self._W2)
@@ -45,13 +48,16 @@ class MixedOperator(object):
         self._dx = self._mesh._dx
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
-        self._mat_uu = assemble( (  dot(self._utest,self._utrial) \
-                   + self._omega_N2 \
-                       * dot(self._utest,self._zhat.zhat) \
-                       * dot(self._zhat.zhat,self._utrial) ) * self._dx).M.handle
-        self._mat_up = assemble(-self._dt_half*div(self._utest)*self._ptrial*self._dx).M.handle
-        self._mat_pp = assemble( self._ptest * self._ptrial * self._dx).M.handle
-        self._mat_pu = assemble(self._ptest*self._dt_half_c2*div(self._utrial)*self._dx).M.handle
+        if (self._preassemble):
+            self._mat_uu = assemble( (  dot(self._utest,self._utrial) \
+                       + self._omega_N2 \
+                           * dot(self._utest,self._zhat.zhat) \
+                           * dot(self._zhat.zhat,self._utrial) ) * self._dx).M.handle
+            self._mat_up = assemble(-self._dt_half*div(self._utest) \
+                           * self._ptrial*self._dx).M.handle
+            self._mat_pp = assemble( self._ptest * self._ptrial * self._dx).M.handle
+            self._mat_pu = assemble(self._ptest*self._dt_half_c2 \
+                           * div(self._utrial)*self._dx).M.handle
 
     @timed_function("mixed_operator") 
     def apply(self,u,p,r_u,r_p):
@@ -67,12 +73,23 @@ class MixedOperator(object):
         '''
         # Apply BCs to u
         self._apply_bcs(u)
-        with r_u.dat.vec as v_u, r_p.dat.vec as v_p:
-            with u.dat.vec_ro as x_u, p.dat.vec_ro as x_p:
-                self._mat_uu.mult(x_u,v_u)
-                self._mat_up.multAdd(x_p,v_u,v_u)
-                self._mat_pu.mult(x_u,v_p)
-                self._mat_pp.multAdd(x_p,v_p,v_p)
+        if (self._preassemble):
+            with r_u.dat.vec as v_u, r_p.dat.vec as v_p:
+                with u.dat.vec_ro as x_u, p.dat.vec_ro as x_p:
+                    self._mat_uu.mult(x_u,v_u)
+                    self._mat_up.multAdd(x_p,v_u,v_u)
+                    self._mat_pu.mult(x_u,v_p)
+                    self._mat_pp.multAdd(x_p,v_p,v_p)
+        else:
+            assemble( (  dot(self._utest,u) \
+                       + self._omega_N2 \
+                           * dot(self._utest,self._zhat.zhat) \
+                           * dot(self._zhat.zhat,u)
+                       - self._dt_half*div(self._utest)*p
+                      ) * self._dx,
+                     tensor=r_u)
+            assemble( self._ptest * (p + self._dt_half_c2*div(u)) * self._dx,
+                     tensor=r_p)
 
         # Apply BCs to R_u
         self._apply_bcs(r_u)
