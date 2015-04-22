@@ -53,6 +53,7 @@ class MixedPreconditioner(object):
             and for the back-substitution
     '''
     def __init__(self,
+                 mixed_operator,
                  W2,W3,Wb,
                  dt,N,c,
                  pressure_solver,
@@ -78,7 +79,7 @@ class MixedPreconditioner(object):
         self._utest = TestFunction(self._W2)
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
-        self._mutilde = Mutilde(self._W2,self._Wb,self._omega_N,
+        self._mutilde = Mutilde(mixed_operator,
                                 lumped=self._pressure_solver._operator._mutilde._lumped,
                                 tolerance_u=tolerance_u,maxiter_u=maxiter_u)
         # Temporary functions
@@ -204,6 +205,7 @@ class MixedPreconditionerOrography(object):
             substitution with triagular matrices
     '''
     def __init__(self,
+                 mixed_operator,
                  W2,W3,Wb,
                  dt,N,c,
                  pressure_solver,
@@ -229,7 +231,7 @@ class MixedPreconditionerOrography(object):
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
         # Buoyancy mass matrix
-        self._mutilde = Mutilde(self._W2,self._Wb,self._omega_N,
+        self._mutilde = Mutilde(mixed_operator,
                                 lumped=self._pressure_solver._operator._mutilde._lumped,
                                 tolerance_u=tolerance_u,maxiter_u=maxiter_u)
         # Temporary functions

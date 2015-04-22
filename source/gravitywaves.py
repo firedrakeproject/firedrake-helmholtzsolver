@@ -122,6 +122,7 @@ class MatrixFreeSolver(IterativeSolver):
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,
+                 mixed_operator,
                  W2,W3,Wb,
                  dt,c,N,
                  ksp_type='gmres',
@@ -131,11 +132,11 @@ class MatrixFreeSolver(IterativeSolver):
                  tolerance=1.E-6,
                  pressure_solver=None):
         mixed_array = MixedArray(W2,W3)
-        mixed_preconditioner = MixedPreconditioner(W2,W3,Wb,
+        mixed_preconditioner = MixedPreconditioner(mixed_operator,
+                                                   W2,W3,Wb,
                                                    dt,N,c,
                                                    pressure_solver,
                                                    schur_diagonal_only)
-        mixed_operator = MixedOperator(W2,W3,dt,c,N)
         super(MatrixFreeSolver,self).__init__(W2,W3,Wb,
                                               dt,c,N,
                                               mixed_array,
@@ -245,6 +246,7 @@ class MatrixFreeSolverOrography(IterativeSolver):
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,
+                 mixed_operator,
                  W2,W3,Wb,
                  dt,c,N,
                  ksp_type='gmres',
@@ -254,11 +256,10 @@ class MatrixFreeSolverOrography(IterativeSolver):
                  tolerance=1.E-6,
                  pressure_solver=None):
         mixed_array = MixedArray(W2,W3,Wb)
-        mixed_preconditioner = MixedPreconditionerOrography(W2,W3,Wb,
+        mixed_preconditioner = MixedPreconditionerOrography(mixed_operator,W2,W3,Wb,
                                                             dt,N,c,
                                                             pressure_solver,
                                                             schur_diagonal_only)
-        mixed_operator = MixedOperatorOrography(W2,W3,Wb,dt,c,N)
         super(MatrixFreeSolverOrography,self).__init__(W2,W3,Wb,
                                                        dt,c,N,
                                                        mixed_array,

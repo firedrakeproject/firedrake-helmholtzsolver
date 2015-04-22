@@ -43,47 +43,38 @@ class Mutilde(object):
         a PETSc interface, can be used to (approximately) invert the matrix
         via an iterative PETSc solver.
 
-        :arg W2: HDiv function space for velocity
-        :arg Wb: Function space for buoyancy
+        :arg mixed_operator: Mixed operator containing the assembled matrix for the
+            mixed system
         :arg omega_N: Positive constant related to buoyancy frequency,
             :math:`\omega_N=\\frac{\Delta t}{2}N`
         :arg lumped: Lump mass matrix
         :arg tolerance_u: Tolerance for :math:`\\tilde{M}_u` solve
         :arg maxiter_u: Maximal number of iterations for :math:`\\tilde{M}_u` solve
     '''
-    def __init__(self,W2,Wb,omega_N,
+    def __init__(self,mixed_operator,
                  lumped=True,
                  tolerance_u=1.E-5,maxiter_u=1000):
-        self._W2 = W2
-        self._Wb = Wb
         self._lumped = lumped
-        self._mesh = self._W2.mesh()
-        self._omega_N = omega_N
-        self._omega_N2 = Constant(self._omega_N**2)
         self._tolerance_u = tolerance_u
         self._maxiter_u = maxiter_u
-        self._u_tmp = Function(self._W2)
-        self._res_tmp = Function(self._W2)
-        self._u_test = TestFunction(self._W2)
-        self._dx = self._mesh._dx
-        vertical_normal = VerticalNormal(self._mesh)
-        self._zhat = vertical_normal.zhat
-        self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
-                     DirichletBC(self._W2, 0.0, "top")]
-        self._u_trial = TrialFunction(self._W2)
-        ufl_form = (dot(self._u_test,self._u_trial) + \
-                                 self._omega_N2*dot(self._u_test,self._zhat) * \
-                                                dot(self._u_trial,self._zhat))*self._dx
-        self._Mutilde = assemble(ufl_form,bcs=self._bcs)
-        solver_param = {'ksp_type':'preonly',
-                        'ksp_rtol':self._tolerance_u,
-                        'ksp_max_it':self._maxiter_u,
-                        'ksp_monitor':False,
-                        'pc_type':'bjacobi',
-                        'sub_pc_type':'ilu'}
-        self._linearsolver = LinearSolver(self._Mutilde,solver_parameters=solver_param)
+        self._bcs = mixed_operator._bcs
+        self._tmp_u = Function(mixed_operator._W2)
+        self._tmp_v = Function(mixed_operator._W2)
+        ufl_form = mixed_operator.form_uu
         if (self._lumped):
             self._lumped_mass = LumpedMass(ufl_form)
+        else:
+            solver_param = {'ksp_type':'preonly',
+                            'ksp_rtol':self._tolerance_u,
+                            'ksp_max_it':self._maxiter_u,
+                            'ksp_monitor':False,
+                            'pc_type':'bjacobi',
+                            'sub_pc_type':'ilu'}
+            if (mixed_operator._preassemble):
+                self._mutilde = mixed_operator._op_uu
+            else:
+                self._mutilde = assemble(ufl_form,bcs=self._bcs)
+            self._linearsolver = LinearSolver(self._mutilde,solver_parameters=solver_param)
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -99,11 +90,15 @@ class Mutilde(object):
         :arg u: Velocity function to be multiplied by :math:`\\tilde{M}_u`.
         '''
         self._apply_bcs(u)
-        tmp = assemble((dot(self._u_test,u) + \
-                         self._omega_N2*dot(self._u_test,self._zhat) \
-                                       *dot(self._zhat,u))*self._dx)
-        self._apply_bcs(tmp)
-        return tmp
+        if (self._lumped):
+            with tmp_u.dat.vec as v:
+                with u.dat.vec_ro as x:
+                    self._mutilde.M.handle.mult(x,v)
+        else:
+            self._tmp_u.assign(u)
+            self._lumped_mass.multiply(self._tmp_u) 
+        self._apply_bcs(self._tmp_u)
+        return self._tmp.u
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
@@ -113,10 +108,10 @@ class Mutilde(object):
         :arg x: PETSc vector representing the field to be multiplied.
         :arg y: PETSc vector representing the result.
         '''
-        with self._u_tmp.dat.vec as v:
+        with self._tmp_u.dat.vec as v:
             v.array[:] = x.array[:]
-        self._res_tmp = self.apply(self._u_tmp)
-        with self._res_tmp.dat.vec_ro as v:
+        self._tmp_v = self.apply(self._tmp_u)
+        with self._tmp_v.dat.vec_ro as v:
             y.array[:] = v.array[:]
 
     @timed_function("mutilde_divide")

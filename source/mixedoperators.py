@@ -27,7 +27,7 @@ class MixedOperator(object):
             preassembled and the matrix applied each time. Otherwise the action of ther
             operator will be recomputed every time. 
     '''
-    def __init__(self,W2,W3,dt,c,N,preassemble=True):
+    def __init__(self,W2,W3,dt,c,N,preassemble=False):
         self._W2 = W2
         self._W3 = W3
         self._dt_half = Constant(0.5*dt)
@@ -48,16 +48,21 @@ class MixedOperator(object):
         self._dx = self._mesh._dx
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
-        if (self._preassemble):
-            self._mat_uu = assemble( (  dot(self._utest,self._utrial) \
-                       + self._omega_N2 \
+        self.form_uu = (  dot(self._utest,self._utrial) + self._omega_N2 \
                            * dot(self._utest,self._zhat.zhat) \
-                           * dot(self._zhat.zhat,self._utrial) ) * self._dx).M.handle
-            self._mat_up = assemble(-self._dt_half*div(self._utest) \
-                           * self._ptrial*self._dx).M.handle
-            self._mat_pp = assemble( self._ptest * self._ptrial * self._dx).M.handle
-            self._mat_pu = assemble(self._ptest*self._dt_half_c2 \
-                           * div(self._utrial)*self._dx).M.handle
+                           * dot(self._zhat.zhat,self._utrial) ) * self._dx
+        self.form_up = -self._dt_half*div(self._utest) * self._ptrial*self._dx
+        self.form_pp = self._ptest * self._ptrial * self._dx
+        self.form_pu = self._ptest*self._dt_half_c2 * div(self._utrial)*self._dx
+        if (self._preassemble):
+            self._op_uu = assemble(self.form_uu,bcs=self._bcs)
+            self._op_up = assemble(self.form_up)
+            self._op_pu = assemble(self.form_pu)
+            self._op_pp = assemble(self.form_pp)
+            self._mat_uu = self._op_uu.M.handle
+            self._mat_up = self._op_up.M.handle
+            self._mat_pu = self._op_pu.M.handle
+            self._mat_pp = self._op_pp.M.handle
 
     @timed_function("mixed_operator") 
     def apply(self,u,p,r_u,r_p):
