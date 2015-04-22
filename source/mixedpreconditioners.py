@@ -58,9 +58,9 @@ class MixedPreconditioner(object):
                  dt,N,c,
                  pressure_solver,
                  diagonal_only=False,
-                 tolerance_u=1.E-5,maxiter_u=1000,
-                 preassemble=False):
+                 tolerance_u=1.E-5,maxiter_u=1000):
         self._pressure_solver = pressure_solver
+        self._mixed_operator = mixed_operator
         self._W2 = W2
         self._W3 = W3
         self._Wb = Wb
@@ -70,7 +70,7 @@ class MixedPreconditioner(object):
         self._dt_half_N2 = Constant(0.5*dt*N**2)
         self._dt_half_c2 = Constant(0.5*dt*c**2)
         self._diagonal_only = diagonal_only
-        self._preassemble = preassemble
+        self._preassemble = mixed_operator._preassemble
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
         self._dx = self._mesh._dx
@@ -91,12 +91,6 @@ class MixedPreconditioner(object):
         self._Pu = Function(self._W2)
         self._Pp = Function(self._W3)
         self._mixedarray = MixedArray(self._W2,self._W3)
-        if (self._preassemble):
-            self._mat_schur1 = assemble(- self._dt_half_c2 * self._ptest * \
-                                        div(TrialFunction(self._W2)) * self._dx).M.handle
-            self._mat_schur2 = assemble(self._dt_half * div(self._utest) * \
-                                        TrialFunction(self._W3)*self._dx).M.handle
-
         
     @timed_function("mixed_preconditioner") 
     def solve(self,r_u,r_p,u,p):
@@ -123,7 +117,8 @@ class MixedPreconditioner(object):
                 if (self._preassemble):
                     with self._rtilde_p.dat.vec as v:
                         with self._tmp_u.dat.vec_ro as x:
-                            self._mat_schur1.mult(x,v)
+                            self._mixed_operator._mat_pu.mult(x,v)
+                        v *= -1.0
                 else:
                     assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                              tensor=self._rtilde_p)
@@ -137,7 +132,8 @@ class MixedPreconditioner(object):
                 if (self._preassemble):
                     with self._tmp_u.dat.vec as v:
                         with p.dat.vec_ro as x:
-                            self._mat_schur2.mult(x,v)
+                            self._mixed_operator._mat_up.mult(x,v)
+                            v *= -1.0                    
                 else:
                     assemble(self._dt_half * div(self._utest) * p*self._dx,
                         tensor=self._tmp_u)                    
