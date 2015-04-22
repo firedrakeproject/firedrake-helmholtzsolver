@@ -189,9 +189,7 @@ class Operator_Hhat(object):
         B_v = BandedMatrix(self._W2_v,self._W3)
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
-        BT_v = BandedMatrix(self._W3,self._W2_v)
-        BT_v.assemble_ufl_form(TestFunction(self._W3)*div(TrialFunction(self._W2_v))*self._dx,
-                               vertical_bcs=True)
+        BT_v = B_v.transpose()
         M_phi = BandedMatrix(self._W3,self._W3)
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
