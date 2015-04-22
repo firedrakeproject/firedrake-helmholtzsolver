@@ -6,7 +6,6 @@ from mixedoperators import *
 from mixedpreconditioners import *
 from auxilliary.logger import *
 from pressuresolver.vertical_normal import *
-from pressuresolver.mu_tilde import *
 import xml.etree.cElementTree as ET
 
 petsc4py.init(sys.argv)
