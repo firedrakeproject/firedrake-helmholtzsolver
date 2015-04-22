@@ -42,8 +42,7 @@ from petsc4py import PETSc
 
 class IterativeSolver(object):
     def __init__(self,
-                 W2,W3,Wb,
-                 dt,c,N,
+                 Wb,
                  mixed_array,
                  mixed_operator,
                  mixed_preconditioner,
@@ -56,20 +55,17 @@ class IterativeSolver(object):
         self._ksp_type = ksp_type
         self._logger = Logger()
         self._Wb = Wb
-        self._dt = dt
-        self._c = c
-        self._N = N
-        self._dt_half = Constant(0.5*dt)
-        self._dt_half_N2 = Constant(0.5*dt*N**2)
-        self._dt_half_c2 = Constant(0.5*dt*c**2)
-        self._omega_N2 = Constant((0.5*dt*N)**2)
+        self._dt_half = mixed_operator._dt_half
+        self._dt_half_N2 = mixed_operator._dt_half_N2
+        self._dt_half_c2 = mixed_operator._dt_half_c2
+        self._omega_N2 = mixed_operator._omega_N2
         self._maxiter = maxiter
         self._tolerance = tolerance
         self._pressure_solver = pressure_solver
         self._schur_diagonal_only = schur_diagonal_only
         self._ksp_monitor = ksp_monitor
-        self._W2 = W2
-        self._W3 = W3
+        self._W2 = mixed_operator._W2
+        self._W3 = mixed_operator._W3
         self._mixedarray = mixed_array
         self._ndof = self._mixedarray.ndof
         self._x = PETSc.Vec()
@@ -107,15 +103,10 @@ class MatrixFreeSolver(IterativeSolver):
 
         :arg mixed_operator: Mixed operator (:class:`.Mutilde`
         :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
-        :arg W2: HDiv Function space for velocity field :math:`\\vec{u}`
-        :arg W3: L2 Function space for pressure field :math:`p`
         :arg Wb: Function space for buoyancy field :math:`b`
         :arg ksp_type: String describing the PETSc KSP solver (e.g. ``gmres``)
         :arg pressure_solver: Solver for Schur complement pressure system.
             This is an instance of :class:`.IterativeSolver`
-        :arg dt: Positive real number, time step size :math:`\Delta t`
-        :arg c: Positive real number, speed of sound waves
-        :arg N: Positive real number, buoyancy frequency
         :arg schur_diagonal_only: Only use the diagonal part in the 
             Schur complement preconditioner, see :class:`MixedPreconditioner`.
         :arg ksp_monitor: KSP monitor instance, see e.g. :class:`KSPMonitor`
@@ -123,25 +114,22 @@ class MatrixFreeSolver(IterativeSolver):
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,
+                 Wb,
                  mixed_operator,
                  mutilde,
-                 W2,W3,Wb,
-                 dt,c,N,
                  ksp_type='gmres',
                  schur_diagonal_only=False,
                  ksp_monitor=None,
                  maxiter=100,
                  tolerance=1.E-6,
                  pressure_solver=None):
-        mixed_array = MixedArray(W2,W3)
+        mixed_array = MixedArray(mixed_operator._W2,mixed_operator._W3)
         mixed_preconditioner = MixedPreconditioner(mixed_operator,
                                                    mutilde,
-                                                   W2,W3,Wb,
-                                                   dt,N,c,
+                                                   Wb,
                                                    pressure_solver,
                                                    schur_diagonal_only)
-        super(MatrixFreeSolver,self).__init__(W2,W3,Wb,
-                                              dt,c,N,
+        super(MatrixFreeSolver,self).__init__(Wb,
                                               mixed_array,
                                               mixed_operator,
                                               mixed_preconditioner,
@@ -169,9 +157,6 @@ class MatrixFreeSolver(IterativeSolver):
         e.set("buoyancy_space",v_str)
         self._pressure_solver.add_to_xml(e,"pressure_solver")
         e.set("ksp_type",str(self._ksp_type))
-        e.set("dt",('%e' % self._dt))
-        e.set("c",('%e' % self._c))
-        e.set("N",('%e' % self._N))
         e.set("maxiter",str(self._maxiter))
         e.set("tolerance",str(self._tolerance))
         e.set("schur_diagonal_only",str(self._schur_diagonal_only))
@@ -235,15 +220,10 @@ class MatrixFreeSolverOrography(IterativeSolver):
 
         :arg mixed_operator: Mixed operator (:class:`.Mutilde`
         :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
-        :arg W2: HDiv Function space for velocity field :math:`\\vec{u}`
-        :arg W3: L2 Function space for pressure field :math:`p`
         :arg Wb: Function space for buoyancy field :math:`b`
         :arg ksp_type: String describing the PETSc KSP solver (e.g. ``gmres``)
         :arg pressure_solver: Solver for Schur complement pressure system.
             This is an instance of :class:`.IterativeSolver`
-        :arg dt: Positive real number, time step size :math:`\Delta t`
-        :arg c: Positive real number, speed of sound waves
-        :arg N: Positive real number, buoyancy frequency
         :arg schur_diagonal_only: Only use the diagonal part in the 
             Schur complement preconditioner, see :class:`MixedPreconditioner`.
         :arg ksp_monitor: KSP monitor instance, see e.g. :class:`KSPMonitor`
@@ -251,10 +231,9 @@ class MatrixFreeSolverOrography(IterativeSolver):
         :arg tolerance: Tolerance for outer iteration
     '''
     def __init__(self,
+                 Wb,
                  mixed_operator,
                  mutilde,
-                 W2,W3,Wb,
-                 dt,c,N,
                  ksp_type='gmres',
                  schur_diagonal_only=False,
                  ksp_monitor=None,
@@ -262,13 +241,12 @@ class MatrixFreeSolverOrography(IterativeSolver):
                  tolerance=1.E-6,
                  pressure_solver=None):
         mixed_array = MixedArray(W2,W3,Wb)
-        mixed_preconditioner = MixedPreconditionerOrography(mixed_operator,W2,W3,Wb,
+        mixed_preconditioner = MixedPreconditionerOrography(mixed_operator,
                                                             mutilde,
-                                                            dt,N,c,
+                                                            Wb,
                                                             pressure_solver,
                                                             schur_diagonal_only)
-        super(MatrixFreeSolverOrography,self).__init__(W2,W3,Wb,
-                                                       dt,c,N,
+        super(MatrixFreeSolverOrography,self).__init__(Wb,
                                                        mixed_array,
                                                        mixed_operator,
                                                        mixed_preconditioner,
@@ -409,9 +387,6 @@ class PETScSolver(object):
         v_str = self._Wb.ufl_element().shortstr()
         e.set("buoyancy_space",v_str)
         e.set("ksp_type",str(self._ksp_type))
-        e.set("dt",('%e' % self._dt))
-        e.set("c",('%e' % self._c))
-        e.set("N",('%e' % self._N))
         e.set("maxiter",str(self._maxiter))
         e.set("tolerance",str(self._tolerance))
 

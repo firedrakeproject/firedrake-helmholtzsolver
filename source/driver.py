@@ -355,12 +355,7 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
         Solver = gravitywaves.MatrixFreeSolverOrography
     else:
         Solver = gravitywaves.MatrixFreeSolver
-    gravitywave_solver_matrixfree = Solver(mixed_operator,
-                                           mutilde,
-                                           W2,W3,Wb,
-                                           dt,
-                                           param_general['speed_c'],
-                                           param_general['speed_N'],
+    gravitywave_solver_matrixfree = Solver(Wb,mixed_operator,mutilde,
                                            ksp_type=param_mixed['ksp_type'],
                                            schur_diagonal_only = \
                                              param_mixed['schur_diagonal_only'],

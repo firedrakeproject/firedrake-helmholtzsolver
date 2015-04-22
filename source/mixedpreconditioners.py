@@ -42,12 +42,7 @@ class MixedPreconditioner(object):
     
         :arg mixed_operator: Mixed operator (:class:`.Mutilde`
         :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
-        :arg W2: Hdiv function space for velocity
-        :arg W3: L2 function space for velocity
         :arg Wb: Function space for buoyancy 
-        :arg dt: Time step size
-        :arg N: Buoyancy frequency
-        :arg c: Speed of sound waves
         :arg pressure_solver: Solver in pressure space
         :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
             substitution with triagular matrices
@@ -57,21 +52,20 @@ class MixedPreconditioner(object):
     def __init__(self,
                  mixed_operator,
                  mutilde,
-                 W2,W3,Wb,
-                 dt,N,c,
+                 Wb,
                  pressure_solver,
                  diagonal_only=False,
                  tolerance_u=1.E-5,maxiter_u=1000):
         self._pressure_solver = pressure_solver
         self._mixed_operator = mixed_operator
-        self._W2 = W2
-        self._W3 = W3
+
+        self._W2 = mixed_operator._W2
+        self._W3 = mixed_operator._W3
         self._Wb = Wb
-        self._omega_N = 0.5*dt*N
-        self._omega_N2 = Constant(0.5*dt*N)
-        self._dt_half = Constant(0.5*dt)
-        self._dt_half_N2 = Constant(0.5*dt*N**2)
-        self._dt_half_c2 = Constant(0.5*dt*c**2)
+
+        self._dt_half = mixed_operator._dt_half
+        self._dt_half_N2 = mixed_operator._dt_half_N2
+        self._dt_half_c2 = mixed_operator._dt_half_c2
         self._diagonal_only = diagonal_only
         self._preassemble = mixed_operator._preassemble
         self._mesh = self._W3._mesh
@@ -194,12 +188,7 @@ class MixedPreconditionerOrography(object):
     
         :arg mixed_operator: Mixed operator (:class:`.Mutilde`
         :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
-        :arg W2: Hdiv function space for velocity
-        :arg W3: L2 function space for velocity
         :arg Wb: Function space for buoyancy
-        :arg dt: Time step size
-        :arg N: Buoyancy frequency
-        :arg c: Speed of sound waves
         :arg pressure_solver: Solver in pressure space
         :arg diagonal_only: Only use diagonal matrix, ignore forward/backward
             substitution with triagular matrices
@@ -207,21 +196,18 @@ class MixedPreconditionerOrography(object):
     def __init__(self,
                  mixed_operator,
                  mutilde,
-                 W2,W3,Wb,
-                 dt,N,c,
+                 Wb,
                  pressure_solver,
                  diagonal_only=False,
                  tolerance_b=1.E-5,maxiter_b=1000,
                  tolerance_u=1.E-5,maxiter_u=1000):
         self._pressure_solver = pressure_solver
-        self._W2 = W2
-        self._W3 = W3
+        self._W2 = mixed_operator._W2
+        self._W3 = mixed_operator._W3
         self._Wb = Wb
-        self._omega_N = 0.5*dt*N
-        self._omega_N2 = Constant(self._omega_N**2)
-        self._dt_half = Constant(0.5*dt)
-        self._dt_half_N2 = Constant(0.5*dt*N**2)
-        self._dt_half_c2 = Constant(0.5*dt*c**2)
+        self._dt_half = mixed_operator._dt_half
+        self._dt_half_N2 = mixed_operatpr._dt_half_N2
+        self._dt_half_c2 = mixed_operator._dt_half_c2
         self._diagonal_only = diagonal_only
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)

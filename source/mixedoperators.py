@@ -30,9 +30,15 @@ class MixedOperator(object):
     def __init__(self,W2,W3,dt,c,N,preassemble=True):
         self._W2 = W2
         self._W3 = W3
-        self._dt_half = Constant(0.5*dt)
-        self._dt_half_c2 = Constant(0.5*dt*c**2)
+        self._c = c
+        self._N = N
+
+        #self._omega_N = 0.5*dt*N
         self._omega_N2 = Constant((0.5*dt*N)**2)
+        self._dt_half = Constant(0.5*dt)
+        self._dt_half_N2 = Constant(0.5*dt*N**2)
+        self._dt_half_c2 = Constant(0.5*dt*c**2)
+
         self._preassemble = preassemble
         self._utest = TestFunction(self._W2)
         self._ptest = TestFunction(self._W3)
