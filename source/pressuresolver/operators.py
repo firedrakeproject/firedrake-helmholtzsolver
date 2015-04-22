@@ -261,19 +261,6 @@ class Operator_Hhat(object):
         phi_trial = TrialFunction(self._W3)
         w_h_test = TestFunction(self._W2_h)
         w_h_trial = TrialFunction(self._W2_h)
-        w_v_test = TestFunction(self._W2_v)
-        w_v_trial = TrialFunction(self._W2_v)
-
-        # Pressure mass matrix
-        M_phi = BandedMatrix(self._W3,self._W3)
-        M_phi.assemble_ufl_form(phi_test*phi_trial*self._dx)
-
-        # B_v M_{u,v,inv} B_v^T
-        B_v_T = BandedMatrix(self._W2_v,self._W3)
-        B_v_T.assemble_ufl_form(div(w_v_test)*phi_trial*self._dx,vertical_bcs=True)
-        B_v = BandedMatrix(self._W3,self._W2_v)
-        B_v.assemble_ufl_form(phi_test*div(w_v_trial)*self._dx,vertical_bcs=True)
-        B_v_Mu_vinv_B_v_T = B_v.matmul(self._Mu_vinv.matmul(B_v_T))
 
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
         param_coffee_old = parameters["coffee"]["O2"]
@@ -327,8 +314,7 @@ class Operator_Hhat(object):
 
         # Add everything up       
         delta_h.scale(self._omega_c**2)
-        B_v_Mu_vinv_B_v_T.scale(self._omega)
-        return M_phi.matadd(delta_h.matadd(B_v_Mu_vinv_B_v_T))
+        return self._Hhat_v.matadd(delta_h)
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
