@@ -27,7 +27,7 @@ class MixedOperator(object):
             preassembled and the matrix applied each time. Otherwise the action of ther
             operator will be recomputed every time. 
     '''
-    def __init__(self,W2,W3,dt,c,N,preassemble=False):
+    def __init__(self,W2,W3,dt,c,N,preassemble=True):
         self._W2 = W2
         self._W3 = W3
         self._dt_half = Constant(0.5*dt)
