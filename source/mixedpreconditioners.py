@@ -40,6 +40,8 @@ class MixedPreconditioner(object):
         and in backward/forward substitution (steps 1. and 3. above) the terms which are 
         formally of order :math:`\Delta t` are ignored.
     
+        :arg mixed_operator: Mixed operator (:class:`.Mutilde`
+        :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
         :arg W2: Hdiv function space for velocity
         :arg W3: L2 function space for velocity
         :arg Wb: Function space for buoyancy 
@@ -54,6 +56,7 @@ class MixedPreconditioner(object):
     '''
     def __init__(self,
                  mixed_operator,
+                 mutilde,
                  W2,W3,Wb,
                  dt,N,c,
                  pressure_solver,
@@ -79,9 +82,7 @@ class MixedPreconditioner(object):
         self._utest = TestFunction(self._W2)
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
-        self._mutilde = Mutilde(mixed_operator,
-                                lumped=self._pressure_solver._operator._mutilde._lumped,
-                                tolerance_u=tolerance_u,maxiter_u=maxiter_u)
+        self._mutilde = mutilde
         # Temporary functions
         self._rtilde_u = Function(self._W2)
         self._rtilde_p = Function(self._W3)
@@ -91,6 +92,7 @@ class MixedPreconditioner(object):
         self._Pu = Function(self._W2)
         self._Pp = Function(self._W3)
         self._mixedarray = MixedArray(self._W2,self._W3)
+        self._tolerance_u = tolerance_u
         
     @timed_function("mixed_preconditioner") 
     def solve(self,r_u,r_p,u,p):
@@ -109,11 +111,11 @@ class MixedPreconditioner(object):
             p.assign(0.0)
             self._pressure_solver.solve(r_p,p)
             # Velocity solve
-            self._mutilde.divide(r_u,u)
+            self._mutilde.divide(r_u,u,tolerance=self._tolerance_u)
         else:
             # Modified RHS for pressure
             with timed_region('schur_pressure_rhs'):
-                self._mutilde.divide(r_u,self._tmp_u)
+                self._mutilde.divide(r_u,self._tmp_u,tolerance=self._tolerance_u)
                 if (self._preassemble):
                     with self._rtilde_p.dat.vec as v:
                         with self._tmp_u.dat.vec_ro as x:
@@ -138,7 +140,7 @@ class MixedPreconditioner(object):
                     assemble(self._dt_half * div(self._utest) * p*self._dx,
                         tensor=self._tmp_u)                    
                 self._tmp_u += r_u
-                self._mutilde.divide(self._tmp_u,u)
+                self._mutilde.divide(self._tmp_u,u,tolerance=self._tolerance_u)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.
@@ -190,6 +192,8 @@ class MixedPreconditionerOrography(object):
         and in backward/forward substitution (steps 1. and 3. above) the terms which are 
         formally of order :math:`\Delta t` are ignored.
     
+        :arg mixed_operator: Mixed operator (:class:`.Mutilde`
+        :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
         :arg W2: Hdiv function space for velocity
         :arg W3: L2 function space for velocity
         :arg Wb: Function space for buoyancy
@@ -202,6 +206,7 @@ class MixedPreconditionerOrography(object):
     '''
     def __init__(self,
                  mixed_operator,
+                 mutilde,
                  W2,W3,Wb,
                  dt,N,c,
                  pressure_solver,
@@ -227,9 +232,7 @@ class MixedPreconditionerOrography(object):
         self._ptest = TestFunction(self._W3)
         self._btest = TestFunction(self._Wb)
         # Buoyancy mass matrix
-        self._mutilde = Mutilde(mixed_operator,
-                                lumped=self._pressure_solver._operator._mutilde._lumped,
-                                tolerance_u=tolerance_u,maxiter_u=maxiter_u)
+        self._mutilde = mutilde
         # Temporary functions
         self._rtilde_u = Function(self._W2)
         self._rtilde_p = Function(self._W3)
@@ -241,6 +244,7 @@ class MixedPreconditionerOrography(object):
         self._Pu = Function(self._W2)
         self._Pp = Function(self._W3)
         self._Pb = Function(self._Wb)
+        self._tolerance_u = tolerance_u
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
         Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx)
         self._linearsolver_b = LinearSolver(Mb,solver_parameters={'ksp_type':'cg',
@@ -271,7 +275,7 @@ class MixedPreconditionerOrography(object):
             self._pressure_solver.solve(r_p,p)
             # Velocity solve
             with timed_region('mutilde_divide'):
-                self._mutilde.divide(r_u,u)
+                self._mutilde.divide(r_u,u,tolerance=self._tolerance_u)
             # Buoyancy solve
             with timed_region('Mb_divide'):
                 self._linearsolver_b.solve(b,r_b)
@@ -285,7 +289,7 @@ class MixedPreconditionerOrography(object):
             self._rtilde_u += r_u
             # Modified RHS for pressure
             with timed_region('mutilde_divide_schur'):
-                self._mutilde.divide(self._rtilde_u,self._tmp_u)
+                self._mutilde.divide(self._rtilde_u,self._tmp_u,tolerance=self._tolerance_u)
             assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                      tensor=self._rtilde_p)
             self._rtilde_p += r_p
@@ -297,7 +301,7 @@ class MixedPreconditionerOrography(object):
                      tensor=self._tmp_u)
             self._tmp_u += self._rtilde_u
             with timed_region('mutilde_divide_schur'):
-                self._mutilde.divide(self._tmp_u,u)
+                self._mutilde.divide(self._tmp_u,u,tolerance=self._tolerance_u)
             # Backsubstitution for buoyancy
             assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
                      tensor=self._tmp_b)

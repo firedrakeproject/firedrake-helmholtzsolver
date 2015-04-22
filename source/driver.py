@@ -356,6 +356,7 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
     else:
         Solver = gravitywaves.MatrixFreeSolver
     gravitywave_solver_matrixfree = Solver(mixed_operator,
+                                           mutilde,
                                            W2,W3,Wb,
                                            dt,
                                            param_general['speed_c'],

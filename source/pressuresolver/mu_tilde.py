@@ -115,7 +115,7 @@ class Mutilde(object):
             y.array[:] = v.array[:]
 
     @timed_function("mutilde_divide")
-    def divide(self,u,r_u):
+    def divide(self,u,r_u,tolerance=None):
         '''Multiply a velocity field by the inverse of the matrix.
         
         Calculate :math:`(\\tilde{M}_u)^{-1}u` via a CG iteration and return result
@@ -129,4 +129,12 @@ class Mutilde(object):
             self._lumped_mass.divide(r_u)
             self._apply_bcs(r_u)
         else:
+            if (tolerance != None):
+                param = self._linearsolver.parameters
+                old_tolerance = param['ksp_rtol']
+                param['ksp_rtol'] = tolerance
+                self._linearsolver.parameters = param
             self._linearsolver.solve(r_u,u)
+            if (tolerance != None):
+                param['ksp_rtol'] = old_tolerance
+                self._linearsolver.parameters = param

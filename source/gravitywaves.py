@@ -106,6 +106,8 @@ class IterativeSolver(object):
 class MatrixFreeSolver(IterativeSolver):
     '''Matrix-free solver for the gravity wave system without orography
 
+        :arg mixed_operator: Mixed operator (:class:`.Mutilde`
+        :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
         :arg W2: HDiv Function space for velocity field :math:`\\vec{u}`
         :arg W3: L2 Function space for pressure field :math:`p`
         :arg Wb: Function space for buoyancy field :math:`b`
@@ -123,6 +125,7 @@ class MatrixFreeSolver(IterativeSolver):
     '''
     def __init__(self,
                  mixed_operator,
+                 mutilde,
                  W2,W3,Wb,
                  dt,c,N,
                  ksp_type='gmres',
@@ -133,6 +136,7 @@ class MatrixFreeSolver(IterativeSolver):
                  pressure_solver=None):
         mixed_array = MixedArray(W2,W3)
         mixed_preconditioner = MixedPreconditioner(mixed_operator,
+                                                   mutilde,
                                                    W2,W3,Wb,
                                                    dt,N,c,
                                                    pressure_solver,
@@ -230,6 +234,8 @@ class MatrixFreeSolver(IterativeSolver):
 class MatrixFreeSolverOrography(IterativeSolver):
     '''Matrix-free solver for the gravity wave system with orography
 
+        :arg mixed_operator: Mixed operator (:class:`.Mutilde`
+        :arg mutilde: Modfied velocity mass matrix (:class:`.Mutilde`)
         :arg W2: HDiv Function space for velocity field :math:`\\vec{u}`
         :arg W3: L2 Function space for pressure field :math:`p`
         :arg Wb: Function space for buoyancy field :math:`b`
@@ -247,6 +253,7 @@ class MatrixFreeSolverOrography(IterativeSolver):
     '''
     def __init__(self,
                  mixed_operator,
+                 mutilde,
                  W2,W3,Wb,
                  dt,c,N,
                  ksp_type='gmres',
@@ -257,6 +264,7 @@ class MatrixFreeSolverOrography(IterativeSolver):
                  pressure_solver=None):
         mixed_array = MixedArray(W2,W3,Wb)
         mixed_preconditioner = MixedPreconditionerOrography(mixed_operator,W2,W3,Wb,
+                                                            mutilde,
                                                             dt,N,c,
                                                             pressure_solver,
                                                             schur_diagonal_only)
