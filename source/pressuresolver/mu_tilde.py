@@ -74,7 +74,8 @@ class Mutilde(object):
                 self._mutilde = mixed_operator._op_uu
             else:
                 self._mutilde = assemble(ufl_form,bcs=self._bcs)
-            self._linearsolver = LinearSolver(self._mutilde,solver_parameters=solver_param)
+            linearsolver = LinearSolver(self._mutilde,solver_parameters=solver_param)
+            self._ksp = linearsolver.ksp
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -123,18 +124,17 @@ class Mutilde(object):
         :arg u: Velocity field to be multiplied
         :arg r_u: Resulting velocity field
         '''
-        self._apply_bcs(u)
         if self._lumped:
             r_u.assign(u)
             self._lumped_mass.divide(r_u)
-            self._apply_bcs(r_u)
         else:
             if (tolerance != None):
-                param = self._linearsolver.parameters
-                old_tolerance = param['ksp_rtol']
-                param['ksp_rtol'] = tolerance
-                self._linearsolver.parameters = param
-            self._linearsolver.solve(r_u,u)
+                old_tolerance = self._ksp.rtol
+                self._ksp.rtol = tolerance
+            with u.dat.vec_ro as v:
+                with r_u.dat.vec as x:
+                    self._ksp.solve(v,x)
             if (tolerance != None):
-                param['ksp_rtol'] = old_tolerance
-                self._linearsolver.parameters = param
+                self._ksp.rtol = old_tolerance
+        self._apply_bcs(r_u)
+
