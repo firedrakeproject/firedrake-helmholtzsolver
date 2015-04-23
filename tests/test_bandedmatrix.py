@@ -96,7 +96,6 @@ def test_matmul(W2_vert,W3,velocity_expression):
     '''
     u = Function(W2_vert)
     v = Function(W3)
-    v_tmp = Function(W3)
 
     u.project(velocity_expression)
     v.assign(0)
@@ -268,7 +267,6 @@ def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
 
     u = Function(W3)
     v = Function(W3)
-    v_tmp = Function(W3)
 
     u.project(pressure_expression)
     v.assign(0)
