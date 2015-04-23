@@ -115,7 +115,6 @@ class Mutilde(object):
         with self._tmp_v.dat.vec_ro as v:
             y.array[:] = v.array[:]
 
-    @timed_function("mutilde_divide")
     def divide(self,u,r_u,tolerance=None):
         '''Multiply a velocity field by the inverse of the matrix.
         

@@ -4,7 +4,6 @@ from mixedarray import *
 from auxilliary.logger import *
 from pressuresolver.vertical_normal import *
 from pressuresolver.mu_tilde import *
-from pyop2.profiling import timed_function, timed_region
 
 petsc4py.init(sys.argv)
 
@@ -88,7 +87,7 @@ class MixedPreconditioner(object):
         self._mixedarray = MixedArray(self._W2,self._W3)
         self._tolerance_u = tolerance_u
         
-    @timed_function("mixed_preconditioner") 
+    @timed_function("matrixfree mixed preconditioner") 
     def solve(self,r_u,r_p,u,p):
         '''Preconditioner solve.
 
@@ -105,35 +104,36 @@ class MixedPreconditioner(object):
             p.assign(0.0)
             self._pressure_solver.solve(r_p,p)
             # Velocity solve
-            self._mutilde.divide(r_u,u,tolerance=self._tolerance_u)
+            with timed_region('matrixfree pc_hdiv'):
+                self._mutilde.divide(r_u,u,tolerance=self._tolerance_u)
         else:
             # Modified RHS for pressure
-            with timed_region('schur_pressure_rhs'):
+            with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(r_u,self._tmp_u,tolerance=self._tolerance_u)
-                if (self._preassemble):
-                    with self._rtilde_p.dat.vec as v:
-                        with self._tmp_u.dat.vec_ro as x:
-                            self._mixed_operator._mat_pu.mult(x,v)
-                        v *= -1.0
-                else:
-                    assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
-                             tensor=self._rtilde_p)
-                self._rtilde_p += r_p
+            if (self._preassemble):
+                with self._rtilde_p.dat.vec as v:
+                    with self._tmp_u.dat.vec_ro as x:
+                        self._mixed_operator._mat_pu.mult(x,v)
+                    v *= -1.0
+            else:
+                assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
+                         tensor=self._rtilde_p)
+            self._rtilde_p += r_p
 
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(self._rtilde_p,p)
             # Backsubstitution for velocity 
-            with timed_region('schur_velocity_backsubstitution'):
-                if (self._preassemble):
-                    with self._tmp_u.dat.vec as v:
-                        with p.dat.vec_ro as x:
-                            self._mixed_operator._mat_up.mult(x,v)
-                            v *= -1.0                    
-                else:
-                    assemble(self._dt_half * div(self._utest) * p*self._dx,
-                        tensor=self._tmp_u)                    
-                self._tmp_u += r_u
+            if (self._preassemble):
+                with self._tmp_u.dat.vec as v:
+                    with p.dat.vec_ro as x:
+                        self._mixed_operator._mat_up.mult(x,v)
+                        v *= -1.0                    
+            else:
+                assemble(self._dt_half * div(self._utest) * p*self._dx,
+                    tensor=self._tmp_u)                    
+            self._tmp_u += r_u
+            with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(self._tmp_u,u,tolerance=self._tolerance_u)
 
     def apply(self,pc,x,y):
@@ -239,7 +239,7 @@ class MixedPreconditionerOrography(object):
                                                                   'ksp_monitor':False,
                                                                   'pc_type':'jacobi'})
 
-    @timed_function("mixed_preconditioner") 
+    @timed_function("matrixfree mixed preconditioner") 
     def solve(self,r_u,r_p,r_b,u,p,b):
         '''Preconditioner solve.
 
@@ -260,21 +260,19 @@ class MixedPreconditionerOrography(object):
             p.assign(0.0)
             self._pressure_solver.solve(r_p,p)
             # Velocity solve
-            with timed_region('mutilde_divide'):
+            with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(r_u,u,tolerance=self._tolerance_u)
             # Buoyancy solve
-            with timed_region('Mb_divide'):
-                self._linearsolver_b.solve(b,r_b)
+            self._linearsolver_b.solve(b,r_b)
         else:
             # Modified RHS for velocity 
-            with timed_region('Mb_divide'):
-                self._linearsolver_b.solve(self._tmp_b,r_b)
+            self._linearsolver_b.solve(self._tmp_b,r_b)
             assemble(self._dt_half * dot(self._utest,self._zhat.zhat) \
                                    * self._tmp_b * self._dx,
                      tensor=self._rtilde_u)
             self._rtilde_u += r_u
             # Modified RHS for pressure
-            with timed_region('mutilde_divide_schur'):
+            with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(self._rtilde_u,self._tmp_u,tolerance=self._tolerance_u)
             assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
                      tensor=self._rtilde_p)
@@ -286,14 +284,13 @@ class MixedPreconditionerOrography(object):
             assemble(self._dt_half * div(self._utest) * p*self._dx,
                      tensor=self._tmp_u)
             self._tmp_u += self._rtilde_u
-            with timed_region('mutilde_divide_schur'):
+            with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(self._tmp_u,u,tolerance=self._tolerance_u)
             # Backsubstitution for buoyancy
             assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
                      tensor=self._tmp_b)
             self._tmp_b += r_b
-            with timed_region('Mb_divide_schur'):
-                self._linearsolver_b.solve(b,self._tmp_b)
+            self._linearsolver_b.solve(b,self._tmp_b)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.

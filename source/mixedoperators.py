@@ -70,7 +70,7 @@ class MixedOperator(object):
             self._mat_pu = self._op_pu.M.handle
             self._mat_pp = self._op_pp.M.handle
 
-    @timed_function("mixed_operator") 
+    @timed_function("matrixfree mixed_operator") 
     def apply(self,u,p,r_u,r_p):
         '''Apply the operator to a mixed field.
         
@@ -178,7 +178,7 @@ class MixedOperatorOrography(object):
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
 
-    @timed_function("mixed_operator") 
+    @timed_function("matrixfree mixed_operator") 
     def apply(self,u,p,b,r_u,r_p,r_b):
         '''Apply the operator to a mixed field.
         

@@ -62,6 +62,7 @@ class IterativeSolver(object):
         self._maxiter = maxiter
         self._tolerance = tolerance
         self._pressure_solver = pressure_solver
+        self._mixed_operator = mixed_operator
         self._schur_diagonal_only = schur_diagonal_only
         self._ksp_monitor = ksp_monitor
         self._W2 = mixed_operator._W2
@@ -204,7 +205,7 @@ class MatrixFreeSolver(IterativeSolver):
         with self._u.dat.vec as u, \
              self._p.dat.vec as p:
             self._mixedarray.split(self._x,u,p)
-        with timed_region('Buoyancy solver'):
+        with timed_region('matrixfree buoyancy solve'):
             L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
             a_b = btest*TrialFunction(self._Wb)*self._dx
             b_tmp = Function(self._Wb)
@@ -463,11 +464,11 @@ class PETScSolver(object):
         self._p.assign(0.0)
         self._b.assign(0.0)
         vmixed = Function(self._Wmixed)
-        with timed_region('solver_setup'):
+        with timed_region('petsc solver setup'):
             self.up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
         with self._ksp_monitor:
             self.up_solver.solve()
-        with timed_region('buoyancy solve'):
+        with timed_region('petsc buoyancy solve'):
             self._u.assign(vmixed.sub(0))
             self._p.assign(vmixed.sub(1))
             btest = TestFunction(self._Wb)

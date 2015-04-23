@@ -109,9 +109,9 @@ class PETScSolver(IterativeSolver):
         :arg b: Right hand side :math:`b` in pressure space
         :arg phi: State vector :math:`\phi` in pressure space
         '''
-        with b.dat.vec_ro as v:
-            self._rhs.array[:] = v.array[:]
-        with self._ksp_monitor, timed_region('pressure_solve'):
+        with self._ksp_monitor, timed_region('matrixfree pc_schur'):
+            with b.dat.vec_ro as v:
+                self._rhs.array[:] = v.array[:]
             self._ksp.solve(self._rhs,self._u)
-        with phi.dat.vec as v:
-            v.array[:] = self._u.array[:]
+            with phi.dat.vec as v:
+                v.array[:] = self._u.array[:]

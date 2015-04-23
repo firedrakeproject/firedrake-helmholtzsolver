@@ -130,6 +130,7 @@ class Operator_Hhat(object):
     :arg omega_N: Positive real constant, related to buoyancy frequency
         :math:`\omega_c=\\frac{\Delta t}{2}N`
     :arg preassemble_horizontal: Pre-assemble horizontal part of the operator
+    :arg timer_label: Label for timer
     '''
     def __init__(self,
                  W3,
@@ -148,7 +149,7 @@ class Operator_Hhat(object):
         self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
         self._preassemble_horizontal = preassemble_horizontal
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
-        self._timer_label = str(ncells)
+        self._timer_label = None
         w_h = TestFunction(self._W2_h)
         w_v = TestFunction(self._W2_v)
         self._psi = TestFunction(self._W3)
@@ -210,6 +211,13 @@ class Operator_Hhat(object):
         for bc in self._bcs:
             bc.apply(u)
 
+    def set_timer_label(self,label):
+        '''set label for timer.
+
+            :arg label: Label to be used for timer
+        '''
+        self._timer_label = label
+
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
 
@@ -225,7 +233,6 @@ class Operator_Hhat(object):
         v_str = str(self._W2_v.ufl_element().shortstr())
         e.set("velocity_space_vertical",v_str)
 
-    @timed_function("apply_Hhat")
     def apply(self,phi):
         '''Apply operator.
 
@@ -235,7 +242,11 @@ class Operator_Hhat(object):
 
         :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''
-        with timed_region('apply_operator_Hhat_'+self._timer_label):
+        if (self._timer_label == None):
+            label = 'matrixfree op_schur'
+        else:
+            label = 'matrixfree op_schur_'+self._timer_label
+        with timed_region(label):
             self._phi_tmp.assign(phi)
             if (self._preassemble_horizontal):
                 with self._BT_B_h_phi.dat.vec as v:
