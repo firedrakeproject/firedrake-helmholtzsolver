@@ -189,11 +189,11 @@ class Operator_Hhat(object):
         B_v = BandedMatrix(self._W2_v,self._W3)
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
-        BT_v = B_v.transpose()
         M_phi = BandedMatrix(self._W3,self._W3)
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
-        self._Hhat_v = M_phi.matadd(BT_v.matmul(self._Mu_vinv.matmul(B_v)),omega=self._omega)
+        self._Hhat_v = M_phi.matadd(B_v.transpose_matmul(self._Mu_vinv.matmul(B_v)),
+                                    omega=self._omega)
         self._bcs = [DirichletBC(self._W2_v, 0.0, "bottom"),
                      DirichletBC(self._W2_v, 0.0, "top")]
         with self._phi_tmp.dat.vec as v:
