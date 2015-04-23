@@ -554,6 +554,68 @@ class BandedMatrix(object):
                      result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
+    def transpose_matmul(self,other,result=None):
+        '''Calculate matrix product :math:`C=A^TB`.
+
+        Multiply the transpose of this matrix by the banded matrix :math:`B` 
+        from the right and store the
+        result in the matrix :math:`C`, which is returned on exit.
+        If result is None, allocate a new matrix, otherwise 
+        write data to already allocated matrix ``result``. 
+
+        :arg other: matrix :math:`B` to multiply with
+        :arg result: resulting matrix :math:`C`
+        '''
+        # Check that matrices can be multiplied
+        assert (self._n_row == other._n_row)
+        if (result != None):
+            assert(result._n_row == self._n_col)
+            assert(result._n_col == other._n_col)
+        else:
+            alpha = self.beta * other.alpha
+            beta = self.alpha * other.beta
+            gamma_m = other.alpha * self.gamma_p + self.alpha*other.gamma_m
+            gamma_p = other.alpha * self.gamma_m + self.alpha*other.gamma_p
+            result = BandedMatrix(self._fs_col,other._fs_col,
+                                  alpha=alpha,beta=beta,
+                                  gamma_m=gamma_m,gamma_p=gamma_p)
+
+        param_dict = {}
+        for label, matrix in zip(('A','B','C'),(self,other,result)):
+            param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
+        kernel_code = '''void transpose_matmul(double **A,
+                                               double **B,
+                                               double **C) {
+          for (int i=0;i<%(C_n_row)d;++i) {
+            int j_m = (int) ceil((%(C_alpha)d*i-%(C_gamma_p)d)/(1.0*%(C_beta)f));
+            int j_p = (int) floor((%(C_alpha)d*i+%(C_gamma_m)d)/(1.0*%(C_beta)f));
+            int k_m = (int) ceil((%(A_beta)d*i-%(A_gamma_m)d)/(1.0*%(A_alpha)f));
+            int k_p = (int) floor((%(A_beta)d*i+%(A_gamma_p)d)/(1.0*%(A_alpha)f));
+            for (int j=std::max(0,j_m);j<std::min(%(C_n_col)d,j_p+1);++j) {
+              double s = 0.0;
+              for (int k=std::max(0,k_m);k<std::min(%(A_n_row)d,k_p+1);++k) {
+                if ( (ceil((%(B_alpha)d*k-%(B_gamma_p)d)/%(B_beta)f) <= j) &&
+                     (j <= floor((%(B_alpha)d*k+%(B_gamma_m)d)/(1.0*%(B_beta)f))) &&
+                     (ceil((%(A_alpha)d*k-%(A_gamma_p)d)/%(B_beta)f) <= i) &&
+                     (i <= floor((%(A_alpha)d*k+%(A_gamma_m)d)/(1.0*%(A_beta)f))) ) {
+                  int i_m_A = (int) ceil((%(A_alpha)d*k-%(A_gamma_p)d)/(1.0*%(A_beta)f));
+                  int j_m_B = (int) ceil((%(B_alpha)d*k-%(B_gamma_p)d)/(1.0*%(B_beta)f));
+                  s += A[0][%(A_bandwidth)d*k+(i-i_m_A)]
+                     * B[0][%(B_bandwidth)d*k+(j-j_m_B)];
+                }
+              }
+              C[0][%(C_bandwidth)d*i+(j-j_m)] = s;
+            }
+          }
+        }'''
+        kernel = op2.Kernel(kernel_code % param_dict, 'transpose_matmul',cpp=True)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     other._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        return result
+
     def scale(self,omega=1.0):
         '''Scale matrix :math:`A` in place by a given factor.
 

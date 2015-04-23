@@ -83,7 +83,7 @@ def test_derivative_action(W2_vert,W3,velocity_expression):
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
 def test_matmul(W2_vert,W3,velocity_expression):
-    '''Test matrix multiplication.
+    '''Test matrix multiplication :math:`C=AB`.
     
     Assemble banded matrices for the :math:`W_3` mass matrix and the 
     :math:`W_2\\rightarrow W_3` weak derivative and multiply these banded matrices to
@@ -118,6 +118,47 @@ def test_matmul(W2_vert,W3,velocity_expression):
     mat_MD.axpy(u, v)
 
     v_ufl = assemble(action(form_M,assemble(action(form_D, u))))
+
+    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+
+def test_transpose_matmul(W2_vert,W3,pressure_expression):
+    '''Test matrix multiplication :math:`C=A^TB`.
+    
+    Assemble banded matrices for the :math:`W_3` mass matrix and the 
+    transpose of the :math:`W_2\\rightarrow W_3` weak derivative and multiply these banded 
+    matrices to obtain a new banded matrix.
+    Apply this matrix to a :math:`W_3` field and compare to the result of doing the same
+    operation in UFL.
+
+    :arg W2_vert: L2 pressure function space
+    :arg W3: HDiv space for vertical velocity component
+    :arg pressure_expression: Analytical expression for pressue
+    '''
+    u = Function(W3)
+    v = Function(W2_vert)
+
+    u.project(pressure_expression)
+    v.assign(0)
+
+    mat_M = BandedMatrix(W3,W3)
+    mat_D = BandedMatrix(W3,W2_vert)
+
+    phi_test = TestFunction(W3)
+    phi_trial = TrialFunction(W3)
+    w_trial = TrialFunction(W2_vert)
+    w_test = TestFunction(W2_vert)
+
+    form_M = phi_test*phi_trial*dx
+    form_D = phi_test*div(w_trial)*dx
+    form_DT = div(w_test)*phi_trial*dx
+    mat_M.assemble_ufl_form(form_M)
+    mat_D.assemble_ufl_form(form_D)
+
+    mat_DT_M = mat_D.transpose_matmul(mat_M)
+
+    mat_DT_M.axpy(u, v)
+
+    v_ufl = assemble(action(form_DT,assemble(action(form_M, u))))
 
     assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
 
