@@ -239,7 +239,8 @@ def build_function_spaces(mesh_hierarchy,
     W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz_lo)
     # Pressure space hierarchy
     W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt_lo)
-
+    for i in range(len(W3_hierarchy)-1):
+        W3_hierarchy.cell_node_map(i)
     if (higher_order):
         # Higher order elements
         U1 = FiniteElement('BDFM',triangle,2)

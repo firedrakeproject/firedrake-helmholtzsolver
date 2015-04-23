@@ -325,7 +325,9 @@ class Operator_Hhat(object):
 
         # Add everything up       
         delta_h.scale(self._omega_c**2)
-        return self._Hhat_v.matadd(delta_h)
+        result = self._Hhat_v.matadd(delta_h)
+        result._lu_decompose()
+        return result
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
