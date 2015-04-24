@@ -9,6 +9,7 @@ ffc_log.set_level(ffc_log.ERROR)
 from ufl import log as ufl_log
 ufl_log.set_level(ufl_log.ERROR)
 import gravitywaves
+from mixedoperators import *
 import pressuresolver.solvers
 from pressuresolver.operators import *
 from pressuresolver.preconditioners import *
@@ -26,6 +27,7 @@ from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
 from firedrake.petsc import PETSc
+parameters["pyop2_options"]["profiling"] = True
 
 def initialise_parameters(filename=None):
     '''Set default parameters and read from file.
@@ -237,7 +239,8 @@ def build_function_spaces(mesh_hierarchy,
     W2_horiz_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W2_elt_horiz_lo)
     # Pressure space hierarchy
     W3_hierarchy = FunctionSpaceHierarchy(mesh_hierarchy,W3_elt_lo)
-
+    for i in range(len(W3_hierarchy)-1):
+        W3_hierarchy.cell_node_map(i)
     if (higher_order):
         # Higher order elements
         U1 = FiniteElement('BDFM',triangle,2)
@@ -267,14 +270,12 @@ def build_function_spaces(mesh_hierarchy,
 
     return W2,W3,Wb,W2_horiz,W2_vert,W2_horiz_hierarchy,W2_vert_hierarchy,W3_hierarchy
 
-def matrixfree_solver_setup(functionspaces,dt,omega_c,omega_N,all_param):
+def matrixfree_solver_setup(functionspaces,dt,all_param):
     '''Set up matrixfree solver.
 
         :arg functionspaces: The function spaces and function space hierarchies
             as returned by :func:`build_function_spaces`
         :arg dt: Time step size
-        :arg omega_c: Speed of sound
-        :arg omega_N: Buoyancy frequency
         :arg all_param: Parameters as returned by :func:`initialise_parameters`
     '''
     W2,W3,Wb,W2_horiz,W2_vert, \
@@ -286,91 +287,106 @@ def matrixfree_solver_setup(functionspaces,dt,omega_c,omega_N,all_param):
         param_mixed, \
         param_pressure, \
         param_multigrid = all_param
-    op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
-      zip(W3_hierarchy,
-          W2_horiz_hierarchy,
-          W2_vert_hierarchy),
-      omega_c,
-      omega_N)
-    mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
-    pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
-    presmoother_hierarchy = HierarchyContainer(Jacobi,
-                                zip(op_Hhat_hierarchy),
-                                    mu_relax=param_multigrid['mu_relax'],
-                                    n_smooth=param_multigrid['n_presmooth'])
+    c = param_general['speed_c']
+    N = param_general['speed_N']
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
+    with timed_region('matrixfree multigrid setup'):
+        op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
+          zip(W3_hierarchy,
+            W2_horiz_hierarchy,
+            W2_vert_hierarchy),
+          omega_c,
+          omega_N)
+        nlevel = len(op_Hhat_hierarchy)
+        # Start counting at 1 at higher order since the p-operator is 0
+        if (param_mixed['higher_order']):
+            offset = 1
+        else:
+            offset = 0
+        for i in range(nlevel):
+            op_Hhat_hierarchy[i].set_timer_label('level_'+str(nlevel-1-i+offset))
+        mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
+        pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
+        presmoother_hierarchy = HierarchyContainer(Jacobi,
+                                    zip(op_Hhat_hierarchy),
+                                        mu_relax=param_multigrid['mu_relax'],
+                                        n_smooth=param_multigrid['n_presmooth'])
 
-    postsmoother_hierarchy = HierarchyContainer(Jacobi,
-                                zip(op_Hhat_hierarchy),
-                                    mu_relax=param_multigrid['mu_relax'],
-                                    n_smooth=param_multigrid['n_postsmooth'])
+        postsmoother_hierarchy = HierarchyContainer(Jacobi,
+                                    zip(op_Hhat_hierarchy),
+                                        mu_relax=param_multigrid['mu_relax'],
+                                        n_smooth=param_multigrid['n_postsmooth'])
 
-    coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-                               mu_relax=param_multigrid['mu_relax'],
-                               n_smooth=param_multigrid['n_coarsesmooth'])
+        coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                   mu_relax=param_multigrid['mu_relax'],
+                                   n_smooth=param_multigrid['n_coarsesmooth'])
 
-    hmultigrid = hMultigrid(W3_hierarchy,
-                            op_Hhat_hierarchy,
-                            presmoother_hierarchy,
-                            postsmoother_hierarchy,
-                            coarsegrid_solver)
+        hmultigrid = hMultigrid(W3_hierarchy,
+                                op_Hhat_hierarchy,
+                                presmoother_hierarchy,
+                                postsmoother_hierarchy,
+                                coarsegrid_solver)
 
-    if (param_mixed['higher_order']):
-        op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
-        presmoother = Jacobi(op_Hhat,
-                             mu_relax=param_multigrid['mu_relax'],
-                             n_smooth=param_multigrid['n_presmooth'])
-        postsmoother = Jacobi(op_Hhat,
-                              mu_relax=param_multigrid['mu_relax'],
-                              n_smooth=param_multigrid['n_postsmooth'])
-        preconditioner = hpMultigrid(hmultigrid,
-                                     op_Hhat,
-                                     presmoother,
-                                     postsmoother)
-    else:
-        preconditioner = hmultigrid
-        op_Hhat = op_Hhat_hierarchy[-1]
+        if (param_mixed['higher_order']):
+            op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+            op_Hhat.set_timer_label('level_0')
+            presmoother = Jacobi(op_Hhat,
+                                 mu_relax=param_multigrid['mu_relax'],
+                                 n_smooth=param_multigrid['n_presmooth'])
+            postsmoother = Jacobi(op_Hhat,
+                                  mu_relax=param_multigrid['mu_relax'],
+                                  n_smooth=param_multigrid['n_postsmooth'])
+            preconditioner = hpMultigrid(hmultigrid,
+                                         op_Hhat,
+                                         presmoother,
+                                         postsmoother)
+        else:
+            preconditioner = hmultigrid
+            op_Hhat = op_Hhat_hierarchy[-1]
 
-    mutilde = Mutilde(W2,Wb,omega_N,
-                      lumped=(not param_mixed['higher_order']),
-                      tolerance_u=1.E-1,maxiter_u=100)
+    with timed_region('matrixfree mixed operator setup'):
+        mixed_operator = MixedOperator(W2,W3,dt,c,N)
 
-    op_H = Operator_H(W3,W2,mutilde,omega_c)
+    with timed_region('matrixfree pc_hdiv setup'):
+        mutilde = Mutilde(mixed_operator,
+                          lumped=(not param_mixed['higher_order']),
+                          tolerance_u=1.E-1,maxiter_u=100)
+
+    with timed_region('matrixfree op_H setup'):
+        op_H = Operator_H(W3,W2,mutilde,omega_c)
 
     # Construct pressure solver based on operator and preconditioner 
     # built above
-    pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
-                                          preconditioner,
-                                          param_pressure['ksp_type'],
-                                          ksp_monitor=pressure_ksp_monitor,
-                                          tolerance=param_pressure['tolerance'],
-                                          maxiter=param_pressure['maxiter'])
+    with timed_region('matrixfree KSP setup'):
+        pressure_solver = pressuresolver.solvers.PETScSolver(op_H,
+                                              preconditioner,
+                                              param_pressure['ksp_type'],
+                                              ksp_monitor=pressure_ksp_monitor,
+                                              tolerance=param_pressure['tolerance'],
+                                              maxiter=param_pressure['maxiter'])
 
-    # Construct mixed gravity wave solver
-    if (param_orography['enabled']):
-        Solver = gravitywaves.MatrixFreeSolverOrography
-    else:
-        Solver = gravitywaves.MatrixFreeSolver
-    gravitywave_solver_matrixfree = Solver(W2,W3,Wb,
-                                           dt,
-                                           param_general['speed_c'],
-                                           param_general['speed_N'],
-                                           ksp_type=param_mixed['ksp_type'],
-                                           schur_diagonal_only = \
-                                             param_mixed['schur_diagonal_only'],
-                                           ksp_monitor=mixed_ksp_monitor,
-                                           tolerance=param_mixed['tolerance'],
-                                           maxiter=param_mixed['maxiter'],
-                                           pressure_solver=pressure_solver)
+        # Construct mixed gravity wave solver
+        if (param_orography['enabled']):
+            Solver = gravitywaves.MatrixFreeSolverOrography
+        else:
+            Solver = gravitywaves.MatrixFreeSolver
+        gravitywave_solver_matrixfree = Solver(Wb,mixed_operator,mutilde,
+                                               ksp_type=param_mixed['ksp_type'],
+                                               schur_diagonal_only = \
+                                                 param_mixed['schur_diagonal_only'],
+                                               ksp_monitor=mixed_ksp_monitor,
+                                               tolerance=param_mixed['tolerance'],
+                                               maxiter=param_mixed['maxiter'],
+                                               pressure_solver=pressure_solver)
     return gravitywave_solver_matrixfree
 
-def solve_matrixfree(functionspaces,dt,omega_c,omega_N,all_param,expression):
+def solve_matrixfree(functionspaces,dt,all_param,expression):
     '''Solve with matrixfree solver.
 
         :arg functionspaces: The function spaces and function space hierarchies
             as returned by :func:`build_function_spaces`
         :arg dt: Time step size
-        :arg omega_c: Speed of sound
-        :arg omega_N: Buoyancy frequency
         :arg all_param: Parameters as returned by :func:`initialise_parameters`
         :arg expression: expression for RHS of pressure equation
     '''
@@ -394,8 +410,7 @@ def solve_matrixfree(functionspaces,dt,omega_c,omega_N,all_param,expression):
         with timed_region("warmup"), PETSc.Log().Stage("warmup"):
             with open(os.devnull,'w') as sys.stdout:
                 gravitywave_solver_matrixfree = matrixfree_solver_setup(functionspaces,
-                                                                        dt,omega_c,omega_N,
-                                                                        all_param)
+                                                                        dt,all_param)
                 r_u.assign(0.0)
                 r_p.project(expression)
                 r_b.assign(0.0)
@@ -411,14 +426,13 @@ def solve_matrixfree(functionspaces,dt,omega_c,omega_N,all_param,expression):
     r_b.assign(0.0)
 
     with timed_region("matrixfree mixed system solve"):
-        with timed_region("matrixfree solver setup"):
+        with timed_region("matrixfree total solver setup"):
             gravitywave_solver_matrixfree = matrixfree_solver_setup(functionspaces,
-                                                                    dt,omega_c,omega_N,
-                                                                    all_param)
+                                                                    dt,all_param)
         with PETSc.Log().Stage("solve_matrixfree"):
             with PETSc.Log().Event("Full matrixfree solve"):
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
-    
+
     conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
     gravitywave_solver_matrixfree._ksp_monitor.save_convergence_history(conv_hist_filename)
     comm = MPI.COMM_WORLD
@@ -429,18 +443,13 @@ def solve_matrixfree(functionspaces,dt,omega_c,omega_N,all_param,expression):
         xml_tree.write('solver.xml')
     return u,p,b
 
-def solve_petsc(functionspaces,dt,omega_c,omega_N,all_param,expression):
+def solve_petsc(functionspaces,dt,all_param,expression):
     ''' Solve with PETSc solver.
 
         :arg functionspaces: The function spaces and function space hierarchies
             as returned by :func:`build_function_spaces`
         :arg dt: Time step size
-        :arg omega_c: Speed of sound
-        :arg omega_N: Buoyancy frequency
         :arg all_param: Parameters as returned by :func:`initialise_parameters`
-        :arg r_u: RHS for velocity
-        :arg r_p: RHS for pressure
-        :arg r_b: RHS for buoyancy
         :arg expression: expression for RHS of pressure equation
     '''
     W2,W3,Wb,W2_horiz,W2_vert, \
@@ -453,15 +462,17 @@ def solve_petsc(functionspaces,dt,omega_c,omega_N,all_param,expression):
         param_pressure, \
         param_multigrid = all_param
     mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
+    c = param_general['speed_c']
+    N = param_general['speed_N']
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
 
     r_u = Function(W2)
     r_p = Function(W3)
     r_b = Function(Wb)
     # Construct mixed gravity wave solver
     gravitywave_solver_petsc = gravitywaves.PETScSolver(W2,W3,Wb,
-                                             dt,
-                                             param_general['speed_c'],
-                                             param_general['speed_N'],
+                                             dt,c,N,
                                              ksp_type=param_mixed['ksp_type'],
                                              ksp_monitor=mixed_ksp_monitor,
                                              tolerance=param_mixed['tolerance'],
@@ -504,7 +515,7 @@ def solve_petsc(functionspaces,dt,omega_c,omega_N,all_param,expression):
     x, y = op_pc_hdiv.getVecs()
     x.setArray(np.random.rand(x.getLocalSize()))
     pc_hdiv.apply(x,y)
-    with timed_region('pc_hdiv'):
+    with timed_region('petsc pc_hdiv'):
         pc_hdiv.apply(x,y)
 
     # Pressure space
@@ -514,10 +525,10 @@ def solve_petsc(functionspaces,dt,omega_c,omega_N,all_param,expression):
     x.setArray(np.random.rand(x.getLocalSize()))
     y = x.duplicate()
     op_pc_schur.mult(x,y)
-    with timed_region('op_schur'):
+    with timed_region('petsc op_schur'):
         op_pc_schur.mult(x,y)
     pc_schur.apply(x,y)
-    with timed_region('pc_schur'):
+    with timed_region('petsc pc_schur'):
         pc_schur.apply(x,y)
     return u,p,b
 
@@ -581,8 +592,7 @@ def main(parameter_filename=None):
 
     if (param_general['solve_matrixfree']):
         logger.write('*** Matrix free solve ***')
-        u,p,b = solve_matrixfree(functionspaces,dt,omega_c,omega_N,all_param,
-                                 expression)
+        u,p,b = solve_matrixfree(functionspaces,dt,all_param,expression)
         logger.write('')
     
         if (logger.rank == 0):
@@ -594,8 +604,7 @@ def main(parameter_filename=None):
 
     if (param_general['solve_petsc']):
         logger.write('*** PETSc solve ***')
-        u,p,b = solve_petsc(functionspaces,dt,omega_c,omega_N,all_param,
-                            expression)
+        u,p,b = solve_petsc(functionspaces,dt,all_param,expression)
 
         if (logger.rank == 0):
             profiling.summary()

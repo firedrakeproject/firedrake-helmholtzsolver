@@ -1,7 +1,6 @@
 import numpy as np
 from firedrake import *
 import xml.etree.cElementTree as ET
-from pyop2.profiling import timed_function
 
 class Jacobi(object):
     '''Jacobi smoother.
@@ -49,7 +48,6 @@ class Jacobi(object):
         '''
         self.smooth(b,phi,initial_phi_is_zero=True)
 
-    @timed_function("smoother")
     def smooth(self,b,phi,initial_phi_is_zero=False):
         '''Smooth.
         

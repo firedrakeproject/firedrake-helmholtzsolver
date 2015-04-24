@@ -429,6 +429,34 @@ class BandedMatrix(object):
                      u.dat(op2.READ,u.cell_node_map()),
                      v.dat(op2.INC,v.cell_node_map()))
 
+    def fraction_of_nnz(self,tolerance=1.E-12):
+        '''Return the fraction of non-zero entries 
+
+            Count the number of entries whose absolute value is larger than a 
+            given tolerance.
+
+            :arg tolerance: Tolerance to determine if an entry is deemed to be zero
+        '''
+        kernel_code = '''void count_zeros(double **A,
+                                          double *ntotal,
+                                          double *nnz) {
+          for (int i=0;i<%(A_n_row)d*%(A_bandwidth)d;++i) {
+            nnz[0] += (fabs(A[0][i]) > %(TOLERANCE)e);
+          }
+          ntotal[0] += %(A_n_row)d*%(A_bandwidth)d;
+        }'''
+        
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        param_dict.update({'TOLERANCE':tolerance})
+        kernel = op2.Kernel(kernel_code % param_dict, 'count_zeros',cpp=True)
+        ntotal = op2.Global(1,data=0.0,dtype=float)
+        nnz = op2.Global(1,data=0.0,dtype=float)
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     ntotal(op2.INC),nnz(op2.INC))
+        return float(nnz.data[0])/float(ntotal.data[0])
+
     def dense(self):
         '''Convert to a dense matrix format.
 
