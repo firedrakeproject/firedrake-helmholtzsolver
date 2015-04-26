@@ -3,6 +3,7 @@ from pressuresolver.operators import *
 from pressuresolver.mu_tilde import *
 import numpy as np
 import pytest
+from mixedoperators import *
 from fixtures import *
 import numpy as np
 
@@ -24,11 +25,17 @@ def test_spectral_radius(W3_coarse,
     :arg Wb_coarse: buoyancy space
     :arg velocity_expression: Expression for velocity to project
     '''
-    omega_c = 0.8
-    omega_N = 0.9
 
-    mutilde = Mutilde(W2_coarse,Wb_coarse,omega_N,tolerance_b=1E-12,tolerance_u=1E-9)
-
+    dt = 0.1
+    N = 0.01
+    c = 300.
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
+    mixed_operator = MixedOperator(W2_coarse,W3_coarse,dt,c,N)
+    mutilde = Mutilde(mixed_operator,
+                      lumped=False,
+                      tolerance_u=1.E-12)
+ 
     op = Operator_H(W3_coarse,W2_coarse,mutilde,omega_c)
     op_hat = Operator_Hhat(W3_coarse,W2_horiz_coarse,W2_vert_coarse,omega_c,omega_N)
 
