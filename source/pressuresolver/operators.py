@@ -129,13 +129,16 @@ class Operator_Hhat(object):
         :math:`\omega_c=\\frac{\Delta t}{2}c`
     :arg omega_N: Positive real constant, related to buoyancy frequency
         :math:`\omega_c=\\frac{\Delta t}{2}N`
+    :arg preassemble_horizontal: Pre-assemble horizontal part of the operator
+    :arg timer_label: Label for timer
     '''
     def __init__(self,
                  W3,
                  W2_h,
                  W2_v,
                  omega_c,
-                 omega_N):
+                 omega_N,
+                 preassemble_horizontal=True):
         self._W3 = W3
         self._W2_h = W2_h
         self._W2_v = W2_v
@@ -144,8 +147,9 @@ class Operator_Hhat(object):
         self._omega = self._omega_c**2/(1.+self._omega_N**2)
         self._omega_c2 = Constant(omega_c**2)
         self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
+        self._preassemble_horizontal = preassemble_horizontal
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
-        self._timer_label = str(ncells)
+        self._timer_label = None
         w_h = TestFunction(self._W2_h)
         w_v = TestFunction(self._W2_v)
         self._psi = TestFunction(self._W3)
@@ -164,16 +168,18 @@ class Operator_Hhat(object):
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
 
-        self._mat_B_h = \
-          assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
-        self._mat_BT_h = \
-          assemble(TestFunction(self._W3)*div(TrialFunction(self._W2_h))*self._dx).M.handle
-        tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
-        diag = tmp_Mu_h.M.handle.getDiagonal()
-        diag.reciprocal()
-        tmp_m = self._mat_B_h.duplicate(copy=True)
-        tmp_m.diagonalScale(L=diag,R=None)
-        self._mat_Hhat_h = self._mat_BT_h.matMult(tmp_m)
+        if (self._preassemble_horizontal):
+            mat_B_h = \
+              assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
+            tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
+            diag = tmp_Mu_h.M.handle.getDiagonal()
+            diag.reciprocal()
+            tmp_h = mat_B_h.duplicate(copy=True)
+            tmp_h.diagonalScale(L=diag,R=None)
+            self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
+        else:
+            self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
+            self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
 
         # Lumped mass matrices.
         self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
@@ -184,13 +190,11 @@ class Operator_Hhat(object):
         B_v = BandedMatrix(self._W2_v,self._W3)
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
-        BT_v = BandedMatrix(self._W3,self._W2_v)
-        BT_v.assemble_ufl_form(TestFunction(self._W3)*div(TrialFunction(self._W2_v))*self._dx,
-                               vertical_bcs=True)
         M_phi = BandedMatrix(self._W3,self._W3)
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
-        self._Hhat_v = M_phi.matadd(BT_v.matmul(self._Mu_vinv.matmul(B_v)),omega=self._omega)
+        self._Hhat_v = M_phi.matadd(B_v.transpose_matmul(self._Mu_vinv.matmul(B_v)),
+                                    omega=self._omega)
         self._bcs = [DirichletBC(self._W2_v, 0.0, "bottom"),
                      DirichletBC(self._W2_v, 0.0, "top")]
         with self._phi_tmp.dat.vec as v:
@@ -207,6 +211,13 @@ class Operator_Hhat(object):
         for bc in self._bcs:
             bc.apply(u)
 
+    def set_timer_label(self,label):
+        '''set label for timer.
+
+            :arg label: Label to be used for timer
+        '''
+        self._timer_label = label
+
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
 
@@ -222,7 +233,6 @@ class Operator_Hhat(object):
         v_str = str(self._W2_v.ufl_element().shortstr())
         e.set("velocity_space_vertical",v_str)
 
-    @timed_function("apply_Hhat")
     def apply(self,phi):
         '''Apply operator.
 
@@ -232,11 +242,24 @@ class Operator_Hhat(object):
 
         :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''
-        with timed_region('apply_operator_Hhat_'+self._timer_label):
+        if (self._timer_label == None):
+            label = 'matrixfree op_schur'
+        else:
+            label = 'matrixfree op_schur_'+self._timer_label
+        with timed_region(label):
             self._phi_tmp.assign(phi)
-            with self._BT_B_h_phi.dat.vec as v:
-                with phi.dat.vec_ro as x:
-                    self._mat_Hhat_h.mult(x,v)
+            if (self._preassemble_horizontal):
+                with self._BT_B_h_phi.dat.vec as v:
+                    with phi.dat.vec_ro as x:
+                        self._mat_Hhat_h.mult(x,v)
+            else:
+                # Calculate action of B_h
+                assemble(self._B_h_phi_form, tensor=self._B_h_phi)
+                # divide by horizontal velocity mass matrix
+                self._Mu_h.divide(self._B_h_phi)
+                # Calculate action of B_h^T
+                assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)            
+                
             self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
@@ -249,19 +272,6 @@ class Operator_Hhat(object):
         phi_trial = TrialFunction(self._W3)
         w_h_test = TestFunction(self._W2_h)
         w_h_trial = TrialFunction(self._W2_h)
-        w_v_test = TestFunction(self._W2_v)
-        w_v_trial = TrialFunction(self._W2_v)
-
-        # Pressure mass matrix
-        M_phi = BandedMatrix(self._W3,self._W3)
-        M_phi.assemble_ufl_form(phi_test*phi_trial*self._dx)
-
-        # B_v M_{u,v,inv} B_v^T
-        B_v_T = BandedMatrix(self._W2_v,self._W3)
-        B_v_T.assemble_ufl_form(div(w_v_test)*phi_trial*self._dx,vertical_bcs=True)
-        B_v = BandedMatrix(self._W3,self._W2_v)
-        B_v.assemble_ufl_form(phi_test*div(w_v_trial)*self._dx,vertical_bcs=True)
-        B_v_Mu_vinv_B_v_T = B_v.matmul(self._Mu_vinv.matmul(B_v_T))
 
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
         param_coffee_old = parameters["coffee"]["O2"]
@@ -315,8 +325,9 @@ class Operator_Hhat(object):
 
         # Add everything up       
         delta_h.scale(self._omega_c**2)
-        B_v_Mu_vinv_B_v_T.scale(self._omega)
-        return M_phi.matadd(delta_h.matadd(B_v_Mu_vinv_B_v_T))
+        result = self._Hhat_v.matadd(delta_h)
+        result._lu_decompose()
+        return result
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.

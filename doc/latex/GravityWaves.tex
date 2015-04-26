@@ -411,6 +411,13 @@ Given a generalised banded $n_A\times m_A$ matrix $A$ and a generalised banded $
 \end{xalignat}
 If the resulting $\alpha^{(AB)}$ and $\beta^{(AB)}$ have a greatest common divisor $G \ne 1$, divide by this as in (\ref{eqn:gcd}).
 
+Similarly for the product $A^TB$ (where we now require that $n_A=n_B$) we have
+\begin{xalignat}{3}
+  \alpha^{(A^TB)} &= \beta^{(A)}\alpha^{(B)}, &
+  \beta^{(A^TB)} &= \alpha^{(A)}\beta^{(B)}, &
+  \gamma_{\pm}^{(A^TB)} &= \alpha^{(B)}\gamma_{\mp}^{(A)}+\alpha^{(A)}\gamma_{\pm}^{(B)}
+  \label{eqn:ParametersTransposeMultiply}.
+\end{xalignat}
 Two generalised banded $n\times m = n_A\times m_A = n_B\times m_B$ matrices $A$ and $B$ for which $\alpha^{(A)} = \alpha^{(B)}$ and
 $\alpha^{(A)} = \alpha^{(B)}$ can be added with
 \begin{xalignat}{3}
@@ -535,7 +542,7 @@ The explicit form of the algorithms described above is given here.
      \FOR{$j=\max\{0,j_-\}$ \TO $\min\{m_B-1,j_+\}$}
        \STATE{$s\mapsto 0$}
        \FOR{$k=\max\{0,k_-\}$ \TO $\min\{m_A-1,k_+\}$}
-         \IF{$\lceil(\alpha^{(B)}k-\gamma_-^{(B)})/\beta^{(B)}\rceil\le j \le \lfloor(\alpha^{(B)}k+\gamma_+^{(B)})/\beta^{(B)}\rfloor$}
+         \IF{$\lceil(\alpha^{(B)}k-\gamma_+^{(B)})/\beta^{(B)}\rceil\le j \le \lfloor(\alpha^{(B)}k+\gamma_-^{(B)})/\beta^{(B)}\rfloor$}
            \STATE{$j'_- = \lceil (\alpha^{(B)}k-\gamma_+^{(B)})/\beta^{(B)}\rceil$}
            \STATE{$s = s + \overline{A}_{n_{\text{BW}}^{(A)}i+(k-k_-)}\overline{B}_{n_{\text{BW}}^{(B)}k+(j-j'_-)}$}
          \ENDIF
@@ -545,6 +552,32 @@ The explicit form of the algorithms described above is given here.
    \ENDFOR
  \end{algorithmic}
 \end{algorithm}
+
+\begin{algorithm}[H]
+ \caption{Generalised banded tranpose matrix-matrix multiplication $C=A^TB$}
+ \label{alg:GBMMatrixMatrixProductTranspose}
+ \begin{algorithmic}[1]
+   \STATE{$\overline{C}\mapsto 0$}
+   \FOR{$i=0$ \TO $m_A-1$}
+     \STATE{$j_- = \lceil (\alpha^{(C)}i-\gamma_+^{(C)})/\beta^{(C)}\rceil$}
+     \STATE{$j_+ = \lfloor (\alpha^{(C)}i+\gamma_-^{(C)})/\beta^{(C)}\rfloor$}
+     \STATE{$k_- = \lceil (\beta^{(A)}i-\gamma_-^{(A)})/\alpha^{(A)}\rceil$}
+     \STATE{$k_+ = \lfloor (\beta^{(A)}i+\gamma_+^{(A)})/\alpha^{(A)}\rfloor$}
+     \FOR{$j=\max\{0,j_-\}$ \TO $\min\{m_B-1,j_+\}$}
+       \STATE{$s\mapsto 0$}
+       \FOR{$k=\max\{0,k_-\}$ \TO $\min\{n_A-1,k_+\}$}
+         \IF{$\lceil(\alpha^{(B)}k-\gamma_+^{(B)})/\beta^{(B)}\rceil\le j \le \lfloor(\alpha^{(B)}k+\gamma_-^{(B)})/\beta^{(B)}\rfloor$ \textbf{and} $\lceil(\alpha^{(A)}k-\gamma_+^{(A)})/\beta^{(A)}\rceil\le i \le \lfloor(\alpha^{(A)}k+\gamma_-^{(A)})/\beta^{(A)}\rfloor$}
+           \STATE{$j'_- = \lceil (\alpha^{(B)}k-\gamma_+^{(B)})/\beta^{(B)}\rceil$}
+           \STATE{$i'_- = \lceil (\alpha^{(A)}k-\gamma_+^{(A)})/\beta^{(A)}\rceil$}
+           \STATE{$s = s + \overline{A}_{n_{\text{BW}}^{(A)}k+(i-i'_-)}\overline{B}_{n_{\text{BW}}^{(B)}k+(j-j'_-)}$}
+         \ENDIF
+       \ENDFOR
+       \STATE{$\overline{C}_{n_{\text{BW}}^{(C)}i+(j-j_-)}\mapsto  s$}
+     \ENDFOR
+   \ENDFOR
+ \end{algorithmic}
+\end{algorithm}
+
 
 \begin{algorithm}[H]
  \caption{Generalised banded matrix-matrix addition $C=A+\omega B$}
