@@ -115,7 +115,7 @@ class Mutilde(object):
         with self._tmp_v.dat.vec_ro as v:
             y.array[:] = v.array[:]
 
-    def divide(self,u,r_u,tolerance=None):
+    def divide(self,u,r_u,tolerance=None,preonly=True):
         '''Multiply a velocity field by the inverse of the matrix.
         
         Calculate :math:`(\\tilde{M}_u)^{-1}u` via a CG iteration and return result
@@ -123,6 +123,7 @@ class Mutilde(object):
         :arg u: Velocity field to be multiplied
         :arg r_u: Resulting velocity field
         '''
+        self._apply_bcs(u)
         if self._lumped:
             r_u.assign(u)
             self._lumped_mass.divide(r_u)
@@ -130,10 +131,15 @@ class Mutilde(object):
             if (tolerance != None):
                 old_tolerance = self._ksp.rtol
                 self._ksp.rtol = tolerance
+            if (not preonly):
+                old_type = self._ksp.type
+                self._ksp.type = 'cg'
             with u.dat.vec_ro as v:
                 with r_u.dat.vec as x:
                     self._ksp.solve(v,x)
             if (tolerance != None):
                 self._ksp.rtol = old_tolerance
+            if (not preonly):
+                self._ksp.type = old_type
         self._apply_bcs(r_u)
 
