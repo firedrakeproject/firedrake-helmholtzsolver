@@ -274,11 +274,8 @@ class Operator_Hhat(object):
         w_h_trial = TrialFunction(self._W2_h)
 
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
-        param_coffee_old = parameters["coffee"]["O2"]
-        parameters["coffee"]["O2"] = False
         ufl_form = phi_test*div(w_h_trial)*self._dx
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
-        parameters["coffee"]["O2"] = param_coffee_old
         kernel = compiled_form[6]
         coords = compiled_form[3]
         coefficients = compiled_form[4]
