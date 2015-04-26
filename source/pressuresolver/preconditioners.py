@@ -170,7 +170,7 @@ class hpMultigrid(object):
           phi_low[0][0] = tmp;
         ''' % d
         self._kernel_prolongadd = '''
-          double tmp = %(INV_NDOF)f*phi_low[0][0];
+          double tmp = phi_low[0][0];
           for(int i=0;i<%(NDOF)d;++i) {
             phi_high[0][i] += tmp;
           }
