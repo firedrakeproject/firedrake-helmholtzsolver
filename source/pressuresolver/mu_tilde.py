@@ -57,6 +57,7 @@ class Mutilde(object):
         self._lumped = lumped
         self._tolerance_u = tolerance_u
         self._maxiter_u = maxiter_u
+        self._mixed_operator = mixed_operator
         self._bcs = mixed_operator._bcs
         self._tmp_u = Function(mixed_operator._W2)
         self._tmp_v = Function(mixed_operator._W2)
