@@ -92,14 +92,14 @@ class Mutilde(object):
         '''
         self._apply_bcs(u)
         if (self._lumped):
-            with tmp_u.dat.vec as v:
-                with u.dat.vec_ro as x:
-                    self._mutilde.M.handle.mult(x,v)
-        else:
             self._tmp_u.assign(u)
             self._lumped_mass.multiply(self._tmp_u) 
+        else:
+            with self._tmp_u.dat.vec as v:
+                with u.dat.vec_ro as x:
+                    self._mutilde.M.handle.mult(x,v)
         self._apply_bcs(self._tmp_u)
-        return self._tmp.u
+        return self._tmp_u
 
     def mult(self,mat,x,y):
         '''PETSc interface for operator application.
