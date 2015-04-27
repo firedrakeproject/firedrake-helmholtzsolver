@@ -46,7 +46,8 @@ def test_lumped_mass_inverse(W2_coarse,velocity_expression):
     mass.divide(u)
 
     u_0 = Function(W2_coarse).project(velocity_expression)
-    assert np.allclose(u.dat.data-u_0.dat.data, 0.0)
+    mu = 1./np.max(u_0.dat.data)
+    assert np.allclose(mu*(u.dat.data-u_0.dat.data), 0.0)
 
 
 ##############################################################
