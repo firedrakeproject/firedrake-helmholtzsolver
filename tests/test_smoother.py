@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 from fixtures import *
 
-def test_smoother_lowest_order(W3_hierarchy,
+def test_smoother_lowest_order(R_earth,
+                               W3_hierarchy,
                                W2_horiz_hierarchy,
                                W2_vert_hierarchy,
                                pressure_expression):
@@ -14,6 +15,7 @@ def test_smoother_lowest_order(W3_hierarchy,
     Check that smoother reduces residual norm. Note that we pass the entire
     function space hierarchies, but only use the function spaces on the finest grid.
 
+    :arg R_earth: Earth radius
     :arg W3_hierarchy: Pressure space hierarchy
     :arg W2_horiz_hierarchy: Horizontal velocity component hierarchy
     :arg W2_vert_hierarchy: Vertical velocity component hierarchy
@@ -28,10 +30,14 @@ def test_smoother_lowest_order(W3_hierarchy,
     ncells = mesh.cell_set.size
 
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
-   
-    omega_c = 8.*0.5*dx
-    omega_N = 0.5
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+
+    c = 300.
+    N = 0.01
+    dt = 2.*c*dx
+
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
 
     op = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
 
@@ -57,11 +63,12 @@ def test_smoother_lowest_order(W3_hierarchy,
         res_reduction.append((rho<1) and (rho>0))
     assert np.all(res_reduction)
 
-def test_smoother(W3,W2_horiz,W2_vert,pressure_expression):
+def test_smoother(R_earth,W3,W2_horiz,W2_vert,pressure_expression):
     '''Test smoother.
 
     Check that smoother reduces residual norm
 
+    :arg R_earth: Earth radius
     :arg W3: Pressure space
     :arg W2_horiz: Horizontal velocity component
     :arg W2_vert: Vertical velocity component
@@ -72,10 +79,14 @@ def test_smoother(W3,W2_horiz,W2_vert,pressure_expression):
     ncells = mesh.cell_set.size
 
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
    
-    omega_c = 8.*0.5*dx
-    omega_N = 0.5
+    c = 300.
+    N = 0.01
+    dt = 2.*c*dx
+
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
 
     op = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
 
