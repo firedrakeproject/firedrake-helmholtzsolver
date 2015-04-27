@@ -15,7 +15,7 @@ def test_spectral_radius(R_earth,
                          Wb_coarse,
                          velocity_expression):
     '''Calculate condition number of :math:`\hat{H}^{-1}H` and check that
-    it is smaller than 2.
+    it is smaller than 10.
 
     The choice of upper bound is a bit random, so maybe relax it to less than 10.
 
