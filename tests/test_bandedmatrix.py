@@ -398,8 +398,6 @@ def test_boundary_conditions(W2_vert_coarse,velocity_expression):
     mat.apply_vertical_bcs()
     v = Function(W2_vert_coarse)
     v.project(velocity_expression)
-    #for bc in bcs:
-    #    bc.apply(v)
     mat.ax(v)
     w = Function(W2_vert_coarse)
     w.project(velocity_expression)
