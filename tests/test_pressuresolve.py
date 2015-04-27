@@ -55,7 +55,7 @@ def test_pressuresolve(R_earth,
    
     c = 300.
     N = 0.01
-    nu_cfl = 2.
+    nu_cfl = 8.
     dt = nu_cfl/c*dx
 
     omega_c = 0.5*c*dt
@@ -119,7 +119,7 @@ def test_pressuresolve(R_earth,
 
     solver.solve(b,phi)
 
-    assert (ksp_monitor.its < 20)
+    assert (ksp_monitor.its < 25)
 
 def test_pressuresolve_lowestorder(R_earth,
                                    W3_hierarchy,
@@ -155,7 +155,8 @@ def test_pressuresolve_lowestorder(R_earth,
    
     c = 300.
     N = 0.01
-    dt = 2.*c*dx
+    nu_cfl = 8.0
+    dt = nu_cfl/c*dx
 
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt
@@ -195,14 +196,14 @@ def test_pressuresolve_lowestorder(R_earth,
       ksp_type,
       ksp_monitor,
       tolerance=1.E-5,
-      maxiter=10)
+      maxiter=30)
 
     b = Function(W3).project(pressure_expression)
     phi = Function(W3)
 
     solver.solve(b,phi)
 
-    assert (ksp_monitor.its < 20)
+    assert (ksp_monitor.its < 25)
 
 
 ##############################################################
