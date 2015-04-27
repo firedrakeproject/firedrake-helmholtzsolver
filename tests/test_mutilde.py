@@ -13,7 +13,7 @@ def mutilde(request,W2,W3):
     :arg W2: Hdiv velocity space
     :arg W3: L2 pressure space
     '''
-    dt = 0.1
+    dt = 10.
     N = 0.01
     c = 300.
     mixed_operator = MixedOperator(W2,W3,dt,c,N)
@@ -39,10 +39,10 @@ def test_mutilde_omegazero(W2,W3,mutilde,velocity_expression):
     u = Function(W2)
     u.project(velocity_expression)
     v = mutilde.apply(u)
-    w = assemble(dot(TestFunction(W2),u)*dx)
-    for bc in mutilde._bcs:
-        bc.apply(w)
-    assert np.allclose(v.dat.data - w.dat.data, 0.0)
+    w = assemble(dot(TestFunction(W2),u)*W3.mesh()._dx,bcs=mutilde._bcs)
+
+    mu = 1./max(v.dat.data)
+    assert np.allclose(mu*(v.dat.data,w.dat.data),0.0)
 
 def test_mutilde_apply(W2,Wb,mutilde,velocity_expression):
     '''Check that applying :math:`\\tilde{M}_u` to a function returns the correct
@@ -78,8 +78,8 @@ def test_mutilde_apply(W2,Wb,mutilde,velocity_expression):
     for bc in mutilde._bcs:
         bc.apply(w)
 
-    print 'Maximum difference = ', np.max(v.dat.data - w.dat.data)
-    assert np.allclose(v.dat.data - w.dat.data, 0.0) 
+    mu = 1./max(v.dat.data)
+    assert np.allclose(mu*(v.dat.data - w.dat.data), 0.0) 
 
 def test_mutilde_inverse(W2,Wb,mutilde,velocity_expression):
     '''Check that applying :math:`\\tilde{M}_u` to a function and then solving for the
@@ -96,7 +96,8 @@ def test_mutilde_inverse(W2,Wb,mutilde,velocity_expression):
     v = mutilde.apply(u)
     mutilde.divide(v,w,tolerance=1.E-12,preonly=False)
     print 'Maximum difference = ', np.max(u.dat.data - w.dat.data)
-    assert np.allclose(u.dat.data - w.dat.data, 0.0) 
+    mu = 1./max(u.dat.data)
+    assert np.allclose(mu*(u.dat.data - w.dat.data), 0.0) 
 
 ##############################################################
 # M A I N
