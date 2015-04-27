@@ -4,24 +4,28 @@ log.set_level(log.ERROR)
 op2.init(log_level="WARNING")
 import pytest
 
+@pytest.fixture
+def R_earth():
+    return  6.371E6 # m
+
 @pytest.fixture(params=[2,3])
-def host_mesh(request):
+def host_mesh(R_earth,request):
     '''Create host mesh, which is either a circle or a sphere.'''
 
     dimension = request.param
 
     if (dimension == 2):
         ncells=16
-        host_mesh = CircleManifoldMesh(ncells)
+        host_mesh = CircleManifoldMesh(ncells,radius=R_earth)
     else:
         refcount = 0
-        host_mesh = UnitIcosahedralSphereMesh(refcount)
+        host_mesh = IcosahedralSphereMesh(radius=R_earth,refinement_level=refcount)
     return host_mesh
 
 @pytest.fixture
 def mesh_hierarchy(host_mesh):
     '''Create mesh hierarchy'''
-    D = 0.1
+    D = 10.E3 # m
     nlayers = 4
     nlevel = 4
     dimension = host_mesh._ufl_cell.topological_dimension()+1
