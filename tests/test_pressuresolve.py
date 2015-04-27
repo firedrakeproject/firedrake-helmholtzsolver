@@ -52,7 +52,8 @@ def test_pressuresolve(R_earth,
    
     c = 300.
     N = 0.01
-    dt = 2.*c*dx
+    nu_cfl = 2.
+    dt = nu_cfl/c*dx
 
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt

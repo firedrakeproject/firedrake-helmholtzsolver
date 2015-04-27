@@ -32,9 +32,10 @@ def test_smoother_lowest_order(R_earth,
     print 'Number of cells on finest grid = '+str(ncells)
     dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
 
+    nu_cfl = 2.0
     c = 300.
     N = 0.01
-    dt = 2.*c*dx
+    dt = nu_cfl/c*dx
 
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt
@@ -81,9 +82,10 @@ def test_smoother(R_earth,W3,W2_horiz,W2_vert,pressure_expression):
     print 'Number of cells on finest grid = '+str(ncells)
     dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
    
+    nu_cfl = 2.0
     c = 300.
     N = 0.01
-    dt = 2.*c*dx
+    dt = nu_cfl/c*dx
 
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt

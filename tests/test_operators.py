@@ -26,9 +26,14 @@ def test_spectral_radius(W3_coarse,
     :arg velocity_expression: Expression for velocity to project
     '''
 
-    dt = 0.1
+    mesh = W3_coarse.mesh()
+    ncells = mesh.cell_set.size
+    print 'Number of cells on finest grid = '+str(ncells)
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
     N = 0.01
     c = 300.
+    nu_cfl = 2.0
+    dt = nu_cfl/c*dx
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt
     mixed_operator = MixedOperator(W2_coarse,W3_coarse,dt,c,N)
