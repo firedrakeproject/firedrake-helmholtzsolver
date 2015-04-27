@@ -7,7 +7,8 @@ from mixedoperators import *
 from fixtures import *
 import numpy as np
 
-def test_spectral_radius(W3_coarse,
+def test_spectral_radius(R_earth,
+                         W3_coarse,
                          W2_coarse,
                          W2_horiz_coarse,
                          W2_vert_coarse,
@@ -18,6 +19,7 @@ def test_spectral_radius(W3_coarse,
 
     The choice of upper bound is a bit random, so maybe relax it to less than 10.
 
+    :arg R_earth: Earth radius
     :arg W3_coarse: Pressure space
     :arg W2_coarse: Velocity space
     :arg W2_horiz_coarse: Horizontal component of velocity space
