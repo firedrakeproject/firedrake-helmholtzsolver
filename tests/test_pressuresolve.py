@@ -48,7 +48,10 @@ def test_pressuresolve(R_earth,
     ncells = mesh.cell_set.size
 
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    if (mesh.geometric_dimension == 3):
+        dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    else:
+        dx = 2.*math.pi/float(ncells)*R_earth
    
     c = 300.
     N = 0.01
@@ -145,7 +148,10 @@ def test_pressuresolve_lowestorder(R_earth,
     ncells = mesh.cell_set.size
 
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    if (mesh.geometric_dimension == 3):
+        dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    else:
+        dx = 2.*math.pi/float(ncells)*R_earth
    
     c = 300.
     N = 0.01
