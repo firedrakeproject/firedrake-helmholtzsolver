@@ -65,6 +65,61 @@ def test_spectral_radius(R_earth,
     print '--- \hat{H}^{-1}*H ---'
     print 'cond(Hhat^{-1}*H) = '+('%8.4f' % kappa)
     assert (kappa < 10.)
+
+def test_spectral_radius_Hhat(R_earth,
+                              W3_coarse,
+                              W2_coarse,
+                              W2_horiz_coarse,
+                              W2_vert_coarse,
+                              Wb_coarse,
+                              velocity_expression):
+    '''Calculate condition number of :math:`\hat{H}_z^{-1}hat{H}` and this is significantly
+    smaller than the condition number of the matrix :math:`\hat{H}`
+
+    :arg R_earth: Earth radius
+    :arg W3_coarse: Pressure space
+    :arg W2_coarse: Velocity space
+    :arg W2_horiz_coarse: Horizontal component of velocity space
+    :arg W2_vert_coarse: Vertical component of velocity space
+    :arg Wb_coarse: buoyancy space
+    :arg velocity_expression: Expression for velocity to project
+    '''
+
+    mesh = W3_coarse.mesh()
+    ncells = mesh.cell_set.size
+    print 'Number of cells on finest grid = '+str(ncells)
+    if (mesh.geometric_dimension == 3):
+        dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    else:
+        dx = 2.*math.pi/float(ncells)*R_earth
+    N = 0.01
+    c = 300.
+    nu_cfl = 2.0
+    dt = nu_cfl/c*dx
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
+ 
+    op_hat = Operator_Hhat(W3_coarse,W2_horiz_coarse,W2_vert_coarse,omega_c,omega_N)
+    op_hat_z = op_hat.vertical_diagonal()
+
+    phi = Function(W3_coarse)
+
+    ndof_pressure = len(phi.dat.data)
+    mat = np.zeros((ndof_pressure,ndof_pressure))
+    mat_prec = np.zeros((ndof_pressure,ndof_pressure))
+    for i in range(ndof_pressure):
+        phi.assign(0.0)
+        phi.dat.data[i] = 1.0
+        psi = op_hat.apply(phi)
+        mat[i,:] = psi.dat.data[:]
+        op_hat_z.solve(psi)
+        mat_prec[i,:] = psi.dat.data[:]
+    kappa = np.linalg.cond(mat)
+    kappa_prec = np.linalg.cond(mat_prec)
+    print 'cond(Hhat)             = '+('%8.4f' % kappa)
+    print 'cond(Hhat_z^{-1}*Hhat) = '+('%8.4f' % kappa_prec)
+    print 'ratio                  = ',kappa_prec/kappa
+    assert (kappa_prec/kappa < 1.E-4)
  
 def test_operator_Hhat(W3_coarse,
                        W2_horiz_coarse,
