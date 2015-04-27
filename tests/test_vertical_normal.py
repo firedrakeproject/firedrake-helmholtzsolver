@@ -11,7 +11,7 @@ log.set_level(log.ERROR)
 def mesh_2d():
     '''Create 1+1 dimensional mesh by extruding a circle.'''
     D = 1.0
-    nlayers=4
+    nlayers=16
     ncells=16
 
     host_mesh = CircleManifoldMesh(ncells)
