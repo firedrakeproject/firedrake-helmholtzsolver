@@ -4,6 +4,15 @@ import numpy as np
 import pytest
 from fixtures import *
     
+def allclose(u,v):
+    '''Compare two functions, and normalise them first
+
+        :arg u: First function
+        :arg v: Second function
+    '''
+    mu = 1./np.max(u.dat.data)
+    return np.allclose(mu*(u.dat.data-v.dat.data),0.0)
+
 def test_mass_action_inplace(W3,pressure_expression):
     '''Test mass matrix action in place.
 
@@ -28,7 +37,7 @@ def test_mass_action_inplace(W3,pressure_expression):
     mat.ax(v)
 
     v_ufl = assemble(action(form, u))
-    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+    assert allclose(v_ufl,v)
 
 def test_mass_action(W3,pressure_expression):
     '''Test mass matrix action.
@@ -54,7 +63,7 @@ def test_mass_action(W3,pressure_expression):
     mat.axpy(u, v)
 
     v_ufl = assemble(action(form, u))
-    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+    assert allclose(v_ufl,v)
 
 def test_derivative_action(W2_vert,W3,velocity_expression):
     '''Test weak derivative action.
@@ -80,7 +89,7 @@ def test_derivative_action(W2_vert,W3,velocity_expression):
     mat.axpy(u, v)
   
     v_ufl = assemble(action(form, u))
-    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+    assert allclose(v_ufl,v)
 
 def test_matmul(W2_vert,W3,velocity_expression):
     '''Test matrix multiplication :math:`C=AB`.
@@ -117,8 +126,7 @@ def test_matmul(W2_vert,W3,velocity_expression):
     mat_MD.axpy(u, v)
 
     v_ufl = assemble(action(form_M,assemble(action(form_D, u))))
-
-    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+    assert allclose(v_ufl,v)
 
 def test_transpose_matmul(W2_vert,W3,pressure_expression):
     '''Test matrix multiplication :math:`C=A^TB`.
@@ -159,7 +167,7 @@ def test_transpose_matmul(W2_vert,W3,pressure_expression):
 
     v_ufl = assemble(action(form_DT,assemble(action(form_M, u))))
 
-    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+    assert allclose(v_ufl,v)
 
 @pytest.fixture
 def omega():
@@ -245,7 +253,7 @@ def test_transpose(helmholtz_matrix, W2_vert, W3, form_D, form_DT,
     mat_DT.axpy(u,v1)
     mat_Dtranspose.axpy(u,v2)
 
-    assert np.allclose(v1.dat.data - v2.dat.data, 0.0)
+    assert allclose(v1,v2)
 
 def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
                 pressure_expression):
@@ -275,10 +283,10 @@ def test_matadd(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
 
     mat_H.axpy(u, v)
 
-    v_ufl = assemble(action(form_M, u)) \
-          + omega*assemble(action(form_D,assemble(action(form_DT, u))))
+    v_ufl = assemble(action(form_M, u))
+    v_ufl += omega*assemble(action(form_D,assemble(action(form_DT, u))))
 
-    assert np.allclose(norm(assemble(v_ufl - v)), 0.0)
+    assert allclose(v_ufl,v)
 
 def test_mass_solve(W3,form_M,pressure_expression):
     '''Test LU solver with mass matrix.
@@ -303,7 +311,7 @@ def test_mass_solve(W3,form_M,pressure_expression):
 
     v_ufl = assemble(action(form_M, v))
 
-    assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
+    assert allclose(v_ufl,u)
 
 def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT, omega,
                          pressure_expression):
@@ -330,10 +338,10 @@ def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT,
     v.assign(u)
     mat.solve(v)
 
-    v_ufl = assemble(action(form_M, v)) \
-          + omega*assemble(action(form_D,assemble(action(form_DT, v))))
+    v_ufl = assemble(action(form_M, v))
+    v_ufl += omega*assemble(action(form_D,assemble(action(form_DT, v))))
 
-    assert np.allclose(norm(assemble(v_ufl - u)), 0.0)
+    assert allclose(v_ufl,u)
 
 def test_spai(W2_vert):
     '''Test sparse approximate inverse of velocity mass matrix.
