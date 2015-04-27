@@ -31,7 +31,10 @@ def test_spectral_radius(R_earth,
     mesh = W3_coarse.mesh()
     ncells = mesh.cell_set.size
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    if (mesh.geometric_dimension == 3):
+        dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
+    else:
+        dx = 2.*math.pi/float(ncells)*R_earth
     N = 0.01
     c = 300.
     nu_cfl = 2.0
