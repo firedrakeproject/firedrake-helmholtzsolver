@@ -6,6 +6,7 @@ from pressuresolver.smoothers import *
 from pressuresolver.preconditioners import *
 from pressuresolver.solvers import *
 from pressuresolver.ksp_monitor import *
+from mixedoperators import *
 import numpy as np
 import pytest
 from fixtures import *
@@ -14,7 +15,8 @@ op2.init(log_level="WARNING")
 from ffc import log
 log.set_level(log.ERROR)
 
-def test_pressuresolve(W3,
+def test_pressuresolve(R_earth,
+                       W3,
                        W2,
                        W2_horiz,
                        W2_vert,
@@ -28,6 +30,7 @@ def test_pressuresolve(W3,
     '''Test pressure solver at next-to-lowest order. This tests
     the hp-multigrid preconditioner.
 
+    :arg R_earth: Earth radius
     :arg W3: (Higher order) pressure space
     :arg W2: (Higher order) velocity space
     :arg W2_horiz: Horizontal component of (higher order) velocity space
@@ -45,10 +48,16 @@ def test_pressuresolve(W3,
     ncells = mesh.cell_set.size
 
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
    
-    omega_c = 8.*0.5*dx
-    omega_N = 0.5
+    c = 300.
+    N = 0.01
+    dt = 2.*c*dx
+
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
+
+    mixed_operator = MixedOperator(W2,W3,dt,c,N)
 
     # Construct h-multigrid preconditioner
     operator_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
@@ -88,7 +97,7 @@ def test_pressuresolve(W3,
 
     # Higher order operator H
 
-    mutilde = Mutilde(W2,Wb,omega_N)
+    mutilde = Mutilde(mixed_operator,lumped=False,tolerance_u=1.E-1)
     operator_H = Operator_H(W3,W2,mutilde,omega_c)
 
     ksp_monitor = KSPMonitor()
@@ -108,7 +117,8 @@ def test_pressuresolve(W3,
 
     assert (ksp_monitor.its < 20)
 
-def test_pressuresolve_lowestorder(W3_hierarchy,
+def test_pressuresolve_lowestorder(R_earth,
+                                   W3_hierarchy,
                                    W2_hierarchy,
                                    W2_horiz_hierarchy,
                                    W2_vert_hierarchy,
@@ -117,6 +127,7 @@ def test_pressuresolve_lowestorder(W3_hierarchy,
     '''Test pressure solver at lowest order. This mainly tests the
     h-multigrid preconditioner.
 
+    :arg R_earth: Earth radius
     :arg W3_hierarchy: Pressure space hierarchy
     :arg W2_hierarchy: Velocity space hierarchy
     :arg W2_horiz_hierarchy: Horizontal velocity component hierarchy
@@ -133,12 +144,18 @@ def test_pressuresolve_lowestorder(W3_hierarchy,
     ncells = mesh.cell_set.size
 
     print 'Number of cells on finest grid = '+str(ncells)
-    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))
+    dx = 2./math.sqrt(3.)*math.sqrt(4.*math.pi/(ncells))*R_earth
    
-    omega_c = 8.*0.5*dx
-    omega_N = 0.5
+    c = 300.
+    N = 0.01
+    dt = 2.*c*dx
 
-    mutilde = Mutilde(W2,Wb,omega_N)
+    omega_c = 0.5*c*dt
+    omega_N = 0.5*N*dt
+
+    mixed_operator = MixedOperator(W2,W3,dt,c,N)
+
+    mutilde = Mutilde(mixed_operator,lumped=True,tolerance_u=1.E-1)
 
     operator_H = Operator_H(W3,W2,mutilde,omega_c)
 
