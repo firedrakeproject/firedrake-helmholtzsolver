@@ -25,7 +25,7 @@ def host_mesh(R_earth,request):
 @pytest.fixture
 def mesh_hierarchy(host_mesh):
     '''Create mesh hierarchy'''
-    D = 10.E3 # m
+    D = 1.E3 # m
     nlayers = 4
     nlevel = 4
     dimension = host_mesh._ufl_cell.topological_dimension()+1
