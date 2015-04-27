@@ -3,6 +3,9 @@ from pressuresolver.vertical_normal import *
 import numpy as np
 import pytest
 import os
+op2.init(log_level="WARNING")
+from ffc import log
+log.set_level(log.ERROR)
 
 @pytest.fixture
 def mesh_2d():
