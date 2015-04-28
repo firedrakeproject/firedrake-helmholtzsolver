@@ -197,8 +197,6 @@ class BandedMatrix(object):
         :arg vertical_bcs: Apply homogeneous Dirichlet boundary conditions on the
             top and bottom surfaces.
         '''
-        param_coffee_old = parameters["coffee"]["O2"]
-        parameters["coffee"]["O2"] = False
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
         kernel = compiled_form[6]
         coords = compiled_form[3]
@@ -215,7 +213,6 @@ class BandedMatrix(object):
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma.cell_set, *args)
         self._assemble_lma(lma,vertical_bcs)
-        parameters["coffee"]["O2"] = param_coffee_old
         
     def _assemble_lma(self,lma,vertical_bcs=False):
         '''Assemble the matrix from the LMA storage format.
