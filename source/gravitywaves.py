@@ -420,6 +420,8 @@ class PETScSolver(object):
                  'fieldsplit_0_sub_pc_type': 'ilu',
                  'fieldsplit_1_ksp_type': 'preonly',
                  'fieldsplit_1_pc_type': 'gamg',
+                 'fieldsplit_1_pc_gamg_agg_square_graph':True,
+                 'fieldsplit_1_pc_gamg_coarse_eq_limit':800,
                  'fieldsplit_1_mg_levels_ksp_type': 'chebyshev',
                  'fieldsplit_1_mg_levels_ksp_chebyshev_estimate_eigenvalues': True,
                  'fieldsplit_1_mg_levels_ksp_chebyshev_estimate_eigenvalues_random': True,
