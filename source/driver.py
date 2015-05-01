@@ -592,7 +592,7 @@ def main(parameter_filename=None):
 
     if (param_general['solve_matrixfree']):
         logger.write('*** Matrix free solve ***')
-        u,p,b = solve_matrixfree(functionspaces,dt,all_param,expression)
+        u_matrixfree,p_matrixfree,b_matrixfree = solve_matrixfree(functionspaces,dt,all_param,expression)
         logger.write('')
     
         if (logger.rank == 0):
@@ -604,7 +604,7 @@ def main(parameter_filename=None):
 
     if (param_general['solve_petsc']):
         logger.write('*** PETSc solve ***')
-        u,p,b = solve_petsc(functionspaces,dt,all_param,expression)
+        u_petsc,p_petsc,b_petsc = solve_petsc(functionspaces,dt,all_param,expression)
 
         if (logger.rank == 0):
             profiling.summary()
@@ -613,17 +613,35 @@ def main(parameter_filename=None):
         if (param_output['savetodisk']):
             save_fields(param_output['output_dir'],'petsc',u,p,b)
 
+    # Compare solutions
+    if (param_general['solve_petsc'] and param_general['solve_matrixfree']):
+        norm_u = norm(u_matrixfree)
+        norm_p = norm(p_matrixfree)
+        norm_b = norm(b_matrixfree)
+        norm_du = norm(assemble(u_petsc-u_matrixfree))
+        norm_dp = norm(assemble(p_petsc-p_matrixfree))
+        norm_db = norm(assemble(b_petsc-b_matrixfree))
+        norm_dtotal = math.sqrt(norm_du**2+norm_dp**2+norm_db**2)
+        norm_total = math.sqrt(norm_u**2+norm_p**2+norm_b**2)
+        print
+        print '||u||      = ' + ('%8.4e' % norm_u) + \
+            '  ||u_{petsc} - u_{matrixfree}|| = ' + ('%8.4e' % norm_du)
+        print '||p||      = ' + ('%8.4e' % norm_p) + \
+            '  ||p_{petsc} - p_{matrixfree}|| = ' + ('%8.4e' % norm_dp)
+        print '||b||      = ' + ('%8.4e' % norm_b) + \
+            '  ||b_{petsc} - b_{matrixfree}|| = ' + ('%8.4e' % norm_db)
+        print 'total norm = ' + ('%8.4e' % norm_total) + \
+            '   total difference              = ' + ('%8.4e' % norm_dtotal)
+        print
+
 ##########################################################
 # Call main program
 ##########################################################
 if (__name__ == '__main__'):
     # Create parallel logger
     logger = Logger()
-    if (len(sys.argv) > 2):
-        logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
-        sys.exit(1)
     parameter_filename = None
-    if (len(sys.argv) == 2):
+    if (len(sys.argv) >= 2):
         parameter_filename = sys.argv[1]
     main(parameter_filename)
 

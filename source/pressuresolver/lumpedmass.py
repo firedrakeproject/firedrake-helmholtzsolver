@@ -28,11 +28,8 @@ class LumpedMass(object):
         V_cells = FunctionSpace(self._mesh,'DG',0)
 
         # Build local stencil of full mass matrix
-        param_coffee_old = parameters["coffee"]["O2"]
-        parameters["coffee"]["O2"] = False
         mass = self._ufl_form 
         compiled_form = compile_form(mass, 'mass')[0]
-        parameters["coffee"]["O2"] = param_coffee_old
         mass_kernel = compiled_form[6]
         coords = compiled_form[3]
         coefficients = compiled_form[4]
