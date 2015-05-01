@@ -640,11 +640,8 @@ def main(parameter_filename=None):
 if (__name__ == '__main__'):
     # Create parallel logger
     logger = Logger()
-    if (len(sys.argv) > 2):
-        logger.write('Usage: python '+sys.argv[0]+' [<parameterfile>]')
-        sys.exit(1)
     parameter_filename = None
-    if (len(sys.argv) == 2):
+    if (len(sys.argv) >= 2):
         parameter_filename = sys.argv[1]
     main(parameter_filename)
 
