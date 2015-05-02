@@ -441,8 +441,7 @@ class PETScSolver(object):
         L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,self.vert_norm.zhat*r_b) \
                + ptest*r_p) * self._dx
         up_problem = LinearVariationalProblem(a_up, L_up, vmixed, bcs=bcs)
-        up_solver = LinearVariationalSolver(up_problem, solver_parameters=sparams,
-                                            options_prefix='mixed_')
+        up_solver = LinearVariationalSolver(up_problem, solver_parameters=sparams)
         ksp = up_solver.snes.getKSP()
         ksp.setMonitor(self._ksp_monitor)
         return up_solver
