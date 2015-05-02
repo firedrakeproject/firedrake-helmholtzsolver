@@ -632,7 +632,7 @@ def main(parameter_filename=None):
             '  ||b_{petsc} - b_{matrixfree}|| = ' + ('%8.4e' % norm_db))
         logger.write('total norm = ' + ('%8.4e' % norm_total) + \
             '   total difference              = ' + ('%8.4e' % norm_dtotal))
-        logger.write()
+        logger.write('')
 
 ##########################################################
 # Call main program
