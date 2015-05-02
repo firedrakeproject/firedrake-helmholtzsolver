@@ -628,9 +628,9 @@ def main(parameter_filename=None):
             '  ||u_{petsc} - u_{matrixfree}|| = ' + ('%8.4e' % norm_du))
         logger.write('  ||p||      = ' + ('%8.4e' % norm_p) + \
             '  ||p_{petsc} - p_{matrixfree}|| = ' + ('%8.4e' % norm_dp))
-        logger.write('||b||      = ' + ('%8.4e' % norm_b) + \
+        logger.write('  ||b||      = ' + ('%8.4e' % norm_b) + \
             '  ||b_{petsc} - b_{matrixfree}|| = ' + ('%8.4e' % norm_db))
-        logger.write('total norm = ' + ('%8.4e' % norm_total) + \
+        logger.write('  total norm = ' + ('%8.4e' % norm_total) + \
             '   total difference              = ' + ('%8.4e' % norm_dtotal))
         logger.write('')
 
