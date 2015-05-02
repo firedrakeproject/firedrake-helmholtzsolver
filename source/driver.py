@@ -507,6 +507,10 @@ def solve_petsc(functionspaces,dt,all_param,expression):
     vmixed = Function(W2 * W3)
     up_solver = gravitywave_solver_petsc.up_solver
     ksp = up_solver.snes.getKSP()
+    # Print solver to disk
+    viewer = PETSc.Viewer()
+    file_viewer = viewer.createASCII('petsc_ksp.log')
+    ksp.view(file_viewer)
     ksp_hdiv, ksp_schur = ksp.getPC().getFieldSplitSubKSP()
 
     # HDiv space
