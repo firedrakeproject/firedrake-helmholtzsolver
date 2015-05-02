@@ -623,16 +623,16 @@ def main(parameter_filename=None):
         norm_db = norm(assemble(b_petsc-b_matrixfree))
         norm_dtotal = math.sqrt(norm_du**2+norm_dp**2+norm_db**2)
         norm_total = math.sqrt(norm_u**2+norm_p**2+norm_b**2)
-        print
-        print '||u||      = ' + ('%8.4e' % norm_u) + \
-            '  ||u_{petsc} - u_{matrixfree}|| = ' + ('%8.4e' % norm_du)
-        print '||p||      = ' + ('%8.4e' % norm_p) + \
-            '  ||p_{petsc} - p_{matrixfree}|| = ' + ('%8.4e' % norm_dp)
-        print '||b||      = ' + ('%8.4e' % norm_b) + \
-            '  ||b_{petsc} - b_{matrixfree}|| = ' + ('%8.4e' % norm_db)
-        print 'total norm = ' + ('%8.4e' % norm_total) + \
-            '   total difference              = ' + ('%8.4e' % norm_dtotal)
-        print
+        logger.write('')
+        logger.write('  ||u||      = ' + ('%8.4e' % norm_u) + \
+            '  ||u_{petsc} - u_{matrixfree}|| = ' + ('%8.4e' % norm_du))
+        logger.write('  ||p||      = ' + ('%8.4e' % norm_p) + \
+            '  ||p_{petsc} - p_{matrixfree}|| = ' + ('%8.4e' % norm_dp))
+        logger.write('||b||      = ' + ('%8.4e' % norm_b) + \
+            '  ||b_{petsc} - b_{matrixfree}|| = ' + ('%8.4e' % norm_db))
+        logger.write('total norm = ' + ('%8.4e' % norm_total) + \
+            '   total difference              = ' + ('%8.4e' % norm_dtotal))
+        logger.write()
 
 ##########################################################
 # Call main program
