@@ -12,7 +12,7 @@ class Logger(object):
         self.rank = self.comm.Get_rank()
         self.size = self.comm.Get_size()
 
-    def write(self,text):
+    def write(self,text=''):
         '''Print text to screen on master rank only.
 
         :arg text: text to print to screen
