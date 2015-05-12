@@ -424,6 +424,7 @@ class PETScSolver(object):
                  'fieldsplit_1_pc_hypre_boomeramg_max_iter':1,
                  'fieldsplit_1_pc_hypre_boomeramg_agg_nl':0,
                  'fieldsplit_1_pc_hypre_boomeramg_coarsen_type':'Falgout',
+                 'fieldsplit_1_pc_hypre_boomeramg_smooth_type':'Euclid',
                  'fieldsplit_1_pc_hypre_boomeramg_interptype':'classical', 
                  'fieldsplit_1_pc_hypre_boomeramg_P_max':0,
                  'fieldsplit_1_pc_hypre_boomeramg_agg_nl':0,
