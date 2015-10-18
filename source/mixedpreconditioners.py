@@ -110,29 +110,31 @@ class MixedPreconditioner(object):
             # Modified RHS for pressure
             with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(r_u,self._tmp_u,tolerance=self._tolerance_u)
-            if (self._preassemble):
-                with self._rtilde_p.dat.vec as v:
-                    with self._tmp_u.dat.vec_ro as x:
-                        self._mixed_operator._mat_pu.mult(x,v)
-                    v *= -1.0
-            else:
-                assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
-                         tensor=self._rtilde_p)
-            self._rtilde_p += r_p
+            with timed_region('matrixfree schur_reconstruct'):
+                if (self._preassemble):
+                    with self._rtilde_p.dat.vec as v:
+                        with self._tmp_u.dat.vec_ro as x:
+                            self._mixed_operator._mat_pu.mult(x,v)
+                        v *= -1.0
+                else:
+                    assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
+                             tensor=self._rtilde_p)
+                self._rtilde_p += r_p
 
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(self._rtilde_p,p)
             # Backsubstitution for velocity 
-            if (self._preassemble):
-                with self._tmp_u.dat.vec as v:
-                    with p.dat.vec_ro as x:
-                        self._mixed_operator._mat_up.mult(x,v)
-                        v *= -1.0                    
-            else:
-                assemble(self._dt_half * div(self._utest) * p*self._dx,
-                    tensor=self._tmp_u)                    
-            self._tmp_u += r_u
+            with timed_region('matrixfree schur_reconstruct'):
+                if (self._preassemble):
+                    with self._tmp_u.dat.vec as v:
+                        with p.dat.vec_ro as x:
+                            self._mixed_operator._mat_up.mult(x,v)
+                            v *= -1.0                    
+                else:
+                    assemble(self._dt_half * div(self._utest) * p*self._dx,
+                        tensor=self._tmp_u)                    
+                self._tmp_u += r_u
             with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(self._tmp_u,u,tolerance=self._tolerance_u)
 
