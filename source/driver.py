@@ -26,6 +26,7 @@ from parameters import Parameters
 from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
+from pyop2 import performance_summary
 from firedrake.petsc import PETSc
 parameters["pyop2_options"]["profiling"] = True
 
@@ -603,6 +604,7 @@ def main(parameter_filename=None):
     
         if (logger.rank == 0):
             profiling.summary()
+        performance_summary()
         
         # If requested, write fields to disk
         if (param_output['savetodisk']):
@@ -614,6 +616,7 @@ def main(parameter_filename=None):
 
         if (logger.rank == 0):
             profiling.summary()
+        performance_summary()
     
         # If requested, write fields to disk
         if (param_output['savetodisk']):
