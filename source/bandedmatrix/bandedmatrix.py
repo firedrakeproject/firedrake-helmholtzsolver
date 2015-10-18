@@ -271,7 +271,8 @@ class BandedMatrix(object):
         boundary_nodes = {}
         for label, bc_masks, ndof, nodemap in \
             zip(('col','row'), \
-                 (self._fs_col.bt_masks,self._fs_row.bt_masks), \
+                 (self._fs_col.bt_masks['topological'],
+                  self._fs_row.bt_masks['topological']), \
                  (self._ndof_cell_col+self._ndof_bottom_facet_col, \
                   self._ndof_cell_row+self._ndof_bottom_facet_row), \
                  (self._nodemap_col, self._nodemap_row)):
