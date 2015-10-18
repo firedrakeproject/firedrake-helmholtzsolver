@@ -292,12 +292,13 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt
     with timed_region('matrixfree multigrid setup'):
-        op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
-          zip(W3_hierarchy,
-            W2_horiz_hierarchy,
-            W2_vert_hierarchy),
-          omega_c,
-          omega_N)
+        with timed_region('matrixfree op_Hhat setup'):
+            op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
+              zip(W3_hierarchy,
+                W2_horiz_hierarchy,
+                W2_vert_hierarchy),
+              omega_c,
+              omega_N)
         nlevel = len(op_Hhat_hierarchy)
         # Start counting at 1 at higher order since the p-operator is 0
         if (param_mixed['higher_order']):
@@ -308,19 +309,20 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
             op_Hhat_hierarchy[i].set_timer_label('level_'+str(nlevel-1-i+offset))
         mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
         pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
-        presmoother_hierarchy = HierarchyContainer(Jacobi,
-                                    zip(op_Hhat_hierarchy),
-                                        mu_relax=param_multigrid['mu_relax'],
-                                        n_smooth=param_multigrid['n_presmooth'])
+        with timed_region('matrixfree smoother setup'):
+            presmoother_hierarchy = HierarchyContainer(Jacobi,
+                                        zip(op_Hhat_hierarchy),
+                                            mu_relax=param_multigrid['mu_relax'],
+                                            n_smooth=param_multigrid['n_presmooth'])
 
-        postsmoother_hierarchy = HierarchyContainer(Jacobi,
-                                    zip(op_Hhat_hierarchy),
-                                        mu_relax=param_multigrid['mu_relax'],
-                                        n_smooth=param_multigrid['n_postsmooth'])
+            postsmoother_hierarchy = HierarchyContainer(Jacobi,
+                                        zip(op_Hhat_hierarchy),
+                                            mu_relax=param_multigrid['mu_relax'],
+                                            n_smooth=param_multigrid['n_postsmooth'])
 
-        coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-                                   mu_relax=param_multigrid['mu_relax'],
-                                   n_smooth=param_multigrid['n_coarsesmooth'])
+            coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                       mu_relax=param_multigrid['mu_relax'],
+                                       n_smooth=param_multigrid['n_coarsesmooth'])
 
         hmultigrid = hMultigrid(W3_hierarchy,
                                 op_Hhat_hierarchy,
@@ -507,6 +509,10 @@ def solve_petsc(functionspaces,dt,all_param,expression):
     vmixed = Function(W2 * W3)
     up_solver = gravitywave_solver_petsc.up_solver
     ksp = up_solver.snes.getKSP()
+    # Print solver to disk
+    viewer = PETSc.Viewer()
+    file_viewer = viewer.createASCII('petsc_ksp.log')
+    ksp.view(file_viewer)
     ksp_hdiv, ksp_schur = ksp.getPC().getFieldSplitSubKSP()
 
     # HDiv space
