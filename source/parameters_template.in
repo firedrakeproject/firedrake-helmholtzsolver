@@ -55,6 +55,7 @@ Pressure solve:
     tolerance = 1.E-14              # tolerance
     maxiter = 200                   # maximal number of iterations
     verbose = 1                     # verbosity level
+    multigrid = False		    # Use multigrid
 
 ################################################################################ 
 # Multigrid parameters
@@ -65,3 +66,9 @@ Multigrid:
     n_postsmooth = 1                # postsmoothing steps
     n_coarsesmooth = 1              # number of coarse grid smoothing steps
 
+################################################################################ 
+# Single level preconditioner parameters
+################################################################################ 
+Singlelevel:
+    mu_relax = 1.0                  # single level smoother relaxation factor
+    n_smooth = 1		    # Number of smoother iterations

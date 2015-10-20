@@ -106,8 +106,10 @@ def initialise_parameters(filename=None):
         # maximal number of iterations
         'maxiter':10,
         # verbosity level
-        'verbose':1})
-    
+        'verbose':1,
+        # use multigrid? 
+        'multigrid':True})
+
     # Multigrid parameters
     param_multigrid = Parameters('Multigrid',
         # multigrid smoother relaxation factor
@@ -119,6 +121,13 @@ def initialise_parameters(filename=None):
         # number of coarse grid smoothing steps
         'n_coarsesmooth':1})
 
+    # Single level preconditioner parameters
+    param_singlelevel = Parameters('Singlelevel',
+        # smoother relaxation factor
+        {'mu_relax':1.0,
+        # smoothing steps
+         'n_smooth':1})
+
     if (filename != None):
         for param in (param_general,
                       param_output,
@@ -126,7 +135,8 @@ def initialise_parameters(filename=None):
                       param_orography,
                       param_mixed,
                       param_pressure,
-                      param_multigrid):
+                      param_multigrid,
+                      param_singlelevel):
             if (logger.rank == 0):
                 param.read_from_file(filename)
             param.broadcast(logger.comm)
@@ -137,7 +147,8 @@ def initialise_parameters(filename=None):
                  param_orography,
                  param_mixed,
                  param_pressure,
-                 param_multigrid)
+                 param_multigrid,
+                 param_singlelevel)
     logger.write('*** Parameters ***')
     for param in all_param:
         logger.write(str(param))
@@ -287,66 +298,77 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
         param_orography, \
         param_mixed, \
         param_pressure, \
-        param_multigrid = all_param
+        param_multigrid, \
+        param_singlelevel = all_param
     c = param_general['speed_c']
     N = param_general['speed_N']
     omega_c = 0.5*c*dt
     omega_N = 0.5*N*dt
-    with timed_region('matrixfree multigrid setup'):
-        with timed_region('matrixfree op_Hhat setup'):
-            op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
-              zip(W3_hierarchy,
-                W2_horiz_hierarchy,
-                W2_vert_hierarchy),
-              omega_c,
-              omega_N)
-        nlevel = len(op_Hhat_hierarchy)
-        # Start counting at 1 at higher order since the p-operator is 0
-        if (param_mixed['higher_order']):
-            offset = 1
-        else:
-            offset = 0
-        for i in range(nlevel):
-            op_Hhat_hierarchy[i].set_timer_label('level_'+str(nlevel-1-i+offset))
-        mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
-        pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
-        with timed_region('matrixfree smoother setup'):
-            presmoother_hierarchy = HierarchyContainer(Jacobi,
-                                        zip(op_Hhat_hierarchy),
-                                            mu_relax=param_multigrid['mu_relax'],
-                                            n_smooth=param_multigrid['n_presmooth'])
+    mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
+    pressure_ksp_monitor = KSPMonitor('pressure',verbose=param_pressure['verbose'])
+    if (param_pressure['multigrid']):
+        with timed_region('matrixfree multigrid setup'):
+            with timed_region('matrixfree op_Hhat setup'):
+                op_Hhat_hierarchy = HierarchyContainer(Operator_Hhat,
+                  zip(W3_hierarchy,
+                      W2_horiz_hierarchy,
+                      W2_vert_hierarchy),
+                  omega_c,
+                  omega_N)
+            nlevel = len(op_Hhat_hierarchy)
+            # Start counting at 1 at higher order since the p-operator is 0
+            if (param_mixed['higher_order']):
+                offset = 1
+            else:
+                offset = 0
+            for i in range(nlevel):
+                op_Hhat_hierarchy[i].set_timer_label('level_'+str(nlevel-1-i+offset))
+            with timed_region('matrixfree smoother setup'):
+                presmoother_hierarchy = HierarchyContainer(Jacobi,
+                                            zip(op_Hhat_hierarchy),
+                                                mu_relax=param_multigrid['mu_relax'],
+                                                n_smooth=param_multigrid['n_presmooth'])
 
-            postsmoother_hierarchy = HierarchyContainer(Jacobi,
-                                        zip(op_Hhat_hierarchy),
-                                            mu_relax=param_multigrid['mu_relax'],
-                                            n_smooth=param_multigrid['n_postsmooth'])
+                postsmoother_hierarchy = HierarchyContainer(Jacobi,
+                                            zip(op_Hhat_hierarchy),
+                                                mu_relax=param_multigrid['mu_relax'],
+                                                n_smooth=param_multigrid['n_postsmooth'])
 
-            coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-                                       mu_relax=param_multigrid['mu_relax'],
-                                       n_smooth=param_multigrid['n_coarsesmooth'])
+                coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                           mu_relax=param_multigrid['mu_relax'],
+                                           n_smooth=param_multigrid['n_coarsesmooth'])
 
-        hmultigrid = hMultigrid(W3_hierarchy,
-                                op_Hhat_hierarchy,
-                                presmoother_hierarchy,
-                                postsmoother_hierarchy,
-                                coarsegrid_solver)
+            hmultigrid = hMultigrid(W3_hierarchy,
+                                    op_Hhat_hierarchy,
+                                    presmoother_hierarchy,
+                                    postsmoother_hierarchy,
+                                    coarsegrid_solver)
 
-        if (param_mixed['higher_order']):
-            op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
-            op_Hhat.set_timer_label('level_0')
-            presmoother = Jacobi(op_Hhat,
-                                 mu_relax=param_multigrid['mu_relax'],
-                                 n_smooth=param_multigrid['n_presmooth'])
-            postsmoother = Jacobi(op_Hhat,
-                                  mu_relax=param_multigrid['mu_relax'],
-                                  n_smooth=param_multigrid['n_postsmooth'])
-            preconditioner = hpMultigrid(hmultigrid,
-                                         op_Hhat,
-                                         presmoother,
-                                         postsmoother)
-        else:
-            preconditioner = hmultigrid
-            op_Hhat = op_Hhat_hierarchy[-1]
+            if (param_mixed['higher_order']):
+                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+                op_Hhat.set_timer_label('level_0')
+                presmoother = Jacobi(op_Hhat,
+                                     mu_relax=param_multigrid['mu_relax'],
+                                     n_smooth=param_multigrid['n_presmooth'])
+                postsmoother = Jacobi(op_Hhat,
+                                      mu_relax=param_multigrid['mu_relax'],
+                                      n_smooth=param_multigrid['n_postsmooth'])
+                preconditioner = hpMultigrid(hmultigrid,
+                                             op_Hhat,
+                                             presmoother,
+                                             postsmoother)
+            else:
+                preconditioner = hmultigrid
+                op_Hhat = op_Hhat_hierarchy[-1]
+
+    else:
+        with timed_region('matrixfree singlelevel setup'):
+            with timed_region('matrixfree op_Hhat setup'):
+                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+            with timed_region('matrixfree smoother setup'):
+                preconditioner = Jacobi(op_Hhat,
+                                        param_singlelevel['mu_relax'],
+                                        param_singlelevel['n_smooth'])
 
     with timed_region('matrixfree mixed operator setup'):
         mixed_operator = MixedOperator(W2,W3,dt,c,N)
@@ -401,7 +423,8 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
         param_orography, \
         param_mixed, \
         param_pressure, \
-        param_multigrid = all_param
+        param_multigrid, \
+        param_singlelevel = all_param
 
     r_u = Function(W2)
     r_p = Function(W3)
@@ -463,7 +486,8 @@ def solve_petsc(functionspaces,dt,all_param,expression):
         param_orography, \
         param_mixed, \
         param_pressure, \
-        param_multigrid = all_param
+        param_multigrid, \
+        param_singlelevel = all_param
     mixed_ksp_monitor = KSPMonitor('mixed',verbose=param_mixed['verbose'])
     c = param_general['speed_c']
     N = param_general['speed_N']
@@ -560,7 +584,8 @@ def main(parameter_filename=None):
       param_orography, \
       param_mixed, \
       param_pressure, \
-      param_multigrid = all_param
+      param_multigrid, \
+      param_singlelevel = all_param
     # ------------------------------------------------------
 
     # Create output directory if it does not already exist
