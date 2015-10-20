@@ -1,6 +1,7 @@
 import numpy as np
 from firedrake import *
 import xml.etree.cElementTree as ET
+from firedrake.petsc import PETSc
 
 class Jacobi(object):
     '''Jacobi smoother.
@@ -24,7 +25,15 @@ class Jacobi(object):
         self._n_smooth = n_smooth
         self._dx = self._mesh._dx
         self._r_tmp = Function(self._W3)
-            
+        self._b_tmp = Function(self._W3)
+        self._phi_tmp = Function(self._W3)
+        with self._b_tmp.dat.vec as v:
+            ndof = self._W3.dof_dset.size
+            self._iset = PETSc.IS().createStride(ndof,
+                                                 first=v.owner_range[0],
+                                                 step=1,
+                                                 comm=v.comm)
+
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
 
@@ -47,6 +56,23 @@ class Jacobi(object):
         :arg phi: State vector :math:`\phi` in pressure space (out)
         '''
         self.smooth(b,phi,initial_phi_is_zero=True)
+
+    def apply(self,pc,x,y):
+        '''PETSc interface for preconditioner solve.
+
+        PETSc interface wrapper for the :func:`solve` method.
+
+        :arg x: PETSc vector representing the right hand side in pressure
+            space
+        :arg y: PETSc vector representing the solution pressure space.
+        '''
+        with self._b_tmp.dat.vec as v:
+            tmp = x.getSubVector(self._iset)
+            x.copy(v)
+            x.restoreSubVector(self._iset, tmp)
+        self.smooth(self._b_tmp,self._phi_tmp,initial_phi_is_zero=True)
+        with self._phi_tmp.dat.vec_ro as v:
+            y.array[:] = v.array[:]
 
     def smooth(self,b,phi,initial_phi_is_zero=False):
         '''Smooth.
