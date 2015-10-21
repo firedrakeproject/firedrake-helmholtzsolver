@@ -438,7 +438,7 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
                 gravitywave_solver_matrixfree = matrixfree_solver_setup(functionspaces,
                                                                         dt,all_param)
                 r_u.assign(0.0)
-                r_p.project(expression)
+                r_p.project(expression,solver_parameters={'ksp_type':'cg','pc_type':'jacobi'})
                 r_b.assign(0.0)
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
         sys.stdout = stdout_save
@@ -448,7 +448,7 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
         logger.write('')
 
     r_u.assign(0.0)
-    r_p.project(expression)
+    r_p.project(expression,solver_parameters={'ksp_type':'cg','pc_type':'jacobi'})
     r_b.assign(0.0)
 
     with timed_region("matrixfree mixed system solve"):
