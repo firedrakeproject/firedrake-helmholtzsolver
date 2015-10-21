@@ -45,17 +45,18 @@ Mixed system:
     higher_order = %(higher_order)s # Use higher order discretisation?
     schur_diagonal_only = False     # Use diagonal only in Schur complement?
     tolerance = 1.E-5               # tolerance
-    maxiter = 100                    # maximal number of iterations
+    maxiter = 1000                    # maximal number of iterations
     verbose = 2                     # verbosity level
 
 ############################################################################### 
 # Pressure solve parameters
 ############################################################################### 
 Pressure solve:
-    ksp_type = %(pressure_ksp)s     # KSP type for PETSc solver
+    ksp_type = preonly              # KSP type for PETSc solver
     tolerance = 1.E-14              # tolerance
-    maxiter = %(pressure_maxiter)d  # maximal number of iterations
+    maxiter = 1                     # maximal number of iterations
     verbose = 0                     # verbosity level
+    multigrid = %(multigrid)s       # Use multigrid?
 
 ############################################################################### 
 # Multigrid parameters
@@ -64,5 +65,12 @@ Multigrid:
     mu_relax = 0.8                  # multigrid smoother relaxation factor
     n_presmooth = 1                 # presmoothing steps
     n_postsmooth = 1                # postsmoothing steps
-    n_coarsesmooth = 1              # number of coarse grid smoothing steps
+    n_coarsesmooth = %(ncoarsesmooth)d  # number of coarse grid smoothing steps
 
+
+################################################################################ 
+# Single level preconditioner parameters
+################################################################################ 
+Singlelevel:
+    mu_relax = 0.8                  # single level smoother relaxation factor
+    n_smooth = 1		    # Number of smoother iterations
