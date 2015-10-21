@@ -1,4 +1,5 @@
 import sys
+from optparse import OptionParser
 
 from jobscript import Jobscript
 
@@ -119,15 +120,44 @@ def vary_cfl(rundir,higher_order,singlelevel=False):
 if (__name__ == '__main__'):
 
     # Parse command line and set parameters
-    if (len(sys.argv) != 2):
-        print 'Usage: python '+sys.argv[0]+' <directory>'
+
+    parser = OptionParser('python '+sys.argv[0]+' [options] DIRECTORY: Generate submission scripts and parameter files in directory DIRECTORY')
+
+    parser.add_option('-o','--order', dest='order',
+                  type='choice',
+                  choices=('lowest','higher'),
+                  default='lowest',
+                  help='order of finite elements')
+
+    parser.add_option('-s', '--singlelevel',
+                      action='store_true', dest='singlelevel', default=False,
+                      help='use single level method?')
+
+    parser.add_option('-w','--weakscaling',
+                      action='store_true', dest='weakscaling', default=False,
+                      help='generate files for weak scaling run?')
+
+    parser.add_option('-v','--varycfl',
+                      action='store_true', dest='varycfl', default=False,
+                      help='generate files for runs with different CFL numbers?')
+
+    (options,args) = parser.parse_args()
+
+    if (len(args) != 1):
+        parser.print_help()
         sys.exit(1)
-    rundir = sys.argv[1]
 
-    higher_order = False
-#    higher_order = True
-#    singlelevel=False
-    singlelevel=True
+    rundir = args[0]
 
-#    weak_scaling(rundir,higher_order,singlelevel)
-    vary_cfl(rundir,higher_order,singlelevel)
+    higher_order = (options.order == 'higher')
+
+    print 'Run directory = '+rundir
+    print 'order = '+options.order
+    print 'singlelevel = '+str(options.singlelevel)
+
+    if (options.weakscaling):
+        print 'Generating files for weak scaling run...'
+        weak_scaling(rundir,higher_order,options.singlelevel)
+    if (options.varycfl):
+        print 'Generating files for run with varying CFL number...'
+        vary_cfl(rundir,higher_order,options.singlelevel)
