@@ -484,7 +484,7 @@ class PETScSolver(object):
             try:
                 self.up_solver.solve()
             except RuntimeError:
-                print 'Solver failed to converge after '+str(self._maxiter)+' iterations'
+                self._logger.write('Solver failed to converge after '+str(self._maxiter)+' iterations')
         with timed_region('petsc buoyancy solve'):
             self._u.assign(vmixed.sub(0))
             self._p.assign(vmixed.sub(1))
