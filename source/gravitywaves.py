@@ -348,7 +348,8 @@ class PETScSolver(object):
                  ksp_type='gmres',
                  ksp_monitor=None,
                  maxiter=100,
-                 tolerance=1.E-6):
+                 tolerance=1.E-6,
+                 multigrid=True):
         self._ksp_type = ksp_type
         self._logger = Logger()
         self._Wb = Wb
@@ -362,6 +363,7 @@ class PETScSolver(object):
         self._maxiter = maxiter
         self._tolerance = tolerance
         self._ksp_monitor = ksp_monitor
+        self._multigrid = multigrid
         self._Wmixed = W2 * W3
         self._W2 = self._Wmixed.sub(0)
         self._W3 = self._Wmixed.sub(1)
@@ -408,31 +410,37 @@ class PETScSolver(object):
         utrial, ptrial = TrialFunctions(self._Wmixed)
         bcs = [DirichletBC(self._Wmixed.sub(0), 0.0, "bottom"),
                DirichletBC(self._Wmixed.sub(0), 0.0, "top")]
+        if (self._multigrid):
+            pc_1_params = {'fieldsplit_1_pc_type': 'hypre',
+                           'fieldsplit_1_pc_hypre_type': 'boomeramg',
+                           'fieldsplit_1_pc_hypre_boomeramg_max_iter':1,
+                           'fieldsplit_1_pc_hypre_boomeramg_agg_nl':0,
+                           'fieldsplit_1_pc_hypre_boomeramg_coarsen_type':'Falgout',
+                           'fieldsplit_1_pc_hypre_boomeramg_smooth_type':'Euclid',
+                           'fieldsplit_1_pc_hypre_boomeramg_eu_bj':1,
+                           'fieldsplit_1_pc_hypre_boomeramg_interptype':'classical', 
+                           'fieldsplit_1_pc_hypre_boomeramg_P_max':0,
+                           'fieldsplit_1_pc_hypre_boomeramg_agg_nl':0,
+                           'fieldsplit_1_pc_hypre_boomeramg_strong_threshold':0.25,
+                           'fieldsplit_1_pc_hypre_boomeramg_max_levels':25,
+                           'fieldsplit_1_pc_hypre_boomeramg_no_CF':False}
+        else:
+            pc_1_params = {'fieldsplit_1_pc_type':'bjacobi',
+                           'fieldsplit_1_sub_pc_type':'ilu'}
+
         sparams={'pc_type': 'fieldsplit',
                  'pc_fieldsplit_type': 'schur',
                  'ksp_type': 'gmres',
                  'ksp_max_it': 100,
                  'ksp_rtol':self._tolerance,
+                 'ksp_monitor': False,
                  'pc_fieldsplit_schur_fact_type': 'FULL',
                  'pc_fieldsplit_schur_precondition': 'selfp',
                  'fieldsplit_0_ksp_type': 'preonly',
                  'fieldsplit_0_pc_type': 'bjacobi',
                  'fieldsplit_0_sub_pc_type': 'ilu',
-                 'fieldsplit_1_ksp_type': 'preonly',
-                 'fieldsplit_1_pc_type': 'hypre',
-                 'fieldsplit_1_pc_hypre_type': 'boomeramg',
-                 'fieldsplit_1_pc_hypre_boomeramg_max_iter':1,
-                 'fieldsplit_1_pc_hypre_boomeramg_agg_nl':0,
-                 'fieldsplit_1_pc_hypre_boomeramg_coarsen_type':'Falgout',
-                 'fieldsplit_1_pc_hypre_boomeramg_smooth_type':'Euclid',
-                 'fieldsplit_1_pc_hypre_boomeramg_eu_bj':1,
-                 'fieldsplit_1_pc_hypre_boomeramg_interptype':'classical', 
-                 'fieldsplit_1_pc_hypre_boomeramg_P_max':0,
-                 'fieldsplit_1_pc_hypre_boomeramg_agg_nl':0,
-                 'fieldsplit_1_pc_hypre_boomeramg_strong_threshold':0.25,
-                 'fieldsplit_1_pc_hypre_boomeramg_max_levels':25,
-                 'fieldsplit_1_pc_hypre_boomeramg_no_CF':False,
-                 'ksp_monitor': False}
+                 'fieldsplit_1_ksp_type': 'preonly'}
+        sparams.update(pc_1_params)
         a_up = (  ptest*ptrial \
                 + self._dt_half_c2*ptest*div(utrial) \
                 - self._dt_half*div(utest)*ptrial \

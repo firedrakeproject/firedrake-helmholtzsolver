@@ -389,7 +389,8 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                               param_pressure['ksp_type'],
                                               ksp_monitor=pressure_ksp_monitor,
                                               tolerance=param_pressure['tolerance'],
-                                              maxiter=param_pressure['maxiter'])
+                                              maxiter=param_pressure['maxiter'],
+                                              multigrid=param_pressure['multigrid'])
 
         # Construct mixed gravity wave solver
         if (param_orography['enabled']):
@@ -503,7 +504,8 @@ def solve_petsc(functionspaces,dt,all_param,expression):
                                              ksp_type=param_mixed['ksp_type'],
                                              ksp_monitor=mixed_ksp_monitor,
                                              tolerance=param_mixed['tolerance'],
-                                             maxiter=param_mixed['maxiter'])
+                                             maxiter=param_mixed['maxiter'],
+                                             multigrid=param_pressure['multigrid'])
     # Warm up run
     if (param_general['warmup_run']):
         logger.write('Warmup...')
