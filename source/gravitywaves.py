@@ -431,7 +431,7 @@ class PETScSolver(object):
         sparams={'pc_type': 'fieldsplit',
                  'pc_fieldsplit_type': 'schur',
                  'ksp_type': 'gmres',
-                 'ksp_max_it': 1000,
+                 'ksp_max_it': self._maxiter,
                  'ksp_rtol':self._tolerance,
                  'ksp_monitor': False,
                  'pc_fieldsplit_schur_fact_type': 'FULL',
