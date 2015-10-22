@@ -1,4 +1,5 @@
 import sys
+import os
 from optparse import OptionParser
 
 from jobscript import Jobscript
@@ -154,6 +155,11 @@ if (__name__ == '__main__'):
     print 'Run directory = '+rundir
     print 'order = '+options.order
     print 'singlelevel = '+str(options.singlelevel)
+
+    # Create directory if it does not exist
+    if not os.path.exists(rundir):
+        print 'creating directory \"'+rundir+'\"'
+        os.makedirs(rundir)
 
     if (options.weakscaling):
         print 'Generating files for weak scaling run...'
