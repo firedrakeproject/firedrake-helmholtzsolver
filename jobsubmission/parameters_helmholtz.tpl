@@ -72,5 +72,5 @@ Multigrid:
 # Single level preconditioner parameters
 ################################################################################ 
 Singlelevel:
-    mu_relax = 0.8                  # single level smoother relaxation factor
+    mu_relax = 1.0                  # single level smoother relaxation factor
     n_smooth = 1		    # Number of smoother iterations
