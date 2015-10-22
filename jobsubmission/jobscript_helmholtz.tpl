@@ -28,11 +28,7 @@ cd $WORKDIR
 
 LOGFILE=output.log
 
-module swap PrgEnv-cray PrgEnv-gnu
-module unload python
-module add anaconda
 module use /home/n02/n02/eike/modules
-
 module load firedrake-local
 
 export CC=cc
