@@ -127,7 +127,7 @@ if (__name__ == '__main__'):
                   type='choice',
                   choices=('lowest','higher'),
                   default='lowest',
-                  help='order of finite elements')
+                  help='order of finite elements [lowest,higher]')
 
     parser.add_option('-s', '--singlelevel',
                       action='store_true', dest='singlelevel', default=False,
