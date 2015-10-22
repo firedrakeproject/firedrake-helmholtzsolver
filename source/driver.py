@@ -389,8 +389,7 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                               param_pressure['ksp_type'],
                                               ksp_monitor=pressure_ksp_monitor,
                                               tolerance=param_pressure['tolerance'],
-                                              maxiter=param_pressure['maxiter'],
-                                              multigrid=param_pressure['multigrid'])
+                                              maxiter=param_pressure['maxiter'])
 
         # Construct mixed gravity wave solver
         if (param_orography['enabled']):
