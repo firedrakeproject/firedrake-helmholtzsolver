@@ -198,6 +198,7 @@ class Operator_Hhat(object):
                                                  first=v.owner_range[0],
                                                  step=1,
                                                  comm=PETSc.COMM_SELF)
+        self._vertical_diagonal = self.vertical_diagonal()
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -249,6 +250,15 @@ class Operator_Hhat(object):
                 self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
+    def apply_blockinverse(self,r):
+        '''In-place multiply with inverse of block-diagonal
+
+        Apply :math:`r\mapsto \hat{H}_z^{-1} r`
+        
+        :arg r: Vector to be multiplied
+        '''
+        with timed_region('apply_Hhat_z_inv_level_'+str(self._level)):
+            self._vertical_diagonal.solve(r)
 
     def vertical_diagonal(self):
         '''Construct the block-diagonal matrix :math:`\hat{H}_z` which only 

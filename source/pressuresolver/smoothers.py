@@ -2,7 +2,6 @@ import numpy as np
 from firedrake import *
 import xml.etree.cElementTree as ET
 from firedrake.petsc import PETSc
-from pyop2.profiling import timed_function, timed_region
 
 class Jacobi(object):
     '''Jacobi smoother.
@@ -20,7 +19,6 @@ class Jacobi(object):
                  level=-1,
                  *args):
         self._operator = operator
-        self._vertical_diagonal = self._operator.vertical_diagonal()
         self._W3 = self._operator._W3
         self._mesh = self._W3.mesh()
         self._mu_relax = mu_relax
@@ -101,9 +99,7 @@ class Jacobi(object):
             else:
                 self._r_tmp.assign(self._operator.residual(b,phi))
             # Apply inverse diagonal r -> \left(\hat{H}_z\right)^{-1} *r
-            label = 'apply_Hhat_z_inv_level_'+str(self._level)
-            with timed_region(label):
-                self._vertical_diagonal.solve(self._r_tmp)
+            self._operator.apply_blockinverse(self._r_tmp)
             # Update phi
             if ( (i ==0) and (initial_phi_is_zero) ):
                 self._r_tmp *= self._mu_relax
