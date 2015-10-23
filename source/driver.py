@@ -340,14 +340,16 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                     coarsegrid_solver)
 
             if (param_mixed['higher_order']):
-                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
-                op_Hhat.set_timer_label('level_0')
+                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
+                                        level=nlevel)
                 presmoother = Jacobi(op_Hhat,
                                      mu_relax=param_multigrid['mu_relax'],
-                                     n_smooth=param_multigrid['n_presmooth'])
+                                     n_smooth=param_multigrid['n_presmooth'],
+                                     level=nlevel)
                 postsmoother = Jacobi(op_Hhat,
                                       mu_relax=param_multigrid['mu_relax'],
-                                      n_smooth=param_multigrid['n_postsmooth'])
+                                      n_smooth=param_multigrid['n_postsmooth'],
+                                      level=nlevel)
                 preconditioner = hpMultigrid(hmultigrid,
                                              op_Hhat,
                                              presmoother,
@@ -359,11 +361,13 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
     else:
         with timed_region('matrixfree singlelevel setup'):
             with timed_region('matrixfree op_Hhat setup'):
-                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
+                                        level=0)
             with timed_region('matrixfree smoother setup'):
                 preconditioner = Jacobi(op_Hhat,
                                         param_singlelevel['mu_relax'],
-                                        param_singlelevel['n_smooth'])
+                                        param_singlelevel['n_smooth'],
+                                        level=0)
 
     with timed_region('matrixfree mixed operator setup'):
         mixed_operator = MixedOperator(W2,W3,dt,c,N)
