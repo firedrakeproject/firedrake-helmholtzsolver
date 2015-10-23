@@ -38,7 +38,7 @@ class BandedMatrix(object):
             with :math:`\\alpha = \\beta`
         '''
     def __init__(self,fs_row,fs_col,alpha=None,beta=None,gamma_m=None,gamma_p=None,
-                 use_blas_for_axpy=False):
+                 use_blas_for_axpy=False,label=None):
         # Function spaces
         self._fs_row = fs_row
         self._fs_col = fs_col
@@ -103,6 +103,7 @@ class BandedMatrix(object):
              ('Eikes-MBP' in hostname) ):
             self._libs = ['lapack','lapacke','cblas','blas']
         self._use_blas_for_axpy = False
+        self._label = label
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -377,10 +378,14 @@ class BandedMatrix(object):
         kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True,
                             headers=['#include "cblas.h"'],
                             libs=self._libs)
+        label = None
+        if (self._label != None):
+            label = 'ax['+self._label+']'
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._data(op2.READ,self._Vcell.cell_node_map()),
-                     u.dat(op2.RW,u.cell_node_map()))
+                     u.dat(op2.RW,u.cell_node_map()),
+                     name=label,measure_flops=True)
 
     def axpy(self,u,v):
         '''axpy Matrix-vector mutiplication :math:`v\mapsto v+Au`
@@ -796,11 +801,15 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             libs=self._libs)
+        label = None
+        if (self._label != None):
+            label = 'lu_solve['+self._label+']'
         op2.par_loop(kernel,
                      self._hostmesh.cell_set,
                      self._lu(op2.WRITE,self._Vcell.cell_node_map()),
                      self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
-                     u.dat(op2.RW,u.cell_node_map()))
+                     u.dat(op2.RW,u.cell_node_map()),
+                     name=label)
         return u
 
     def diagonal(self):

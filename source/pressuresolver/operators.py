@@ -247,6 +247,7 @@ class Operator_Hhat(object):
                     # Calculate action of B_h^T
                     assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
             with timed_region('apply_Hhat_z_level_'+str(self._level)):
+                self._Hhat_v._label='apply_Hhat_z_level_'+str(self._level)
                 self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
@@ -258,6 +259,7 @@ class Operator_Hhat(object):
         :arg r: Vector to be multiplied
         '''
         with timed_region('apply_Hhat_z_inv_level_'+str(self._level)):
+            self._vertical_diagonal._label='Hhat_z_level_'+str(self._level)
             self._vertical_diagonal.solve(r)
 
     def vertical_diagonal(self):
