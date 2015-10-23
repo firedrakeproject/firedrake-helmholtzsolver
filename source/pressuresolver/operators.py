@@ -130,7 +130,6 @@ class Operator_Hhat(object):
     :arg omega_N: Positive real constant, related to buoyancy frequency
         :math:`\omega_c=\\frac{\Delta t}{2}N`
     :arg preassemble_horizontal: Pre-assemble horizontal part of the operator
-    :arg timer_label: Label for timer
     '''
     def __init__(self,
                  W3,
@@ -138,7 +137,8 @@ class Operator_Hhat(object):
                  W2_v,
                  omega_c,
                  omega_N,
-                 preassemble_horizontal=True):
+                 preassemble_horizontal=True,
+                 level=-1):
         self._W3 = W3
         self._W2_h = W2_h
         self._W2_v = W2_v
@@ -149,7 +149,6 @@ class Operator_Hhat(object):
         self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
         self._preassemble_horizontal = preassemble_horizontal
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
-        self._timer_label = None
         w_h = TestFunction(self._W2_h)
         w_v = TestFunction(self._W2_v)
         self._psi = TestFunction(self._W3)
@@ -157,7 +156,7 @@ class Operator_Hhat(object):
         self._res_tmp = Function(self._W3)
         self._mesh = self._W3.mesh()
         self._dx = self._mesh._dx
-
+        self._level=level
         # Forms for operator applications
         self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
         self._B_h_phi = Function(self._W2_h)
@@ -208,13 +207,6 @@ class Operator_Hhat(object):
         for bc in self._bcs:
             bc.apply(u)
 
-    def set_timer_label(self,label):
-        '''set label for timer.
-
-            :arg label: Label to be used for timer
-        '''
-        self._timer_label = label
-
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
 
@@ -239,25 +231,22 @@ class Operator_Hhat(object):
 
         :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''
-        if (self._timer_label == None):
-            label = 'matrixfree op_schur'
-        else:
-            label = 'matrixfree op_schur_'+self._timer_label
-        with timed_region(label):
+        with timed_region('apply_Hhat_level_'+str(self._level)):
             self._phi_tmp.assign(phi)
-            if (self._preassemble_horizontal):
-                with self._BT_B_h_phi.dat.vec as v:
-                    with phi.dat.vec_ro as x:
-                        self._mat_Hhat_h.mult(x,v)
-            else:
-                # Calculate action of B_h
-                assemble(self._B_h_phi_form, tensor=self._B_h_phi)
-                # divide by horizontal velocity mass matrix
-                self._Mu_h.divide(self._B_h_phi)
-                # Calculate action of B_h^T
-                assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)            
-                
-            self._Hhat_v.ax(self._phi_tmp)
+            with timed_region('apply_Hhat_h_level_'+str(self._level)):
+                if (self._preassemble_horizontal):
+                    with self._BT_B_h_phi.dat.vec as v:
+                        with phi.dat.vec_ro as x:
+                            self._mat_Hhat_h.mult(x,v)
+                else:
+                    # Calculate action of B_h
+                    assemble(self._B_h_phi_form, tensor=self._B_h_phi)
+                    # divide by horizontal velocity mass matrix
+                    self._Mu_h.divide(self._B_h_phi)
+                    # Calculate action of B_h^T
+                    assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
+            with timed_region('apply_Hhat_z_level_'+str(self._level)):
+                self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
 

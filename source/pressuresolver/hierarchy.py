@@ -27,7 +27,7 @@ class HierarchyContainer(object):
             tmp = list(x)
             tmp.extend(args)
             arglist.append(tmp)
-        self._data = [Type(*x,**kwargs) for x in arglist] 
+        self._data = [Type(*x,level=i,**kwargs) for (i,x) in enumerate(arglist)] 
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.

@@ -64,7 +64,7 @@ class hMultigrid(object):
         '''
         if (level == None):
             level = self._fine_level
-        with timed_region("hMultigrid Vcycle_"+str(level)):
+        with timed_region("vcycle_level_"+str(level)):
             # Solve exactly on coarsest level
             if (level == self._coarsest_level):
                 # presmooth
@@ -201,7 +201,7 @@ class hpMultigrid(object):
         :arg b: right hand side in pressure space
         :arg phi: State :math:`\phi` in pressure space.
         '''
-        with timed_region("hpMultigrid Vcycle"):
+        with timed_region("vcycle_level_"+str(self._hmultigrid._fine_level+1)):
             phi.assign(0.0)
             # Presmooth
             self._presmoother.smooth(b,phi,initial_phi_is_zero=True)

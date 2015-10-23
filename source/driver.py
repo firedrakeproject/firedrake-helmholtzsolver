@@ -317,12 +317,6 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                   omega_N)
             nlevel = len(op_Hhat_hierarchy)
             # Start counting at 1 at higher order since the p-operator is 0
-            if (param_mixed['higher_order']):
-                offset = 1
-            else:
-                offset = 0
-            for i in range(nlevel):
-                op_Hhat_hierarchy[i].set_timer_label('level_'+str(nlevel-1-i+offset))
             with timed_region('matrixfree smoother setup'):
                 presmoother_hierarchy = HierarchyContainer(Jacobi,
                                             zip(op_Hhat_hierarchy),
@@ -336,7 +330,8 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
 
                 coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
                                            mu_relax=param_multigrid['mu_relax'],
-                                           n_smooth=param_multigrid['n_coarsesmooth'])
+                                           n_smooth=param_multigrid['n_coarsesmooth'],
+                                           level=0)
 
             hmultigrid = hMultigrid(W3_hierarchy,
                                     op_Hhat_hierarchy,
