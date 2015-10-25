@@ -186,7 +186,7 @@ class Operator_Hhat(object):
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
-        self._Mu_vinv = Mu_v.spai()
+        self._Mu_vinv = Mu_v.inv_diagonal()
         B_v = BandedMatrix(self._W2_v,self._W3)
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
