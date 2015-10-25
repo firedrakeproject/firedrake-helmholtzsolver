@@ -67,7 +67,7 @@ def weak_scaling(rundir,higher_order,singlelevel=False):
                                                     ref_count_coarse_list)]
         nlevel_list = [0 for x in zip(nlevel_list)]
 
-    nu_cfl = 2.0
+    nu_cfl = 4.0
     for ref_count_coarse, nlevel, ppn, nodes in zip(ref_count_coarse_list,
                                             nlevel_list,
                                             ppn_list,
