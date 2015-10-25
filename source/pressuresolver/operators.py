@@ -119,8 +119,8 @@ class Operator_Hhat(object):
 
     where :math:`D_h` and :math:`D_v` arise from the finite element
     representation of the divergence and gradient operator in the horizontal- and vertical
-    direction. The horizontal mass matrix is obtained by diagonal lumping, and the vertical
-    mass matrix by a sparse approximate inverse (SPAI).
+    direction. Both the horizontal and vertical mass matrices are obtained by
+    diagonal lumping.
     
     :arg W3: Function space for pressure fields
     :arg W2_h: Function space for horizontal component of velocity fields
@@ -186,7 +186,7 @@ class Operator_Hhat(object):
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
-        self._Mu_vinv = Mu_v.spai()
+        self._Mu_vinv = Mu_v.inv_diagonal()
         B_v = BandedMatrix(self._W2_v,self._W3)
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
