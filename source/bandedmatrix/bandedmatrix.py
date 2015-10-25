@@ -803,6 +803,58 @@ class BandedMatrix(object):
                      u.dat(op2.RW,u.cell_node_map()))
         return u
 
+    def diagonal(self):
+        '''Extract diagonal entries.
+
+        For a banded matrix with alpha=beta, create a new banded matrix
+        which contains the diagonal entries only.
+        '''
+        assert(self._alpha == self._beta)
+        assert(self._gamma_m>=0)
+        assert(self._gamma_p>=0)
+        result = BandedMatrix(self._fs_row,self._fs_col,
+                              alpha=1,beta=1,gamma_m=0,gamma_p=0)
+        kernel_code = '''void diagonal(double **A,
+                                       double **Adiag) {
+          for (int i=0;i<%(A_n_row)d;++i) {
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            Adiag[0][i] = A[0][%(A_bandwidth)d*i+(i-j_m)];
+          }
+        }'''
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel = op2.Kernel(kernel_code % param_dict, 'diagonal')
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        return result
+
+    def inv_diagonal(self):
+        '''Extract inverse diagonal entries.
+
+        For a banded matrix with alpha=beta, create a new banded matrix
+        which contains the inverse diagonal entries only.
+        '''
+        assert(self._alpha == self._beta)
+        assert(self._gamma_m>=0)
+        assert(self._gamma_p>=0)
+        result = BandedMatrix(self._fs_row,self._fs_col,
+                              alpha=1,beta=1,gamma_m=0,gamma_p=0)
+        kernel_code = '''void diagonal(double **A,
+                                       double **Adiag) {
+          for (int i=0;i<%(A_n_row)d;++i) {
+            int j_m = (int) ceil((%(A_alpha)d*i-%(A_gamma_p)d)/%(A_beta)f);
+            Adiag[0][i] = 1.0/A[0][%(A_bandwidth)d*i+(i-j_m)];
+          }
+        }'''
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel = op2.Kernel(kernel_code % param_dict, 'diagonal')
+        op2.par_loop(kernel,
+                     self._hostmesh.cell_set,
+                     self._data(op2.READ,self._Vcell.cell_node_map()),
+                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        return result        
+
     def spai(self,gamma=None):
         '''Calculate Sparse approximate inverse based on a fixed
         sparsity pattern.

@@ -373,6 +373,43 @@ def test_spai(W2_vert):
 
     assert np.allclose(mat_AM._data.data, 0.0)
 
+def test_diagonal(W2_vert):
+    '''Check correct extraction of diagonal
+
+    Construct the W2_v mass matrix and extract the diagonal. Check that
+    this really matches the diagonal of the matrix.
+
+    :arg W2_vert: vertical HDiv space
+    '''
+    u = TestFunction(W2_vert)
+    v = TrialFunction(W2_vert) 
+    ufl_form = dot(u,v)*W2_vert.mesh()._dx
+    mat = BandedMatrix(W2_vert,W2_vert)
+    mat.assemble_ufl_form(ufl_form)
+    mat_diag = mat.diagonal()
+    diff = [(np.diag(m_dense) - m) for (m_dense,m) \
+             in zip(mat.dense().dat.data,mat_diag._data.data)]
+    assert np.allclose(diff, 0.0)
+
+def test_inv_diagonal(W2_vert):
+    '''Check correct extraction of inverse diagonal
+
+    Construct the W2_v mass matrix and extract the diagonal and inverse
+    diagonal. Check that the product of the two is the identity matrix
+
+    :arg W2_vert: vertical HDiv space
+    '''
+    u = TestFunction(W2_vert)
+    v = TrialFunction(W2_vert) 
+    ufl_form = dot(u,v)*W2_vert.mesh()._dx
+    mat = BandedMatrix(W2_vert,W2_vert)
+    mat.assemble_ufl_form(ufl_form)
+    mat_diag = mat.diagonal()
+    mat_inv_diag = mat.inv_diagonal()
+    diff = [np.multiply(m_inv ,m) for (m_inv,m) \
+             in zip(mat_inv_diag._data.data,mat_diag._data.data)]
+    assert np.allclose(diff, 1.0)
+    
 def test_boundary_conditions(W2_vert_coarse,velocity_expression):
     '''Check that boundary conditions are applied correctly.
 
