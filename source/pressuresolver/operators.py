@@ -172,7 +172,6 @@ class Operator_Hhat(object):
         if (self._preassemble_horizontal):
             mat_B_h = \
               assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
-            tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
             tmp_h = mat_B_h.duplicate(copy=True)
             with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
                 tmp_h.diagonalScale(L=inv_diag,R=None)
