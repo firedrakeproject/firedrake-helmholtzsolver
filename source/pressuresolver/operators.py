@@ -167,22 +167,20 @@ class Operator_Hhat(object):
         self._M_phi = Function(self._W3)
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
-
+        # Lumped mass matrix.
+        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
         if (self._preassemble_horizontal):
             mat_B_h = \
               assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
             tmp_Mu_h = assemble(dot(TestFunction(self._W2_h),TrialFunction(self._W2_h))*self._dx)
-            diag = tmp_Mu_h.M.handle.getDiagonal()
-            diag.reciprocal()
             tmp_h = mat_B_h.duplicate(copy=True)
-            tmp_h.diagonalScale(L=diag,R=None)
+            with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
+                tmp_h.diagonalScale(L=inv_diag,R=None)
             self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
         else:
             self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
             self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
 
-        # Lumped mass matrices.
-        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
         Mu_v = BandedMatrix(self._W2_v,self._W2_v)
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
