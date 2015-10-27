@@ -183,14 +183,14 @@ class Operator_Hhat(object):
             self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
 
         # Lumped mass matrices.
-        Mu_v = BandedMatrix(self._W2_v,self._W2_v,label='Mu_v')
+        Mu_v = BandedMatrix(self._W2_v,self._W2_v,label='Mu_v_level_'+str(self._level))
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
         self._Mu_vinv = Mu_v.inv_diagonal()
-        B_v = BandedMatrix(self._W2_v,self._W3,label='B_v')
+        B_v = BandedMatrix(self._W2_v,self._W3,label='B_v_level_'+str(self._level))
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
-        M_phi = BandedMatrix(self._W3,self._W3,label='M_phi')
+        M_phi = BandedMatrix(self._W3,self._W3,label='M_phi_level_'+str(self._level))
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
         self._Hhat_v = M_phi.matadd(B_v.transpose_matmul(self._Mu_vinv.matmul(B_v)),
@@ -320,7 +320,7 @@ class Operator_Hhat(object):
                      self._Mu_h._data_inv.dat(op2.READ,self._Mu_h._data_inv.cell_node_map()),
                      lma_delta_h.dat(op2.WRITE,lma_delta_h.cell_node_map()))
 
-        delta_h = BandedMatrix(self._W3,self._W3)
+        delta_h = BandedMatrix(self._W3,self._W3,label='delta_h_level_'+str(self._level))
         delta_h._assemble_lma(lma_delta_h)
 
         # Add everything up       
