@@ -6,6 +6,7 @@ from firedrake import *
 from firedrake.ffc_interface import compile_form
 from firedrake.fiat_utils import *
 import socket
+from pyop2.profiling import timed_region
 
 class BandedMatrix(object):
     '''Generalised block banded matrix.
@@ -103,7 +104,10 @@ class BandedMatrix(object):
              ('Eikes-MBP' in hostname) ):
             self._libs = ['lapack','lapacke','cblas','blas']
         self._use_blas_for_axpy = False
-        self._label = label
+        if (label==None):
+            self._label = '___'
+        else:
+            self._label = label
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -198,7 +202,9 @@ class BandedMatrix(object):
         :arg vertical_bcs: Apply homogeneous Dirichlet boundary conditions on the
             top and bottom surfaces.
         '''
-        compiled_form = compile_form(ufl_form, 'ufl_form')[0]
+
+        with timed_region('bandedmatrix compile_ufl_form'):
+            compiled_form = compile_form(ufl_form, 'ufl_form')[0]
         kernel = compiled_form[6]
         coords = compiled_form[3]
         coefficients = compiled_form[4]
@@ -212,7 +218,8 @@ class BandedMatrix(object):
                 coords.dat(op2.READ, coords.cell_node_map(), flatten=True)]
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
-        op2.par_loop(kernel,lma.cell_set, *args)
+        with timed_region('bandedmatrix assemble_ufl_form'):
+            op2.par_loop(kernel,lma.cell_set, *args)
         self._assemble_lma(lma,vertical_bcs)
         
     def _assemble_lma(self,lma,vertical_bcs=False):
@@ -255,10 +262,11 @@ class BandedMatrix(object):
         }'''
         self._data.zero()
         kernel = op2.Kernel(kernel_code % param_dict,'assemble_lma',cpp=True)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     lma.dat(op2.READ,lma.cell_node_map()),
-                     self._data(op2.INC,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix assemble_lma'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         lma.dat(op2.READ,lma.cell_node_map()),
+                         self._data(op2.INC,self._Vcell.cell_node_map()))
         if (vertical_bcs):
             self.apply_vertical_bcs()
         
@@ -331,9 +339,10 @@ class BandedMatrix(object):
         }
         '''
         kernel = op2.Kernel(kernel_code % param_dict,'apply_bcs',cpp=True)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix apply_bcs'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.WRITE,self._Vcell.cell_node_map()))
 
     def ax(self,u):
         '''In-place Matrix-vector mutiplication :math:`u\mapsto Au`
@@ -378,14 +387,13 @@ class BandedMatrix(object):
         kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True,
                             headers=['#include "cblas.h"'],
                             libs=self._libs)
-        label = None
-        if (self._label != None):
-            label = 'ax['+self._label+']'
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     u.dat(op2.RW,u.cell_node_map()),
-                     name=label,measure_flops=True)
+        with timed_region('bandedmatrix ax'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         u.dat(op2.RW,u.cell_node_map()),
+                         name='bandedmatrix ax['+self._label+']',
+                         measure_flops=(not self._use_blas_for_axpy))
 
     def axpy(self,u,v):
         '''axpy Matrix-vector mutiplication :math:`v\mapsto v+Au`
@@ -426,11 +434,12 @@ class BandedMatrix(object):
         kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True,
                             headers=['#include "cblas.h"'],
                             libs=self._libs)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     u.dat(op2.READ,u.cell_node_map()),
-                     v.dat(op2.INC,v.cell_node_map()))
+        with timed_region('bandedmatrix axpy'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         u.dat(op2.READ,u.cell_node_map()),
+                         v.dat(op2.INC,v.cell_node_map()))
 
     def fraction_of_nnz(self,tolerance=1.E-12):
         '''Return the fraction of non-zero entries 
@@ -481,10 +490,11 @@ class BandedMatrix(object):
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel = op2.Kernel(kernel_code % param_dict, 'convert_to_dense',cpp=True)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     A_dense.dat(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix dense'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         A_dense.dat(op2.WRITE,self._Vcell.cell_node_map()))
         return A_dense
 
     def transpose(self,result=None):
@@ -521,10 +531,11 @@ class BandedMatrix(object):
           }
         }'''
         kernel = op2.Kernel(kernel_code % param_dict, 'transpose',cpp=True)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix transpose'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
     def matmul(self,other,result=None):
@@ -578,11 +589,12 @@ class BandedMatrix(object):
           }
         }'''
         kernel = op2.Kernel(kernel_code % param_dict, 'matmul',cpp=True)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     other._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix matmul'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         other._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
     def transpose_matmul(self,other,result=None):
@@ -640,11 +652,12 @@ class BandedMatrix(object):
           }
         }'''
         kernel = op2.Kernel(kernel_code % param_dict, 'transpose_matmul',cpp=True)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     other._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix transpose_matmul'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         other._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
     def scale(self,omega=1.0):
@@ -710,12 +723,13 @@ class BandedMatrix(object):
         }'''
         kernel = op2.Kernel(kernel_code % param_dict, 'matadd',cpp=True)
         c_omega = Constant(omega)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     c_omega.dat(op2.READ),
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     other._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix matadd'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         c_omega.dat(op2.READ),
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         other._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
     def solve(self,u):
@@ -775,11 +789,12 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             libs=self._libs)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     self._lu(op2.WRITE,self._Vcell.cell_node_map()),
-                     self._ipiv(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix lu_decompose'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         self._lu(op2.WRITE,self._Vcell.cell_node_map()),
+                         self._ipiv(op2.WRITE,self._Vcell.cell_node_map()))
         self._lu_version = self._data._version
 
     def _lu_solve(self,u):
@@ -801,15 +816,13 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             libs=self._libs)
-        label = None
-        if (self._label != None):
-            label = 'lu_solve['+self._label+']'
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._lu(op2.WRITE,self._Vcell.cell_node_map()),
-                     self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
-                     u.dat(op2.RW,u.cell_node_map()),
-                     name=label)
+        with timed_region('bandedmatrix lu_solve'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._lu(op2.WRITE,self._Vcell.cell_node_map()),
+                         self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
+                         u.dat(op2.RW,u.cell_node_map()),
+                         name='bandedmatrix lu_solve['+self._label+']')
         return u
 
     def diagonal(self):
@@ -832,10 +845,11 @@ class BandedMatrix(object):
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel = op2.Kernel(kernel_code % param_dict, 'diagonal')
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix diagonal'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
 
     def inv_diagonal(self):
@@ -858,10 +872,11 @@ class BandedMatrix(object):
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel = op2.Kernel(kernel_code % param_dict, 'diagonal')
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix inv_diagonal'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result        
 
     def spai(self,gamma=None):
@@ -939,9 +954,10 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             libs=self._libs)
-        op2.par_loop(kernel,
-                     self._hostmesh.cell_set,
-                     self._data(op2.READ,self._Vcell.cell_node_map()),
-                     result._data(op2.WRITE,self._Vcell.cell_node_map()))
+        with timed_region('bandedmatrix spai'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
+                         result._data(op2.WRITE,self._Vcell.cell_node_map()))
         return result
         
