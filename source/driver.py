@@ -340,16 +340,18 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                     coarsegrid_solver)
 
             if (param_mixed['higher_order']):
-                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
-                                        level=nlevel)
-                presmoother = Jacobi(op_Hhat,
-                                     mu_relax=param_multigrid['mu_relax'],
-                                     n_smooth=param_multigrid['n_presmooth'],
-                                     level=nlevel)
-                postsmoother = Jacobi(op_Hhat,
-                                      mu_relax=param_multigrid['mu_relax'],
-                                      n_smooth=param_multigrid['n_postsmooth'],
-                                      level=nlevel)
+                with timed_region('matrixfree op_Hhat setup'):
+                    op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
+                                            level=nlevel)
+                with timed_region('matrixfree smoother setup'):
+                    presmoother = Jacobi(op_Hhat,
+                                         mu_relax=param_multigrid['mu_relax'],
+                                         n_smooth=param_multigrid['n_presmooth'],
+                                         level=nlevel)
+                    postsmoother = Jacobi(op_Hhat,
+                                          mu_relax=param_multigrid['mu_relax'],
+                                          n_smooth=param_multigrid['n_postsmooth'],
+                                          level=nlevel)
                 preconditioner = hpMultigrid(hmultigrid,
                                              op_Hhat,
                                              presmoother,

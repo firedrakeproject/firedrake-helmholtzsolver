@@ -166,27 +166,31 @@ class Operator_Hhat(object):
         self._M_phi = Function(self._W3)
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
-        # Lumped mass matrix.
-        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
+        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx,
+                                label='h')
         if (self._preassemble_horizontal):
-            mat_B_h = \
-              assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
+            with timed_region('assemble B_h'):
+                mat_B_h = \
+                    assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
             tmp_h = mat_B_h.duplicate(copy=True)
-            with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
-                tmp_h.diagonalScale(L=inv_diag,R=None)
-            self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
+            with timed_region('diagonal_scale'):
+                with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
+                    tmp_h.diagonalScale(L=inv_diag,R=None)
+            with timed_region('transposeMatMult'):
+                self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
         else:
             self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
             self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
 
-        Mu_v = BandedMatrix(self._W2_v,self._W2_v)
+        # Lumped mass matrices.
+        Mu_v = BandedMatrix(self._W2_v,self._W2_v,label='Mu_v')
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
         self._Mu_vinv = Mu_v.inv_diagonal()
-        B_v = BandedMatrix(self._W2_v,self._W3)
+        B_v = BandedMatrix(self._W2_v,self._W3,label='B_v')
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
-        M_phi = BandedMatrix(self._W3,self._W3)
+        M_phi = BandedMatrix(self._W3,self._W3,label='M_phi')
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
         self._Hhat_v = M_phi.matadd(B_v.transpose_matmul(self._Mu_vinv.matmul(B_v)),
@@ -198,7 +202,8 @@ class Operator_Hhat(object):
                                                  first=v.owner_range[0],
                                                  step=1,
                                                  comm=PETSc.COMM_SELF)
-        self._vertical_diagonal = self.vertical_diagonal()
+        with timed_region('vertical_diagonal'):
+            self._vertical_diagonal = self.vertical_diagonal()
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -260,7 +265,7 @@ class Operator_Hhat(object):
         '''
         with timed_region('apply_Hhat_z_inv_level_'+str(self._level)):
             self._vertical_diagonal._label='Hhat_z_level_'+str(self._level)
-            self._vertical_diagonal.solve(r)
+            self._vertical_diagonal._lu_solve(r)
 
     def vertical_diagonal(self):
         '''Construct the block-diagonal matrix :math:`\hat{H}_z` which only 
