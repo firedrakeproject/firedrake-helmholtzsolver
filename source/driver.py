@@ -374,9 +374,7 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
         mixed_operator = MixedOperator(W2,W3,dt,c,N)
 
     with timed_region('matrixfree pc_hdiv setup'):
-        mutilde = Mutilde(mixed_operator,
-                          lumped=(not param_mixed['higher_order']),
-                          tolerance_u=1.E-1,maxiter_u=100)
+        mutilde = Mutilde(mixed_operator,lumped=True)
 
     with timed_region('matrixfree op_H setup'):
         op_H = Operator_H(W3,W2,mutilde,omega_c)
