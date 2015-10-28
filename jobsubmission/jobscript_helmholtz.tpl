@@ -12,21 +12,14 @@ export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
 
 # Name of job
 JOBNAME=%(jobname)s
+WORKDIR=$PBS_O_WORKDIR/%(jobname)s_${PBS_JOBID}
+cd $PBS_O_WORKDIR
 
 # Directory containing the python sources of the Helmholtz solver module
 HELMHOLTZSOURCEDIR=${WORK}/git_workspace/firedrake-helmholtzsolver/source
 
-cd $PBS_O_WORKDIR
-
-WORKDIR=$PBS_O_WORKDIR/%(jobname)s_${PBS_JOBID}
 mkdir -p $WORKDIR
-
-cp $0 $WORKDIR/jobscript.pbs
-cp %(parameterfile)s $WORKDIR
-
-cd $WORKDIR
-
-LOGFILE=output.log
+LOGFILE=$WORKDIR/output.log
 
 module use /home/n02/n02/eike/modules
 module load firedrake-local
@@ -61,7 +54,7 @@ echo | tee -a $LOGFILE
 echo -n Started at | tee -a $LOGFILE
 date | tee -a $LOGFILE
 
-aprun -n %(ptotal)d -N %(ppn)d -S %(pnuma)d python ${HELMHOLTZSOURCEDIR}/driver.py %(parameterfile)s 2>&1  | tee -a $LOGFILE
+%(subruns)s
 
 echo -n Finished at | tee -a $LOGFILE
 date | tee -a $LOGFILE
