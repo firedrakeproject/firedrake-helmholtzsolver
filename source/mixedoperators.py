@@ -61,10 +61,16 @@ class MixedOperator(object):
         self.form_pp = self._ptest * self._ptrial * self._dx
         self.form_pu = self._ptest*self._dt_half_c2 * div(self._utrial)*self._dx
         if (self._preassemble):
-            self._op_uu = assemble(self.form_uu,bcs=self._bcs)
-            self._op_up = assemble(self.form_up)
-            self._op_pu = assemble(self.form_pu)
-            self._op_pp = assemble(self.form_pp)
+            if not hasattr(type(self), '_op_uu'):
+                type(self)._op_uu = assemble(self.form_uu,bcs=self._bcs)
+                type(self)._op_up = assemble(self.form_up)
+                type(self)._op_pu = assemble(self.form_pu)
+                type(self)._op_pp = assemble(self.form_pp)
+            else:
+                type(self)._op_uu = assemble(self.form_uu,bcs=self._bcs,tensor=type(self)._op_uu)
+                type(self)._op_up = assemble(self.form_up,tensor=type(self)._op_up)
+                type(self)._op_pu = assemble(self.form_pu,tensor=type(self)._op_pu)
+                type(self)._op_pp = assemble(self.form_pp,tensor=type(self)._op_pp)
             self._mat_uu = self._op_uu.M.handle
             self._mat_up = self._op_up.M.handle
             self._mat_pu = self._op_pu.M.handle
