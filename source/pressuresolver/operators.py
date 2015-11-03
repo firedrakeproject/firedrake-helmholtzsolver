@@ -62,10 +62,14 @@ class Operator_H(object):
 
         :arg phi: pressure field
         '''
-        BT_phi = assemble(div(self._u_test)*phi*self._dx)
+        if (not hasattr(self),'_BT_phi'):
+            type(self)._BT_phi = assemble(div(self._u_test)*phi*self._dx)
+        else:
+            type(self)._BT_phi = assemble(div(self._u_test)*phi*self._dx,
+                                          tensor=type(self)._BT_phi)
         #self._apply_bcs(BT_phi)
         Mutildeinv_BT_phi = Function(self._W2)
-        self._mutilde.divide(BT_phi,Mutildeinv_BT_phi)
+        self._mutilde.divide(self._BT_phi.BT_phi,Mutildeinv_BT_phi)
         B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
         M_phi_phi = self._phi_test*phi*self._dx
         return assemble(M_phi_phi + self._omega_c2*B_Mutildeinv_BT_phi)
