@@ -13,3 +13,4 @@
 _build/
 source/output/
 warnings.txt
+*.out
