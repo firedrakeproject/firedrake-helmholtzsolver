@@ -174,8 +174,14 @@ class Operator_Hhat(object):
         # Lumped mass matrix.
         self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
         if (self._preassemble_horizontal):
-            mat_B_h = \
-              assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
+            
+            if (not hasattr(type(self),'_op_B_h')):
+                type(self)._op_B_h = {}
+            if (not ncells in type(self)._op_B_h.keys()):
+                type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx)
+            else:
+                type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx,tensor=type(self)._op_B_h[ncells])
+            mat_B_h = type(self)._op_B_h[ncells].M.handle
             tmp_h = mat_B_h.duplicate(copy=True)
             with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
                 tmp_h.diagonalScale(L=inv_diag,R=None)
