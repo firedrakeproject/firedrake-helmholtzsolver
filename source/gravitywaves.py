@@ -458,14 +458,14 @@ class PETScSolver(object):
         L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,self.vert_norm.zhat*r_b) \
                + ptest*r_p) * self._dx
         up_problem = LinearVariationalProblem(a_up, L_up, vmixed, bcs=bcs)
-        if (not hasattr(type(self),'_up_solver')):
+        if (not hasattr(type(self),'up_solver')):
             type(self).up_solver = LinearVariationalSolver(up_problem,
                                                            solver_parameters=sparams)
+            ksp = type(self).up_solver.snes.getKSP()
+            ksp.setMonitor(self._ksp_monitor)
         for i, _ in enumerate(type(self).up_solver._ctx._jacobians_assembled):
             type(self).up_solver._ctx._jacobians_assembled[i] = False
 
-        ksp = type(self).up_solver.snes.getKSP()
-        ksp.setMonitor(self._ksp_monitor)
 
     def solve(self,r_u,r_p,r_b):
         '''Solve Gravity system using nested iteration and return result.
