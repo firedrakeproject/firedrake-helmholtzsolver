@@ -206,13 +206,20 @@ class MatrixFreeSolver(IterativeSolver):
              self._p.dat.vec as p:
             self._mixedarray.split(self._x,u,p)
         with timed_region('matrixfree buoyancy solve'):
-            L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
-            a_b = btest*TrialFunction(self._Wb)*self._dx
-            b_tmp = Function(self._Wb)
-            b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
-            b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
-                                                                        'pc_type':'jacobi'})
-            b_solver.solve()
+            if (not hasattr(type(self),'_b_solver')):
+                L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
+                a_b = btest*TrialFunction(self._Wb)*self._dx
+                b_tmp = Function(self._Wb)
+                b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
+                type(self)._b_solver = \
+                  LinearVariationalSolver(b_problem,
+                                          solver_parameters= \
+                                              {'ksp_type':'cg',
+                                               'pc_type':'jacobi'})
+            for i, _ in enumerate(type(self)._b_solver._ctx._jacobians_assembled):
+                type(self)._b_solver._ctx._jacobians_assembled[i] = False
+            self._b_solver.solve()
+        b_tmp = self._b_solver._problem.u
         self._b = assemble(r_b-self._dt_half_N2*b_tmp)
         return self._u, self._p, self._b
 
