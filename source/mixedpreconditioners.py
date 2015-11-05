@@ -234,8 +234,11 @@ class MixedPreconditionerOrography(object):
         self._Pb = Function(self._Wb)
         self._tolerance_u = tolerance_u
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
-        Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx)
-        self._linearsolver_b = LinearSolver(Mb,solver_parameters={'ksp_type':'cg',
+        if (not hasattr(type(self),'_Mb')):
+            type(self)._Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx)
+        else:
+            type(self)._Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx,tensor=type(self)._Mb)
+        self._linearsolver_b = LinearSolver(self._Mb,solver_parameters={'ksp_type':'cg',
                                                                   'ksp_rtol':tolerance_b,
                                                                   'ksp_max_it':maxiter_b,
                                                                   'ksp_monitor':False,
