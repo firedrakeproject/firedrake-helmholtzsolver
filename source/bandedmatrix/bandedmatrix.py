@@ -108,6 +108,20 @@ class BandedMatrix(object):
             self._label = '___'
         else:
             self._label = label
+        self._cached_kernels = {}
+
+    def _cached_kernel(self,kernel):
+        '''Get cached kernel object, and initiate kernel otherwise
+
+        :arg kernel: op2 Kernel
+        '''
+        key = hash(kernel.code())
+        try:
+            cached_kernel = self._cached_kernels[key]
+        except:
+            cached_kernel = kernel
+            self._cached_kernels[key] = cached_kernel
+        return cached_kernel
 
     def _get_nodemap(self,fs):
         '''Return node map of first base cell in the extruded mesh.'''
@@ -261,7 +275,8 @@ class BandedMatrix(object):
           }
         }'''
         self._data.zero()
-        kernel = op2.Kernel(kernel_code % param_dict,'assemble_lma',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                               'assemble_lma',cpp=True))
         with timed_region('bandedmatrix assemble_lma'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -338,7 +353,8 @@ class BandedMatrix(object):
           }
         }
         '''
-        kernel = op2.Kernel(kernel_code % param_dict,'apply_bcs',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'apply_bcs',cpp=True))
         with timed_region('bandedmatrix apply_bcs'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -384,9 +400,10 @@ class BandedMatrix(object):
             }
             '''
         kernel_code +='''}'''
-        kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True,
-                            headers=['#include "cblas.h"'],
-                            libs=self._libs)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'ax',cpp=True,
+                                                headers=['#include "cblas.h"'],
+                                                libs=self._libs))
         with timed_region('bandedmatrix ax'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -431,9 +448,10 @@ class BandedMatrix(object):
                 v[0][i] += s;
               }
             }'''
-        kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True,
-                            headers=['#include "cblas.h"'],
-                            libs=self._libs)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'axpy',cpp=True,
+                                                headers=['#include "cblas.h"'],
+                                                libs=self._libs))
         with timed_region('bandedmatrix axpy'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -460,7 +478,8 @@ class BandedMatrix(object):
         
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         param_dict.update({'TOLERANCE':tolerance})
-        kernel = op2.Kernel(kernel_code % param_dict, 'count_zeros',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'count_zeros',cpp=True))
         ntotal = op2.Global(1,data=0.0,dtype=float)
         nnz = op2.Global(1,data=0.0,dtype=float)
         op2.par_loop(kernel,
@@ -489,7 +508,8 @@ class BandedMatrix(object):
           }
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        kernel = op2.Kernel(kernel_code % param_dict, 'convert_to_dense',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'convert_to_dense',cpp=True))
         with timed_region('bandedmatrix dense'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -530,7 +550,8 @@ class BandedMatrix(object):
             }
           }
         }'''
-        kernel = op2.Kernel(kernel_code % param_dict, 'transpose',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'transpose',cpp=True))
         with timed_region('bandedmatrix transpose'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -588,7 +609,9 @@ class BandedMatrix(object):
             }
           }
         }'''
-        kernel = op2.Kernel(kernel_code % param_dict, 'matmul',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'matmul',cpp=True))
+
         with timed_region('bandedmatrix matmul'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -651,7 +674,8 @@ class BandedMatrix(object):
             }
           }
         }'''
-        kernel = op2.Kernel(kernel_code % param_dict, 'transpose_matmul',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'transpose_matmul',cpp=True))
         with timed_region('bandedmatrix transpose_matmul'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -721,7 +745,8 @@ class BandedMatrix(object):
             }
           }
         }'''
-        kernel = op2.Kernel(kernel_code % param_dict, 'matadd',cpp=True)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'matadd',cpp=True))
         c_omega = Constant(omega)
         with timed_region('bandedmatrix matadd'):
             op2.par_loop(kernel,
@@ -785,10 +810,11 @@ class BandedMatrix(object):
                               LU[0],%(A_bandwidth)d+%(A_gamma_p)d,ipiv[0]);
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        kernel = op2.Kernel(kernel_code % param_dict, 'lu_decompose',
-                            cpp=True,
-                            headers=['#include "lapacke.h"'],
-                            libs=self._libs)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'lu_decompose',
+                                                cpp=True,
+                                                headers=['#include "lapacke.h"'],
+                                                libs=self._libs))
         with timed_region('bandedmatrix lu_decompose'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -812,10 +838,11 @@ class BandedMatrix(object):
 
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        kernel = op2.Kernel(kernel_code % param_dict, 'lu_solve',
-                            cpp=True,
-                            headers=['#include "lapacke.h"'],
-                            libs=self._libs)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'lu_solve',
+                                                cpp=True,
+                                                headers=['#include "lapacke.h"'],
+                                                libs=self._libs))
         with timed_region('bandedmatrix lu_solve'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -844,7 +871,8 @@ class BandedMatrix(object):
           }
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        kernel = op2.Kernel(kernel_code % param_dict, 'diagonal')
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'diagonal'))
         with timed_region('bandedmatrix diagonal'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -871,7 +899,8 @@ class BandedMatrix(object):
           }
         }'''
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
-        kernel = op2.Kernel(kernel_code % param_dict, 'diagonal')
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'diagonal'))
         with timed_region('bandedmatrix inv_diagonal'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -950,10 +979,11 @@ class BandedMatrix(object):
         param_dict = {}
         for label, matrix in zip(('A','M'),(self,result)):
             param_dict.update({label+'_'+x:y for (x,y) in matrix._param_dict.iteritems()})
-        kernel = op2.Kernel(kernel_code % param_dict, 'spai',
-                            cpp=True,
-                            headers=['#include "lapacke.h"'],
-                            libs=self._libs)
+        kernel = self._cached_kernel(op2.Kernel(kernel_code % param_dict,
+                                                'spai',
+                                                cpp=True,
+                                                headers=['#include "lapacke.h"'],
+                                                libs=self._libs))
         with timed_region('bandedmatrix spai'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
