@@ -492,6 +492,7 @@ class PETScSolver(object):
         with timed_region('petsc solver setup'):
             self.up_solver_setup(r_u,r_p,r_b,vmixed)
         with self._ksp_monitor:
+            self.up_solver._problem.u.assign(0.0)
             try:
                 self.up_solver.solve()
             except RuntimeError:
