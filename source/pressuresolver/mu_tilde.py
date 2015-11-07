@@ -53,7 +53,8 @@ class Mutilde(object):
     '''
     def __init__(self,mixed_operator,
                  lumped=True,
-                 tolerance_u=1.E-5,maxiter_u=1000):
+                 tolerance_u=1.E-5,maxiter_u=1000,
+                 label=None):
         self._lumped = lumped
         self._tolerance_u = tolerance_u
         self._maxiter_u = maxiter_u
@@ -63,7 +64,7 @@ class Mutilde(object):
         self._tmp_v = Function(mixed_operator._W2)
         ufl_form = mixed_operator.form_uu
         if (self._lumped):
-            self._lumped_mass = LumpedMass(ufl_form)
+            self._lumped_mass = LumpedMass(ufl_form,label)
         else:
             solver_param = {'ksp_type':'preonly',
                             'ksp_rtol':self._tolerance_u,

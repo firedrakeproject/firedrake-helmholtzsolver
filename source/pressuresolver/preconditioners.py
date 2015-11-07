@@ -1,6 +1,7 @@
 import xml.etree.cElementTree as ET
 from firedrake import *
 from firedrake.petsc import PETSc
+from pyop2.profiling import timed_function, timed_region
 
 class hMultigrid(object):
     '''Geometric Multigrid preconditioner with h-coarsening only.
@@ -63,33 +64,34 @@ class hMultigrid(object):
         '''
         if (level == None):
             level = self._fine_level
-        # Solve exactly on coarsest level
-        if (level == self._coarsest_level):
-            # presmooth
-            self._coarsegrid_solver.solve(self._rhs[level],self._phi[level])
-        else:
-            # Recursion on all other levels
-            # Only initialise solution to zero on the coarser levels
-            # Presmoother
-            self._presmoother_hierarchy[level].smooth(self._rhs[level],
-              self._phi[level],
-              initial_phi_is_zero=True)
-            self._residual[level].assign(self._operator_hierarchy[level].residual(
-              self._rhs[level],
-              self._phi[level]))
-            # Restrict residual to RHS on coarser level
-            self._residual.restrict(level)
-            self._rhs[level-1].assign(self._residual[level-1])
-            # Recursive call
-            self.vcycle(level-1)
-            # Prolongate and add coarse grid correction
-            self._residual[level-1].assign(self._phi[level-1])
-            self._residual.prolong(level-1)
-            self._phi[level].assign(self._residual[level]+self._phi[level])
-            # Postsmooth
-            self._postsmoother_hierarchy[level].smooth(self._rhs[level],
-                                                       self._phi[level],
-                                                       initial_phi_is_zero=False)
+        with timed_region("vcycle_level_"+str(level)):
+            # Solve exactly on coarsest level
+            if (level == self._coarsest_level):
+                # presmooth
+                self._coarsegrid_solver.solve(self._rhs[level],self._phi[level])
+            else:
+                # Recursion on all other levels
+                # Only initialise solution to zero on the coarser levels
+                # Presmoother
+                self._presmoother_hierarchy[level].smooth(self._rhs[level],
+                  self._phi[level],
+                  initial_phi_is_zero=True)
+                self._residual[level].assign(self._operator_hierarchy[level].residual(
+                  self._rhs[level],
+                  self._phi[level]))
+                # Restrict residual to RHS on coarser level
+                self._residual.restrict(level)
+                self._rhs[level-1].assign(self._residual[level-1])
+                # Recursive call
+                self.vcycle(level-1)
+                # Prolongate and add coarse grid correction
+                self._residual[level-1].assign(self._phi[level-1])
+                self._residual.prolong(level-1)
+                self._phi[level].assign(self._residual[level]+self._phi[level])
+                # Postsmooth
+                self._postsmoother_hierarchy[level].smooth(self._rhs[level],
+                                                           self._phi[level],
+                                                           initial_phi_is_zero=False)
 
     def solve(self,b,phi):
         '''Solve approximately.
@@ -199,20 +201,21 @@ class hpMultigrid(object):
         :arg b: right hand side in pressure space
         :arg phi: State :math:`\phi` in pressure space.
         '''
-        phi.assign(0.0)
-        # Presmooth
-        self._presmoother.smooth(b,phi,initial_phi_is_zero=True)
-        # Calculuate residual...
-        self._residual = self._operator.residual(b,phi)
-        # ... and restrict to RHS in lowest order space
-        self.restrict(self._residual,self._rhs_low)
-        # h-multigrid in lower order space
-        self._hmultigrid.solve(self._rhs_low,self._dphi_low)
-        # Prolongate correction back to higher order space...
-        # ... and add to solution in higher order space
-        self.prolongadd(self._dphi_low,phi)
-        # Postsmooth
-        self._postsmoother.smooth(b,phi,initial_phi_is_zero=False)
+        with timed_region("vcycle_level_"+str(self._hmultigrid._fine_level+1)):
+            phi.assign(0.0)
+            # Presmooth
+            self._presmoother.smooth(b,phi,initial_phi_is_zero=True)
+            # Calculuate residual...
+            self._residual = self._operator.residual(b,phi)
+            # ... and restrict to RHS in lowest order space
+            self.restrict(self._residual,self._rhs_low)
+            # h-multigrid in lower order space
+            self._hmultigrid.solve(self._rhs_low,self._dphi_low)
+            # Prolongate correction back to higher order space...
+            # ... and add to solution in higher order space
+            self.prolongadd(self._dphi_low,phi)
+            # Postsmooth
+            self._postsmoother.smooth(b,phi,initial_phi_is_zero=False)
 
     def apply(self,pc,x,y):
         '''PETSc interface for preconditioner solve.

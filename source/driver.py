@@ -317,12 +317,6 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                   omega_N)
             nlevel = len(op_Hhat_hierarchy)
             # Start counting at 1 at higher order since the p-operator is 0
-            if (param_mixed['higher_order']):
-                offset = 1
-            else:
-                offset = 0
-            for i in range(nlevel):
-                op_Hhat_hierarchy[i].set_timer_label('level_'+str(nlevel-1-i+offset))
             with timed_region('matrixfree smoother setup'):
                 presmoother_hierarchy = HierarchyContainer(Jacobi,
                                             zip(op_Hhat_hierarchy),
@@ -336,7 +330,8 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
 
                 coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
                                            mu_relax=param_multigrid['mu_relax'],
-                                           n_smooth=param_multigrid['n_coarsesmooth'])
+                                           n_smooth=param_multigrid['n_coarsesmooth'],
+                                           level=0)
 
             hmultigrid = hMultigrid(W3_hierarchy,
                                     op_Hhat_hierarchy,
@@ -345,14 +340,18 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                     coarsegrid_solver)
 
             if (param_mixed['higher_order']):
-                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
-                op_Hhat.set_timer_label('level_0')
-                presmoother = Jacobi(op_Hhat,
-                                     mu_relax=param_multigrid['mu_relax'],
-                                     n_smooth=param_multigrid['n_presmooth'])
-                postsmoother = Jacobi(op_Hhat,
-                                      mu_relax=param_multigrid['mu_relax'],
-                                      n_smooth=param_multigrid['n_postsmooth'])
+                with timed_region('matrixfree op_Hhat setup'):
+                    op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
+                                            level=nlevel)
+                with timed_region('matrixfree smoother setup'):
+                    presmoother = Jacobi(op_Hhat,
+                                         mu_relax=param_multigrid['mu_relax'],
+                                         n_smooth=param_multigrid['n_presmooth'],
+                                         level=nlevel)
+                    postsmoother = Jacobi(op_Hhat,
+                                          mu_relax=param_multigrid['mu_relax'],
+                                          n_smooth=param_multigrid['n_postsmooth'],
+                                          level=nlevel)
                 preconditioner = hpMultigrid(hmultigrid,
                                              op_Hhat,
                                              presmoother,
@@ -364,17 +363,19 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
     else:
         with timed_region('matrixfree singlelevel setup'):
             with timed_region('matrixfree op_Hhat setup'):
-                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N)
+                op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
+                                        level=0)
             with timed_region('matrixfree smoother setup'):
                 preconditioner = Jacobi(op_Hhat,
                                         param_singlelevel['mu_relax'],
-                                        param_singlelevel['n_smooth'])
+                                        param_singlelevel['n_smooth'],
+                                        level=0)
 
     with timed_region('matrixfree mixed operator setup'):
         mixed_operator = MixedOperator(W2,W3,dt,c,N)
 
     with timed_region('matrixfree pc_hdiv setup'):
-        mutilde = Mutilde(mixed_operator,lumped=True)
+        mutilde = Mutilde(mixed_operator,lumped=True,label='full')
 
     with timed_region('matrixfree op_H setup'):
         op_H = Operator_H(W3,W2,mutilde,omega_c)

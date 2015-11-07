@@ -11,7 +11,8 @@ class Jobscript(object):
                  walltime_minutes=5,
                  walltime_hours=0,
                  queue='short',
-                 parameterfilename='parameters.in',
+                 subdirs=('',),
+                 parameterfilenames=('parameters.in',),
                  apruncmd=''):
         '''Class representing a job specificatin.
         
@@ -22,14 +23,16 @@ class Jobscript(object):
             :arg walltime_hours: Walltime (hours)
             :arg walltime_minutes: Walltime (minutes)
             :arg queue: Queue to run in
-            :arg parameterfilename: Name of parameter file
+            :arg subdirs: Names of subdirectories to run in
+            :arg parameterfilenames: Names of parameter files
             :arg apruncmd" aprun command
         '''
         self.apruncmd=apruncmd
         self.jobname=jobname
         self.ppn=ppn
         self.nodes=nodes
-        self.parameterfilename = parameterfilename
+        self.subdirs = subdirs
+        self.parameterfilenames = parameterfilenames
         self.walltime_minutes = walltime_minutes
         self.walltime_hours = walltime_hours
         self.queue = queue
@@ -42,16 +45,26 @@ class Jobscript(object):
         '''
         with open(self.templatefilename) as templatefile:
             template = templatefile.read()
+        s = ''
+        for subdir, parameterfile in zip(self.subdirs,self.parameterfilenames):
+            s += 'WORKSUBDIR=$WORKDIR/'+subdir+'\n'
+            s += 'PARAMETERFILE='+parameterfile+'\n'
+            s += 'mkdir $WORKSUBDIR\n'
+            s += 'cp $0 $WORKSUBDIR/jobscript.pbs\n'
+            s += 'cp $PBS_O_WORKDIR/$PARAMETERFILE $WORKSUBDIR\n'
+            s += 'cd $WORKSUBDIR\n'
+            s += 'aprun -n '+str(self.ppn*self.nodes)+' -N '+str(self.ppn)+' -S '+str((self.ppn+1)/2)+' python ${HELMHOLTZSOURCEDIR}/driver.py $PARAMETERFILE 2>&1  | tee -a output.log\n\n'
         d = {'queue':self.queue,
              'nodes':self.nodes,
              'ppn':self.ppn,
              'ptotal':self.ppn*self.nodes,
              'pnuma':(self.ppn+1)/2,
              'jobname':self.jobname,
-             'parameterfile':self.parameterfilename,
              'walltime_hours':self.walltime_hours,
              'walltime_minutes':self.walltime_minutes,
-             'apruncmd':self.apruncmd}
+             'apruncmd':self.apruncmd,
+             'subruns':s}
+        
         with open(filename,'w') as jobfile:
             jobfile.write(template % d)
             jobfile.flush()

@@ -134,7 +134,6 @@ class Operator_Hhat(object):
     :arg omega_N: Positive real constant, related to buoyancy frequency
         :math:`\omega_c=\\frac{\Delta t}{2}N`
     :arg preassemble_horizontal: Pre-assemble horizontal part of the operator
-    :arg timer_label: Label for timer
     '''
     def __init__(self,
                  W3,
@@ -142,7 +141,8 @@ class Operator_Hhat(object):
                  W2_v,
                  omega_c,
                  omega_N,
-                 preassemble_horizontal=True):
+                 preassemble_horizontal=True,
+                 level=-1):
         self._W3 = W3
         self._W2_h = W2_h
         self._W2_v = W2_v
@@ -153,7 +153,6 @@ class Operator_Hhat(object):
         self._const2 = Constant(omega_c**2/(1.+self._omega_N**2))
         self._preassemble_horizontal = preassemble_horizontal
         ncells = MPI.COMM_WORLD.allreduce(self._W3.mesh().cell_set.size)
-        self._timer_label = None
         w_h = TestFunction(self._W2_h)
         w_v = TestFunction(self._W2_v)
         self._psi = TestFunction(self._W3)
@@ -161,7 +160,7 @@ class Operator_Hhat(object):
         self._res_tmp = Function(self._W3)
         self._mesh = self._W3.mesh()
         self._dx = self._mesh._dx
-
+        self._level=level
         # Forms for operator applications
         self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
         self._B_h_phi = Function(self._W2_h)
@@ -171,33 +170,36 @@ class Operator_Hhat(object):
         self._M_phi = Function(self._W3)
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
-        # Lumped mass matrix.
-        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx)
+        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx,
+                                label='h')
         if (self._preassemble_horizontal):
-            
-            if (not hasattr(type(self),'_op_B_h')):
-                type(self)._op_B_h = {}
-            if (not ncells in type(self)._op_B_h.keys()):
-                type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx)
-            else:
-                type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx,tensor=type(self)._op_B_h[ncells])
-            mat_B_h = type(self)._op_B_h[ncells].M.handle
+            with timed_region('assemble B_h'):      
+                if (not hasattr(type(self),'_op_B_h')):
+                    type(self)._op_B_h = {}
+                if (not ncells in type(self)._op_B_h.keys()):
+                    type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx)
+                else:
+                    type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx,tensor=type(self)._op_B_h[ncells])
+                mat_B_h = type(self)._op_B_h[ncells].M.handle
             tmp_h = mat_B_h.duplicate(copy=True)
-            with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
-                tmp_h.diagonalScale(L=inv_diag,R=None)
-            self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
+            with timed_region('diagonal_scale'):
+                with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
+                    tmp_h.diagonalScale(L=inv_diag,R=None)
+            with timed_region('transposeMatMult'):
+                self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
         else:
             self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
             self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
 
-        Mu_v = BandedMatrix(self._W2_v,self._W2_v)
+        # Lumped mass matrices.
+        Mu_v = BandedMatrix(self._W2_v,self._W2_v,label='Mu_v_level_'+str(self._level))
         Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
                                vertical_bcs=True)
         self._Mu_vinv = Mu_v.inv_diagonal()
-        B_v = BandedMatrix(self._W2_v,self._W3)
+        B_v = BandedMatrix(self._W2_v,self._W3,label='B_v_level_'+str(self._level))
         B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
                               vertical_bcs=True)
-        M_phi = BandedMatrix(self._W3,self._W3)
+        M_phi = BandedMatrix(self._W3,self._W3,label='M_phi_level_'+str(self._level))
         M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
                                 vertical_bcs=True)
         self._Hhat_v = M_phi.matadd(B_v.transpose_matmul(self._Mu_vinv.matmul(B_v)),
@@ -209,6 +211,8 @@ class Operator_Hhat(object):
                                                  first=v.owner_range[0],
                                                  step=1,
                                                  comm=PETSc.COMM_SELF)
+        with timed_region('vertical_diagonal'):
+            self._vertical_diagonal = self.vertical_diagonal()
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -217,13 +221,6 @@ class Operator_Hhat(object):
         '''
         for bc in self._bcs:
             bc.apply(u)
-
-    def set_timer_label(self,label):
-        '''set label for timer.
-
-            :arg label: Label to be used for timer
-        '''
-        self._timer_label = label
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.
@@ -249,27 +246,35 @@ class Operator_Hhat(object):
 
         :arg phi: Pressure field :math:`\phi` to apply the operator to
         '''
-        if (self._timer_label == None):
-            label = 'matrixfree op_schur'
-        else:
-            label = 'matrixfree op_schur_'+self._timer_label
-        with timed_region(label):
+        with timed_region('apply_Hhat_level_'+str(self._level)):
             self._phi_tmp.assign(phi)
-            if (self._preassemble_horizontal):
-                with self._BT_B_h_phi.dat.vec as v:
-                    with phi.dat.vec_ro as x:
-                        self._mat_Hhat_h.mult(x,v)
-            else:
-                # Calculate action of B_h
-                assemble(self._B_h_phi_form, tensor=self._B_h_phi)
-                # divide by horizontal velocity mass matrix
-                self._Mu_h.divide(self._B_h_phi)
-                # Calculate action of B_h^T
-                assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)            
-                
-            self._Hhat_v.ax(self._phi_tmp)
+            with timed_region('apply_Hhat_h_level_'+str(self._level)):
+                if (self._preassemble_horizontal):
+                    with self._BT_B_h_phi.dat.vec as v:
+                        with phi.dat.vec_ro as x:
+                            self._mat_Hhat_h.mult(x,v)
+                else:
+                    # Calculate action of B_h
+                    assemble(self._B_h_phi_form, tensor=self._B_h_phi)
+                    # divide by horizontal velocity mass matrix
+                    self._Mu_h.divide(self._B_h_phi)
+                    # Calculate action of B_h^T
+                    assemble(self._BT_B_h_phi_form, tensor=self._BT_B_h_phi)
+            with timed_region('apply_Hhat_z_level_'+str(self._level)):
+                self._Hhat_v._label='apply_Hhat_z_level_'+str(self._level)
+                self._Hhat_v.ax(self._phi_tmp)
         return assemble(self._phi_tmp + self._omega_c2*self._BT_B_h_phi)
 
+    def apply_blockinverse(self,r):
+        '''In-place multiply with inverse of block-diagonal
+
+        Apply :math:`r\mapsto \hat{H}_z^{-1} r`
+        
+        :arg r: Vector to be multiplied
+        '''
+        with timed_region('apply_Hhat_z_inv_level_'+str(self._level)):
+            self._vertical_diagonal._label='Hhat_z_level_'+str(self._level)
+            self._vertical_diagonal._lu_solve(r)
 
     def vertical_diagonal(self):
         '''Construct the block-diagonal matrix :math:`\hat{H}_z` which only 
@@ -324,7 +329,7 @@ class Operator_Hhat(object):
                      self._Mu_h._data_inv.dat(op2.READ,self._Mu_h._data_inv.cell_node_map()),
                      lma_delta_h.dat(op2.WRITE,lma_delta_h.cell_node_map()))
 
-        delta_h = BandedMatrix(self._W3,self._W3)
+        delta_h = BandedMatrix(self._W3,self._W3,label='delta_h_level_'+str(self._level))
         delta_h._assemble_lma(lma_delta_h)
 
         # Add everything up       

@@ -3,7 +3,7 @@ import numpy as np
 from firedrake import *
 from firedrake.ffc_interface import compile_form
 import xml.etree.cElementTree as _WT
-
+from pyop2.profiling import timed_region
 
 class LumpedMass(object):
     '''Class for lumped velocity mass matrix.
@@ -15,7 +15,11 @@ class LumpedMass(object):
 
     :arg ufl_form: UFL form to assemble, e.g. ``dot(u,v)*dx``
     '''
-    def __init__(self,ufl_form):
+    def __init__(self,ufl_form,label=None):
+        if (label == None):
+            self._label='___'
+        else:
+            self._label=label
         self._ufl_form = ufl_form
         fs = [x.function_space() for x in self._ufl_form.arguments()]
         assert (fs[0] == fs[1])
@@ -39,7 +43,8 @@ class LumpedMass(object):
                 coords.dat(op2.READ,coords.cell_node_map(),flatten=True)]
         for c in coefficients:
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
-        op2.par_loop(mass_kernel,mass_matrix.cell_set,*args)
+        with timed_region('assemble lumpedmass['+self._label+']'):
+            op2.par_loop(mass_kernel,mass_matrix.cell_set,*args)
 
         self._data = Function(self._W2)
 

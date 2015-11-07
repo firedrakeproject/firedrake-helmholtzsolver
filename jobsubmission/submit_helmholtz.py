@@ -14,34 +14,40 @@ def LogicalStr(x):
         return 'True'
     return 'False'
 
-def create_submission(rundir,label,d):
+def create_submission(rundir,jobname,labels,dicts):
     '''Generate submission files (jobscript and parameter file)
     for a given parameter set.
 
     :arg rundir: directory to run in
-    :arg label: Unique label for run
-    :arg d: Dictionary with parameters
+    :arg jobname: name of job script
+    :arg labels: Unique labels for runs
+    :arg dicts: Dictionaries with parameters
     '''
+    d = dicts[0]
     ppn = d['ppn']
     nodes = d['nodes']
     higher_order=d['higher_order']
     nprocs = ppn*nodes
-    parameterfilename = rundir+'/parameters_'+label+'.in'
-    jobscriptfilename = rundir+'/helmholtz_'+label+'.pbs'
-    with open('parameters_helmholtz.tpl') as templatefile:
-        template = templatefile.read()
-    with open(parameterfilename,'w') as parameterfile:
-        parameterfile.write(template % d)
-        parameterfile.flush()
+    jobscriptfilename = rundir+'/'+jobname+'.pbs'
+    parameterfilenames=[]
+    for label, dict in zip(labels,dicts):
+        parameterfilename = rundir+'/parameters_'+label+'.in'
+        parameterfilenames.append('parameters_'+label+'.in')
+        with open('parameters_helmholtz.tpl') as templatefile:
+            template = templatefile.read()
+        with open(parameterfilename,'w') as parameterfile:
+            parameterfile.write(template % dict)
+            parameterfile.flush()
 
     # Create job script
     job = Jobscript('jobscript_helmholtz.tpl',
-                    walltime_minutes=15,
+                    walltime_minutes=20,
                     jobname='helmholtz',
                     nodes=nodes,
                     ppn=ppn,
                     queue='standard',
-                    parameterfilename=parameterfilename)
+                    subdirs=labels,
+                    parameterfilenames=parameterfilenames)
     job.save_to_file(jobscriptfilename)
 
 def weak_scaling(rundir,higher_order,singlelevel=False):
@@ -81,8 +87,8 @@ def weak_scaling(rundir,higher_order,singlelevel=False):
              'ncoarsesmooth':ncoarsesmooth,
              'multigrid':LogicalStr(not singlelevel)}
         nprocs = ppn*nodes
-        label = 'nproc'+str(nprocs)
-        create_submission(rundir,label,d)
+        label = 'helmholtz_'+str(nprocs)+'cores'
+        create_submission(rundir,label,(label,),(d,))
 
 def vary_cfl(rundir,higher_order,singlelevel=False):
     '''Generate files for runs with different CFL numbers
@@ -99,6 +105,8 @@ def vary_cfl(rundir,higher_order,singlelevel=False):
         n_level = 4
         ref_count_coarse = 2
 
+    labels = []
+    dicts = []
     for nu_cfl in (2., 4., 6., 8., 16., 32., 64.):
         if (singlelevel):
             ncoarsesmooth=1
@@ -112,8 +120,10 @@ def vary_cfl(rundir,higher_order,singlelevel=False):
              'nodes':nodes,
              'ncoarsesmooth':ncoarsesmooth,
              'multigrid':LogicalStr(not singlelevel)}
-        label = 'CFL'+('%6.3f' % nu_cfl).strip()
-        create_submission(rundir,label,d)
+        label = 'helmholtz_CFL'+('%4.1f' % nu_cfl).strip()
+        labels.append(label)
+        dicts.append(d)
+    create_submission(rundir,'helmholtz',labels,dicts)
 
 #################################################################
 # M A I N
