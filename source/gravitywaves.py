@@ -206,20 +206,13 @@ class MatrixFreeSolver(IterativeSolver):
              self._p.dat.vec as p:
             self._mixedarray.split(self._x,u,p)
         with timed_region('matrixfree buoyancy solve'):
-            if (not hasattr(type(self),'_b_solver')):
-                L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
-                a_b = btest*TrialFunction(self._Wb)*self._dx
-                b_tmp = Function(self._Wb)
-                b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
-                type(self)._b_solver = \
-                  LinearVariationalSolver(b_problem,
-                                          solver_parameters= \
-                                              {'ksp_type':'cg',
-                                               'pc_type':'jacobi'})
-            for i, _ in enumerate(type(self)._b_solver._ctx._jacobians_assembled):
-                type(self)._b_solver._ctx._jacobians_assembled[i] = False
-            self._b_solver.solve()
-        b_tmp = self._b_solver._problem.u
+            L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
+            a_b = btest*TrialFunction(self._Wb)*self._dx
+            b_tmp = Function(self._Wb)
+            b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
+            b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
+                                                                        'pc_type':'jacobi'})
+            b_solver.solve()
         self._b = assemble(r_b-self._dt_half_N2*b_tmp)
         return self._u, self._p, self._b
 
@@ -458,14 +451,10 @@ class PETScSolver(object):
         L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,self.vert_norm.zhat*r_b) \
                + ptest*r_p) * self._dx
         up_problem = LinearVariationalProblem(a_up, L_up, vmixed, bcs=bcs)
-        if (not hasattr(type(self),'up_solver')):
-            type(self).up_solver = LinearVariationalSolver(up_problem,
-                                                           solver_parameters=sparams)
-            ksp = type(self).up_solver.snes.getKSP()
-            ksp.setMonitor(self._ksp_monitor)
-        for i, _ in enumerate(type(self).up_solver._ctx._jacobians_assembled):
-            type(self).up_solver._ctx._jacobians_assembled[i] = False
-
+        up_solver = LinearVariationalSolver(up_problem, solver_parameters=sparams)
+        ksp = up_solver.snes.getKSP()
+        ksp.setMonitor(self._ksp_monitor)
+        return up_solver
 
     def solve(self,r_u,r_p,r_b):
         '''Solve Gravity system using nested iteration and return result.
@@ -490,33 +479,23 @@ class PETScSolver(object):
         self._b.assign(0.0)
         vmixed = Function(self._Wmixed)
         with timed_region('petsc solver setup'):
-            self.up_solver_setup(r_u,r_p,r_b,vmixed)
+            self.up_solver = self.up_solver_setup(r_u,r_p,r_b,vmixed)
         with self._ksp_monitor:
-            self.up_solver._problem.u.assign(0.0)
             try:
                 self.up_solver.solve()
             except RuntimeError:
                 self._logger.write('Solver failed to converge after '+str(self._maxiter)+' iterations')
-            vmixed = self.up_solver._problem.u
         with timed_region('petsc buoyancy solve'):
             self._u.assign(vmixed.sub(0))
             self._p.assign(vmixed.sub(1))
             btest = TestFunction(self._Wb)
-
-            if (not hasattr(type(self),'_b_solver')):
-                L_b = dot(btest*self.vert_norm.zhat,self._u)*self._dx
-                a_b = btest*TrialFunction(self._Wb)*self._dx
-                b_tmp = Function(self._Wb)
-                b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
-                type(self)._b_solver = \
-                  LinearVariationalSolver(b_problem,
-                                          solver_parameters= \
-                                              {'ksp_type':'cg',
-                                               'pc_type':'jacobi'})
-            for i, _ in enumerate(type(self)._b_solver._ctx._jacobians_assembled):
-                type(self)._b_solver._ctx._jacobians_assembled[i] = False
-            self._b_solver.solve()
-        b_tmp = self._b_solver._problem.u
-        self._b = assemble(r_b-self._dt_half_N2*b_tmp)
+            L_b = dot(btest*self.vert_norm.zhat,self._u)*self._dx
+            a_b = btest*TrialFunction(self._Wb)*self._dx
+            b_tmp = Function(self._Wb)
+            b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
+            b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
+                                                                        'pc_type':'jacobi'})
+            b_solver.solve()
+            self._b = assemble(r_b-self._dt_half_N2*b_tmp)
         return self._u, self._p, self._b
 

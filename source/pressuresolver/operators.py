@@ -62,14 +62,10 @@ class Operator_H(object):
 
         :arg phi: pressure field
         '''
-        if (not hasattr(self),'_BT_phi'):
-            type(self)._BT_phi = assemble(div(self._u_test)*phi*self._dx)
-        else:
-            type(self)._BT_phi = assemble(div(self._u_test)*phi*self._dx,
-                                          tensor=type(self)._BT_phi)
+        BT_phi = assemble(div(self._u_test)*phi*self._dx)
         #self._apply_bcs(BT_phi)
         Mutildeinv_BT_phi = Function(self._W2)
-        self._mutilde.divide(self._BT_phi.BT_phi,Mutildeinv_BT_phi)
+        self._mutilde.divide(BT_phi,Mutildeinv_BT_phi)
         B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
         M_phi_phi = self._phi_test*phi*self._dx
         return assemble(M_phi_phi + self._omega_c2*B_Mutildeinv_BT_phi)
@@ -174,13 +170,8 @@ class Operator_Hhat(object):
                                 label='h')
         if (self._preassemble_horizontal):
             with timed_region('assemble B_h'):      
-                if (not hasattr(type(self),'_op_B_h')):
-                    type(self)._op_B_h = {}
-                if (not ncells in type(self)._op_B_h.keys()):
-                    type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx)
-                else:
-                    type(self)._op_B_h[ncells] = assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx,tensor=type(self)._op_B_h[ncells])
-                mat_B_h = type(self)._op_B_h[ncells].M.handle
+                mat_B_h = \
+                  assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
             tmp_h = mat_B_h.duplicate(copy=True)
             with timed_region('diagonal_scale'):
                 with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
@@ -211,8 +202,7 @@ class Operator_Hhat(object):
                                                  first=v.owner_range[0],
                                                  step=1,
                                                  comm=PETSc.COMM_SELF)
-        with timed_region('vertical_diagonal'):
-            self._vertical_diagonal = self.vertical_diagonal()
+        self._vertical_diagonal = self.vertical_diagonal()
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -324,12 +314,13 @@ class Operator_Hhat(object):
         kernel = op2.Kernel(kernel_code % {'ndof_pressure':ndof_pressure,
                                            'ndof_velocity_h':ndof_velocity_h},
                             'build_delta_h')
-        op2.par_loop(kernel,self._mesh.cell_set,
-                     lma_B_h.dat(op2.READ,lma_B_h.cell_node_map()),
-                     self._Mu_h._data_inv.dat(op2.READ,self._Mu_h._data_inv.cell_node_map()),
-                     lma_delta_h.dat(op2.WRITE,lma_delta_h.cell_node_map()))
+        with timed_region('assemble local delta_h'):
+            op2.par_loop(kernel,self._mesh.cell_set,
+                         lma_B_h.dat(op2.READ,lma_B_h.cell_node_map()),
+                         self._Mu_h._data_inv.dat(op2.READ,self._Mu_h._data_inv.cell_node_map()),
+                         lma_delta_h.dat(op2.WRITE,lma_delta_h.cell_node_map()))
 
-        delta_h = BandedMatrix(self._W3,self._W3,label='delta_h_level_'+str(self._level))
+            delta_h = BandedMatrix(self._W3,self._W3,label='delta_h_level_'+str(self._level))
         delta_h._assemble_lma(lma_delta_h)
 
         # Add everything up       
