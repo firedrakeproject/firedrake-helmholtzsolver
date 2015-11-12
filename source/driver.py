@@ -27,6 +27,7 @@ from mpi4py import MPI
 from pyop2 import profiling
 from pyop2.profiling import timed_region
 from pyop2 import performance_summary
+from pyop2.base import ParLoop
 from firedrake.petsc import PETSc
 parameters["pyop2_options"]["profiling"] = True
 
@@ -450,6 +451,8 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
     r_p.project(expression,solver_parameters={'ksp_type':'cg','pc_type':'jacobi'})
     r_b.assign(0.0)
 
+    # Reset all performance counters
+    ParLoop.perfdata = {}
     with timed_region("matrixfree mixed system solve"):
         with timed_region("matrixfree total solver setup"):
             gravitywave_solver_matrixfree = matrixfree_solver_setup(functionspaces,
