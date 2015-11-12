@@ -458,6 +458,13 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
             with PETSc.Log().Event("Full matrixfree solve"):
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
 
+    op_Hhat = gravitywave_solver_matrixfree._pressure_solver._preconditioner._operator._Hhat_v
+    n_col = op_Hhat._n_col
+    n_row = op_Hhat._n_row
+    bandwidth = op_Hhat.bandwidth
+    logger.write('Helmholtz operator: size = '+str(n_row)+' x '+str(n_row)+' , bandwidth = '+str(bandwidth))
+
+
     conv_hist_filename = os.path.join(param_output['output_dir'],'history_matrixfree.dat')
     gravitywave_solver_matrixfree._ksp_monitor.save_convergence_history(conv_hist_filename)
     comm = MPI.COMM_WORLD
