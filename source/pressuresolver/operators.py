@@ -264,7 +264,10 @@ class Operator_Hhat(object):
         '''
         with timed_region('apply_Hhat_z_inv_level_'+str(self._level)):
             self._vertical_diagonal._label='Hhat_z_level_'+str(self._level)
-            self._vertical_diagonal._lu_solve(r)
+            if (self._vertical_diagonal.is_tridiagonal):
+                self._vertical_diagonal._tridiagonal_solve(r)
+            else:
+                self._vertical_diagonal._lu_solve(r)
 
     def vertical_diagonal(self):
         '''Construct the block-diagonal matrix :math:`\hat{H}_z` which only 
