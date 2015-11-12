@@ -865,7 +865,6 @@ class BandedMatrix(object):
             u[0][i] -= c_prime[i]*u[0][i+1];
           }
         }'''
-        print 'TRIDIAGONAL SOLVE'
         param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
         kernel = op2.Kernel(kernel_code % param_dict,
                             'tridiagonal_solve')
