@@ -129,6 +129,14 @@ class BandedMatrix(object):
         return (self._n_row == self._n_col)
 
     @property
+    def is_tridiagonal(self):
+        '''Is this a tridiagonal matrix?'''
+        return self.is_square and \
+               (self.alpha == self.beta) and \
+               (self.gamma_m == 1) and \
+               (self.gamma_p == 1)
+
+    @property
     def is_sparsity_symmetric(self):
         '''Is the sparsity pattern symmetric (has to be square matrix)?'''
         return ( (self.is_square) and \
@@ -739,13 +747,18 @@ class BandedMatrix(object):
 
         :arg u: RHS b and resulting function u
         ''' 
-        # Check whether data has changed since last LU decomposition
-        if not (self._lu_version == self._data._version):
-            self._lu_decompose()
-        return self._lu_solve(u)
+        if (self.is_tridiagonal):
+            return self._tridiagonal_solve(u)
+        else:
+            # Check whether data has changed since last LU decomposition
+            if not (self._lu_version == self._data._version):
+                self._lu_decompose()
+            return self._lu_solve(u)
             
     def _lu_decompose(self):
         '''Construct LU decomposition :math:`A=LU` on the fly.
+
+        If the matrix is tridiagonal, do not LU-decompose
 
             Replace A by matrix which stores the lower (L) and
             upper (U) factors of the factorisation, where L is
@@ -758,6 +771,8 @@ class BandedMatrix(object):
         # documentation of DGBTRF http://phase.hpcc.jp/mirrors/netlib/lapack/double/dgbtrf.f)
         # The LAPACKe C-interface to LAPACK is used, see
         # http://www.netlib.org/lapack/lapacke.html
+        if (self.is_tridiagonal):
+            return
         assert (self._n_row == self._n_col)
         lda = self.bandwidth+self.gamma_p
         if (not self._lu):
@@ -824,6 +839,44 @@ class BandedMatrix(object):
                          u.dat(op2.RW,u.cell_node_map()),
                          name='bandedmatrix lu_solve['+self._label+']')
         return u
+
+    def _tridiagonal_solve(self,u):
+        '''In-place tridiagonal solver for u with the Thomas algorithm
+        
+        :arg u: Function to be solved for.
+        '''
+        kernel_code = '''void tridiagonal_solve(double **A,
+                                                double **u) {
+          double c_prime[%(A_n_row)d];
+          // Forward sweep
+          const double inv_tmp = 1./A[0][1];
+          c_prime[0] = A[0][2]*inv_tmp;
+          u[0][0] *= inv_tmp;
+                    for (int i=1;i<%(A_n_row)d;++i) {
+            const double a = A[0][3*i];
+            const double b = A[0][3*i+1];
+            const double c = A[0][3*i+2];
+            const double inv_tmp = 1.0/(b-a*c_prime[i-1]);
+            c_prime[i] = c*inv_tmp;
+            u[0][i] = (u[0][i]-a*u[0][i-1])*inv_tmp;
+          }
+          // Backward sweep
+          for (int i=%(A_n_row)d-2;i>=0;--i) {
+            u[0][i] -= c_prime[i]*u[0][i+1];
+          }
+        }'''
+        print 'TRIDIAGONAL SOLVE'
+        param_dict = {'A_'+x:y for (x,y) in self._param_dict.iteritems()}
+        kernel = op2.Kernel(kernel_code % param_dict,
+                            'tridiagonal_solve')
+        with timed_region('bandedmatrix tridiagonal_solve'):
+            op2.par_loop(kernel,
+                         self._hostmesh.cell_set,
+                         self._data(op2.WRITE,self._Vcell.cell_node_map()),
+                         u.dat(op2.RW,u.cell_node_map()),
+                         name='bandedmatrix tridiagonal_solve['+self._label+']')
+        return u
+
 
     def diagonal(self):
         '''Extract diagonal entries.
