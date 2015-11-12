@@ -873,7 +873,8 @@ class BandedMatrix(object):
                          self._hostmesh.cell_set,
                          self._data(op2.WRITE,self._Vcell.cell_node_map()),
                          u.dat(op2.RW,u.cell_node_map()),
-                         name='bandedmatrix tridiagonal_solve['+self._label+']')
+                         name='bandedmatrix tridiagonal_solve['+self._label+']',
+                         measure_flops=True)
         return u
 
 
