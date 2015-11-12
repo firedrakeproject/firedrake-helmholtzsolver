@@ -343,6 +343,52 @@ def test_helmholtz_solve(helmholtz_matrix, W2_vert, W3, form_M, form_D, form_DT,
 
     assert allclose(v_ufl,u)
 
+def test_helmholtz_solve_lowest_order(W3_hierarchy,
+                                      W2_vert_hierarchy,
+                                      omega,
+                                      pressure_expression):
+    '''Test tridiagonal solver with the lowet order Helmholtz matrix.
+
+    Invert the helmholtz matrix on a :math:`W_3` for a given field and
+    check that the result is correct by multiplying back by the UFL form.
+
+    :arg W3_hierarchy: Hierarchy of lowest order W3 spaces
+    :arg W2_vert: Hierarchy of lowest order W2 function spaces
+    :arg omega: value of parameter omega
+    :arg pressure_expression: Analytical expression for pressure
+    '''
+    W3 = W3_hierarchy[-1]
+    W2_vert = W2_vert_hierarchy[-1]
+
+    mat_M = BandedMatrix(W3,W3)
+    mat_D = BandedMatrix(W3,W2_vert)
+    mat_DT = BandedMatrix(W2_vert,W3)
+
+    dx = W3.mesh()._dx
+    form_M = TestFunction(W3)*TrialFunction(W3)*dx
+    form_D = TestFunction(W3)*div(TrialFunction(W2_vert))*dx
+    form_DT = div(TestFunction(W2_vert))*TrialFunction(W3)*dx
+
+    mat_M.assemble_ufl_form(form_M)
+    mat_D.assemble_ufl_form(form_D)
+    mat_DT.assemble_ufl_form(form_DT)
+
+    # Calculate H = M + omega*D*DT
+    mat_H = mat_M.matadd(mat_D.matmul(mat_DT),omega=omega)
+
+    u = Function(W3)
+    v = Function(W3)
+    u.interpolate(pressure_expression)
+
+    v.assign(u)
+    mat_H.solve(v)
+
+    v_ufl = assemble(action(form_M, v))
+    v_ufl += omega*assemble(action(form_D,assemble(action(form_DT, v))))
+
+    assert allclose(v_ufl,u)
+
+
 def test_spai(W2_vert):
     '''Test sparse approximate inverse of velocity mass matrix.
 
