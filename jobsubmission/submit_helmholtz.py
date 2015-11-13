@@ -67,13 +67,13 @@ def weak_scaling(rundir,higher_order,singlelevel=False):
         ppn_list = (1,6,24,24,24,24,24)
         nodes_list = (1,1,1,4,16,64,256)
 
-    ncoarsesmooth=1
+    ncoarsesmooth=2
     if (singlelevel):
         ref_count_coarse_list = [x+y for x,y in zip(nlevel_list,
                                                     ref_count_coarse_list)]
         nlevel_list = [0 for x in zip(nlevel_list)]
 
-    nu_cfl = 4.0
+    nu_cfl = 8.0
     for ref_count_coarse, nlevel, ppn, nodes in zip(ref_count_coarse_list,
                                             nlevel_list,
                                             ppn_list,
@@ -111,7 +111,7 @@ def vary_cfl(rundir,higher_order,singlelevel=False):
         if (singlelevel):
             ncoarsesmooth=1
         else:
-            ncoarsesmooth=int(nu_cfl)/2
+            ncoarsesmooth=2#int(nu_cfl)
         d = {'ref_count_coarse':ref_count_coarse,
              'higher_order':higher_order,
              'n_level':n_level,
