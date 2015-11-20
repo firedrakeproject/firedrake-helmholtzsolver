@@ -461,10 +461,10 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
             with PETSc.Log().Event("Full matrixfree solve"):
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
 
-    op_Hhat = gravitywave_solver_matrixfree._pressure_solver._preconditioner._operator._Hhat_v
-    n_col = op_Hhat._n_col
-    n_row = op_Hhat._n_row
-    bandwidth = op_Hhat.bandwidth
+    op_Hhat_v = gravitywave_solver_matrixfree._pressure_solver._preconditioner._operator._Hhat_v
+    n_col = op_Hhat_v._n_col
+    n_row = op_Hhat_v._n_row
+    bandwidth = op_Hhat_v.bandwidth
     logger.write('Helmholtz operator: size = '+str(n_row)+' x '+str(n_row)+' , bandwidth = '+str(bandwidth))
 
 
