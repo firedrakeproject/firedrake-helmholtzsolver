@@ -207,6 +207,26 @@ class Operator_Hhat(object):
                                                  step=1,
                                                  comm=PETSc.COMM_SELF)
         self._vertical_diagonal = self.vertical_diagonal()
+        # Add performance data entry to ParLoop dictionary
+        self._ax_label = 'petsc ax[apply_Hhat_h_level_'+str(self._level)+']'
+        DataVolume = namedtuple("DataVolume", ["loads", "stores"])
+        m_row, m_col = self._mat_Hhat_h.getLocalSize()
+        n_nz = self._mat_Hhat_h.getInfo()['nz_used']
+        flops = 2*n_nz
+        loads = 4*m_row + 8*m_col + 12*n_nz
+        stores = 8*m_row
+        perfect_cache_data_volume=DataVolume(loads=loads,
+                                             stores=stores)
+        pessimal_cache_data_volume=DataVolume(loads=1,
+                                              stores=1)
+        try:
+            perf = ParLoop.perfdata[self._ax_label]
+        except KeyError:
+            perf = PerformanceData(self._ax_label,
+                                   flops,
+                                   perfect_cache_data_volume,
+                                   pessimal_cache_data_volume)
+            ParLoop.perfdata[self._ax_label] = perf
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -249,27 +269,7 @@ class Operator_Hhat(object):
                         with phi.dat.vec_ro as x:
                             self._mat_Hhat_h.mult(x,v)
                     t_end = time.time()
-
-                    label = 'petsc ax[apply_Hhat_h_level_'+str(self._level)+']'
-                    DataVolume = namedtuple("DataVolume", ["loads", "stores"])
-                    m_row, m_col = self._mat_Hhat_h.getLocalSize()
-                    n_nz = self._mat_Hhat_h.getInfo()['nz_used']
-                    flops = 2*n_nz
-                    loads = 4*m_row + 8*m_col + 12*n_nz
-                    stores = 8*m_row
-                    perfect_cache_data_volume=DataVolume(loads=loads,
-                                                         stores=stores)
-                    pessimal_cache_data_volume=DataVolume(loads=1,
-                                                          stores=1)
-                    try:
-                        perf = ParLoop.perfdata[label]
-                    except KeyError:
-                        perf = PerformanceData(label,
-                                               flops,
-                                               perfect_cache_data_volume,
-                                               pessimal_cache_data_volume)
-                    perf.add_timing(t_end - t_start)
-                    ParLoop.perfdata[label] = perf
+                    ParLoop.perfdata[self._ax_label].add_timing(t_end - t_start)
                 else:
                     # Calculate action of B_h
                     assemble(self._B_h_phi_form, tensor=self._B_h_phi)
