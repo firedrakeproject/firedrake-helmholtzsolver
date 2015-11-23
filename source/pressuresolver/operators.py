@@ -252,11 +252,10 @@ class Operator_Hhat(object):
 
                     label = 'petsc ax[apply_Hhat_h_level_'+str(self._level)+']'
                     DataVolume = namedtuple("DataVolume", ["loads", "stores"])
-                    with phi.dat.vec_ro as v:
-                        m_row = v.getSize()
+                    m_row, m_col = self._mat_Hhat_h.getLocalSize()
                     n_nz = self._mat_Hhat_h.getInfo()['nz_used']
                     flops = 2*n_nz
-                    loads = 12*(m_row + n_nz)
+                    loads = 4*m_row + 8*m_col + 12*n_nz
                     stores = 8*m_row
                     perfect_cache_data_volume=DataVolume(loads=loads,
                                                          stores=stores)
