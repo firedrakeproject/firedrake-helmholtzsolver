@@ -103,7 +103,8 @@ class BandedMatrix(object):
         self._libs = []
         if ( ('Eikes-MacBook-Pro.local' in hostname) or \
              ('eduroam.bath.ac.uk' in hostname) or \
-             ('Eikes-MBP' in hostname) ):
+             ('Eikes-MBP' in hostname) or \
+             ('dhcp' in hostname)):
             self._include_dirs = ['/usr/local/include/',]
             self._lib_dirs = ['/usr/local/lib/',]
             self._libs = ['lapack','lapacke','cblas','blas']
