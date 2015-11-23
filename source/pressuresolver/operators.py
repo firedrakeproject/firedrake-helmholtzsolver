@@ -2,7 +2,7 @@ import time
 from collections import namedtuple
 from firedrake import *
 from firedrake.petsc import PETSc
-from petsc4py.PETSc import MatInfoType
+from petsc4py.PETSc import Mat
 from lumpedmass import *
 import xml.etree.cElementTree as ET
 from firedrake.ffc_interface import compile_form
@@ -212,7 +212,7 @@ class Operator_Hhat(object):
         self._ax_label = 'petsc ax[apply_Hhat_h_level_'+str(self._level)+']'
         DataVolume = namedtuple("DataVolume", ["loads", "stores"])
         m_row, m_col = self._mat_Hhat_h.getLocalSize()
-        n_nz = self._mat_Hhat_h.getInfo(MatInfoType.LOCAL)['nz_used']
+        n_nz = self._mat_Hhat_h.getInfo(Mat.InfoType.LOCAL)['nz_used']
         flops = 2*n_nz
         loads = 4*m_row + 8*m_col + 12*n_nz
         stores = 8*m_row
