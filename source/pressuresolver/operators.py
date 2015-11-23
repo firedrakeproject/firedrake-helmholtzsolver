@@ -1,9 +1,14 @@
+import time
+from collections import namedtuple
 from firedrake import *
 from firedrake.petsc import PETSc
+from petsc4py.PETSc import Mat
 from lumpedmass import *
 import xml.etree.cElementTree as ET
 from firedrake.ffc_interface import compile_form
 from pyop2.profiling import timed_function, timed_region
+from pyop2.base import ParLoop
+from pyop2.performancedata import PerformanceData
 from mpi4py import MPI
 from bandedmatrix import *
 
@@ -203,6 +208,26 @@ class Operator_Hhat(object):
                                                  step=1,
                                                  comm=PETSc.COMM_SELF)
         self._vertical_diagonal = self.vertical_diagonal()
+        # Add performance data entry to ParLoop dictionary
+        self._ax_label = 'petsc ax[apply_Hhat_h_level_'+str(self._level)+']'
+        DataVolume = namedtuple("DataVolume", ["loads", "stores"])
+        m_row, m_col = self._mat_Hhat_h.getLocalSize()
+        n_nz = self._mat_Hhat_h.getInfo(Mat.InfoType.LOCAL)['nz_used']
+        flops = 2*n_nz
+        loads = 4*m_row + 8*m_col + 12*n_nz
+        stores = 8*m_row
+        perfect_cache_data_volume=DataVolume(loads=loads,
+                                             stores=stores)
+        pessimal_cache_data_volume=DataVolume(loads=1,
+                                              stores=1)
+        try:
+            perf = ParLoop.perfdata[self._ax_label]
+        except KeyError:
+            perf = PerformanceData(self._ax_label,
+                                   flops,
+                                   perfect_cache_data_volume,
+                                   pessimal_cache_data_volume)
+            ParLoop.perfdata[self._ax_label] = perf
 
     def _apply_bcs(self,u):
         '''Apply boundary conditions to velocity function.
@@ -240,9 +265,12 @@ class Operator_Hhat(object):
             self._phi_tmp.assign(phi)
             with timed_region('apply_Hhat_h_level_'+str(self._level)):
                 if (self._preassemble_horizontal):
+                    t_start = time.time()
                     with self._BT_B_h_phi.dat.vec as v:
                         with phi.dat.vec_ro as x:
                             self._mat_Hhat_h.mult(x,v)
+                    t_end = time.time()
+                    ParLoop.perfdata[self._ax_label].add_timing(t_end - t_start)
                 else:
                     # Calculate action of B_h
                     assemble(self._B_h_phi_form, tensor=self._B_h_phi)
