@@ -429,6 +429,11 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
     r_u = Function(W2)
     r_p = Function(W3)
     r_b = Function(Wb)
+    c = param_general['speed_c']
+    N = param_general['speed_N']
+    mixed_operator_matrixfree = MixedOperator(W2,W3,dt,c,N,
+                                              preassemble=False)
+
     # Warm up run
     if (param_general['warmup_run']):
         logger.write('Warmup...')
@@ -441,6 +446,7 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
                 r_p.project(expression,solver_parameters={'ksp_type':'cg','pc_type':'jacobi'})
                 r_b.assign(0.0)
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+                mixed_operator_matrixfree.apply(u,p,r_u,r_p)
         sys.stdout = stdout_save
         # Reset timers
         profiling.reset_timers()
@@ -460,6 +466,8 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
         with PETSc.Log().Stage("solve_matrixfree"):
             with PETSc.Log().Event("Full matrixfree solve"):
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+    with timed_region("matrixfree apply matrixfree mixed operator"):
+        mixed_operator_matrixfree.apply(u,p,r_u,r_p)
 
     op_Hhat_v = gravitywave_solver_matrixfree._pressure_solver._preconditioner._operator._Hhat_v
     n_col = op_Hhat_v._n_col
