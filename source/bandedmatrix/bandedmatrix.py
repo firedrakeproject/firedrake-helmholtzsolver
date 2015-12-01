@@ -847,8 +847,8 @@ class BandedMatrix(object):
         with timed_region('bandedmatrix lu_solve'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
-                         self._lu(op2.WRITE,self._Vcell.cell_node_map()),
-                         self._ipiv(op2.WRITE,self._Vcell.cell_node_map()),
+                         self._lu(op2.READ,self._Vcell.cell_node_map()),
+                         self._ipiv(op2.READ,self._Vcell.cell_node_map()),
                          u.dat(op2.RW,u.cell_node_map()),
                          name='bandedmatrix lu_solve['+self._label+']')
         return u
@@ -884,7 +884,7 @@ class BandedMatrix(object):
         with timed_region('bandedmatrix tridiagonal_solve'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
-                         self._data(op2.WRITE,self._Vcell.cell_node_map()),
+                         self._data(op2.READ,self._Vcell.cell_node_map()),
                          u.dat(op2.RW,u.cell_node_map()),
                          name='bandedmatrix tridiagonal_solve['+self._label+']',
                          measure_flops=True)
