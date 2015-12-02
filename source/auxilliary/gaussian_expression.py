@@ -51,12 +51,17 @@ class GaussianExpression(object):
 
             Returns :math:`theta=\\acos(\\vec{x}\cdot\\vec{n}_0/(|\\vec{x}|\cdot|\\vec{n}_0|))`
         '''
-        s = 'acos((x[0]*%(N0)f+x[1]*%(N1)f+x[2]*%(N2)f)/(%(RSTR)s*%(NRMN)f))'
+        n_cross_x = 'sqrt(0.0'
+        n_dot_x = '0.0'
+        for i in range(3):
+            tmp = 'x['+str(i)+']*(%(N'+str((i+1)%3)+')f)-x['+str((i+1)%3)+']*(%(N'+str(i)+')f)'
+            n_cross_x += '+('+tmp+')*('+tmp+')'
+            n_dot_x += '+x['+str(i)+']*(%(N'+str(i)+')f)'
+        n_cross_x += ')'
+        s = 'atan2('+n_cross_x+','+n_dot_x+')'
         d = {'N0':self._n0[0],
              'N1':self._n0[1],
-             'N2':self._n0[2],
-             'NRMN':math.sqrt(self._n0[0]**2+self._n0[1]**2+self._n0[2]**2),
-             'RSTR':self._r_str()}
+             'N2':self._n0[2]}
         return s % d
 
     def _dr_str(self):
