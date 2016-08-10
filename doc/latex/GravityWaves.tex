@@ -438,11 +438,11 @@ For a grid with $n_z$ vertical layers, the parameters $\alpha^{(A)}$, $\beta^{(A
   m^{(A)} &= n_zN_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + (n_z+1)N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}}),\\
   \alpha^{(A)} &= N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}}),\\
   \beta^{(A)} &= N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}}),\\
-  \gamma_-^{(A)} &= N_{\text{df}}(\Wspace_{\text{col}})\left(N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}})\right),\\
-  \gamma_+^{(A)} &= N_{\text{df}}(\Wspace_{\text{row}})\left(N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}})\right).
+  \gamma_-^{(A)} &= (N_{\text{df}}(\Wspace_{\text{col}})-1)\left(N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{row}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{row}})\right),\\
+  \gamma_+^{(A)} &= (N_{\text{df}}(\Wspace_{\text{row}})-1)\left(N_{\text{df}}^{(\text{cell})}(\Wspace_{\text{col}}) + N_{\text{df}}^{(\text{facet})}(\Wspace_{\text{col}})\right).
   \end{aligned}
 \end{equation}
-Here, for a given function space $\Wspace$, $N_{\text{df}}^{(\text{cell})}(\Wspace)$ is the number of degrees of freedom associated with the interior of the reference cell and $N_{\text{df}}^{(\text{facet})}(\Wspace)$ is the number of dofs associated with the bottom facet of the reference cell (for example, $N_{\text{df}}^{(\text{cell})}(\Wspace_3)=1$, $N_{\text{df}}^{(\text{facet})}(\Wspace_3)=0$ and $N_{\text{df}}^{(\text{cell})}(\Wspace_2^v)=0$, $N_{\text{df}}^{(\text{facet})}(\Wspace_2^v)=1$ at lowest order). Also we defined $N_{\text{df}}(\Wspace)\equiv N_{\text{df}}^{(\text{cell})}(\Wspace)+N_{\text{df}}^{(\text{facet})}(\Wspace)$.
+Here, for a given function space $\Wspace$, $N_{\text{df}}^{(\text{cell})}(\Wspace)$ is the number of degrees of freedom associated with the interior of the reference cell and $N_{\text{df}}^{(\text{facet})}(\Wspace)$ is the number of dofs associated with the bottom facet of the reference cell (for example, $N_{\text{df}}^{(\text{cell})}(\Wspace_3)=1$, $N_{\text{df}}^{(\text{facet})}(\Wspace_3)=0$ and $N_{\text{df}}^{(\text{cell})}(\Wspace_2^v)=0$, $N_{\text{df}}^{(\text{facet})}(\Wspace_2^v)=1$ at lowest order). Also we defined $N_{\text{df}}(\Wspace)\equiv N_{\text{df}}^{(\text{cell})}(\Wspace)+2N_{\text{df}}^{(\text{facet})}(\Wspace)$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{Algorithms}
