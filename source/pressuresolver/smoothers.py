@@ -110,7 +110,7 @@ class Jacobi(Smoother):
         super(Jacobi,self).__init__(operator)
         self._mu_relax = mu_relax
         self._n_smooth = n_smooth
-        self._dx = self._mesh._dx
+        self._dx = dx(domain=self._mesh)
         self._r_tmp = Function(self._W3)
         self._level = level
 

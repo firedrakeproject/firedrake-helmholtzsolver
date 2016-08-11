@@ -30,7 +30,7 @@ class VerticalNormal(object):
         '''
         normal_fs = VectorFunctionSpace(self._mesh,'DG',0)
         self._zhat = Function(normal_fs)
-        host_mesh = self._mesh._old_mesh
+        host_mesh = self._mesh._base_mesh
         # Topological dimension of the underlying grid, can be 1 or 2
         host_dimension = host_mesh._ufl_cell.topological_dimension()
         if (host_dimension == 1):

@@ -3,11 +3,11 @@ import os
 import math
 import xml.etree.cElementTree as ET
 from firedrake import * 
-op2.init(log_level="ERROR")
-from ffc import log as ffc_log
-ffc_log.set_level(ffc_log.ERROR)
-from ufl import log as ufl_log
-ufl_log.set_level(ufl_log.ERROR)
+#op2.init(log_level="ERROR")
+# from ffc import log as ffc_log
+# ffc_log.set_level(ffc_log.ERROR)
+# from ufl import log as ufl_log
+# ufl_log.set_level(ufl_log.ERROR)
 import gravitywaves
 from mixedoperators import *
 import pressuresolver.solvers
@@ -29,7 +29,9 @@ from pyop2.profiling import timed_region
 from pyop2 import performance_summary
 from pyop2.base import ParLoop
 from firedrake.petsc import PETSc
-parameters["pyop2_options"]["profiling"] = True
+# parameters["pyop2_options"]["profiling"] = True
+
+OuterProductElement = TensorProductElement
 
 def initialise_parameters(filename=None):
     '''Set default parameters and read from file.
@@ -461,19 +463,16 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
     # Warm up run
     if (param_general['warmup_run']):
         logger.write('Warmup...')
-        stdout_save = sys.stdout
         with timed_region("warmup"), PETSc.Log().Stage("warmup"):
-            with open(os.devnull,'w') as sys.stdout:
-                gravitywave_solver_matrixfree = matrixfree_solver_setup(functionspaces,
-                                                                        dt,all_param)
-                r_u.assign(0.0)
-                r_p.project(expression,solver_parameters={'ksp_type':'cg','pc_type':'jacobi'})
-                r_b.assign(0.0)
-                u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
-                mixed_operator_matrixfree.apply(u,p,r_u,r_p)
-        sys.stdout = stdout_save
+            gravitywave_solver_matrixfree = matrixfree_solver_setup(functionspaces,
+                                                                    dt,all_param)
+            r_u.assign(0.0)
+            r_p.project(expression,solver_parameters={'ksp_type':'cg','pc_type':'jacobi'})
+            r_b.assign(0.0)
+            u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
+            mixed_operator_matrixfree.apply(u,p,r_u,r_p)
         # Reset timers
-        profiling.reset_timers()
+        # profiling.reset_timers()
         logger.write('...done')
         logger.write('')
 
@@ -669,9 +668,9 @@ def main(parameter_filename=None):
         u_matrixfree,p_matrixfree,b_matrixfree = solve_matrixfree(functionspaces,dt,all_param,expression)
         logger.write('')
     
-        if (logger.rank == 0):
-            profiling.summary()
-        performance_summary()
+        # if (logger.rank == 0):
+        #     profiling.summary()
+        # performance_summary()
         
         # If requested, write fields to disk
         if (param_output['savetodisk']):
@@ -681,9 +680,9 @@ def main(parameter_filename=None):
         logger.write('*** PETSc solve ***')
         u_petsc,p_petsc,b_petsc = solve_petsc(functionspaces,dt,all_param,expression)
 
-        if (logger.rank == 0):
-            profiling.summary()
-        performance_summary()
+        # if (logger.rank == 0):
+        #     profiling.summary()
+        # performance_summary()
     
         # If requested, write fields to disk
         if (param_output['savetodisk']):

@@ -5,7 +5,7 @@ from firedrake.petsc import PETSc
 from petsc4py.PETSc import Mat
 from lumpedmass import *
 import xml.etree.cElementTree as ET
-from firedrake.ffc_interface import compile_form
+from firedrake.tsfc_interface import compile_form
 from pyop2.profiling import timed_function, timed_region
 from pyop2.base import ParLoop
 from pyop2.performancedata import PerformanceData
@@ -38,7 +38,7 @@ class Operator_H(object):
         self._mutilde = mutilde
         self._omega_c = omega_c
         self._omega_c2 = Constant(self._omega_c**2)
-        self._dx = self._W3.mesh()._dx
+        self._dx = dx(domain=self._W3.mesh())
         self._phi_test = TestFunction(self._W3)
         self._u_test = TestFunction(self._W2)
         self._u_trial = TrialFunction(self._W2)
@@ -160,7 +160,7 @@ class Operator_Hhat(object):
         self._phi_tmp = Function(self._W3)
         self._res_tmp = Function(self._W3)
         self._mesh = self._W3.mesh()
-        self._dx = self._mesh._dx
+        self._dx = dx(domain=self._mesh)
         self._level=level
         # Forms for operator applications
         self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
@@ -309,9 +309,10 @@ class Operator_Hhat(object):
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
         ufl_form = phi_test*div(w_h_trial)*self._dx
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
-        kernel = compiled_form[6]
-        coords = compiled_form[3]
-        coefficients = compiled_form[4]
+        kernel = compiled_form.kinfo.kernel
+        coords = ufl_form.ufl_domains()[0].coordinates
+        coefficients = ufl_form.coefficients()
+        cmap = compiled_form.kinfo.coefficient_map
         arguments = ufl_form.arguments()
         ndof_pressure = arguments[0].cell_node_map().arity
         ndof_velocity_h = arguments[1].cell_node_map().arity
@@ -321,7 +322,8 @@ class Operator_Hhat(object):
         lma_B_h = Function(V_lma, val=op2.Dat(V_lma.node_set**(ndof_pressure*ndof_velocity_h)))
         args = [lma_B_h.dat(op2.INC, lma_B_h.cell_node_map()[op2.i[0]]), 
                 coords.dat(op2.READ, coords.cell_node_map(), flatten=True)]
-        for c in coefficients:
+        for n in cmap:
+            c = coefficients[n]
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         op2.par_loop(kernel,lma_B_h.cell_set, *args)
 

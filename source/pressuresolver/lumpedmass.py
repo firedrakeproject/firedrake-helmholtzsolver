@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from firedrake import *
-from firedrake.ffc_interface import compile_form
+from firedrake.tsfc_interface import compile_form
 import xml.etree.cElementTree as _WT
 from pyop2.profiling import timed_region
 
@@ -34,14 +34,16 @@ class LumpedMass(object):
         # Build local stencil of full mass matrix
         mass = self._ufl_form 
         compiled_form = compile_form(mass, 'mass')[0]
-        mass_kernel = compiled_form[6]
-        coords = compiled_form[3]
-        coefficients = compiled_form[4]
+        mass_kernel = compiled_form.kinfo.kernel
+        coords = mass.ufl_domains()[0].coordinates
+        cmap = compiled_form.kinfo.coefficient_map
+        coefficients = mass.coefficients()
         arguments = mass.arguments()
         mass_matrix = Function(V_cells, val=op2.Dat(V_cells.node_set**(nlocaldof**2)))
         args = [mass_matrix.dat(op2.INC, mass_matrix.cell_node_map()[op2.i[0]]),
                 coords.dat(op2.READ,coords.cell_node_map(),flatten=True)]
-        for c in coefficients:
+        for n in cmap:
+            c = coefficients[n]
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         with timed_region('assemble lumpedmass['+self._label+']'):
             op2.par_loop(mass_kernel,mass_matrix.cell_set,*args)

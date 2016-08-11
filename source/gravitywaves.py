@@ -97,7 +97,7 @@ class IterativeSolver(object):
         self._u = Function(self._W2)
         self._p = Function(self._W3)
         self._b = Function(self._Wb)
-        self._dx = self._W3._mesh._dx
+        self._dx = dx(domain=self._W3.mesh())
 
 class MatrixFreeSolver(IterativeSolver):
     '''Matrix-free solver for the gravity wave system without orography
@@ -372,7 +372,7 @@ class PETScSolver(object):
         self._u = Function(self._W2)
         self._p = Function(self._W3)
         self._b = Function(self._Wb)
-        self._dx = self._W3._mesh._dx
+        self._dx = dx(domain=self._W3.mesh())
         self.vert_norm = VerticalNormal(self._W3.mesh())
 
     def add_to_xml(self,parent,function):

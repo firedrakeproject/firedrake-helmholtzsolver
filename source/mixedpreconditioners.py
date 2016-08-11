@@ -67,9 +67,9 @@ class MixedPreconditioner(object):
         self._dt_half_c2 = mixed_operator._dt_half_c2
         self._diagonal_only = diagonal_only
         self._preassemble = mixed_operator._preassemble
-        self._mesh = self._W3._mesh
+        self._mesh = self._W3.mesh()
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = self._mesh._dx
+        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
         self._utest = TestFunction(self._W2)
@@ -211,9 +211,9 @@ class MixedPreconditionerOrography(object):
         self._dt_half_N2 = mixed_operatpr._dt_half_N2
         self._dt_half_c2 = mixed_operator._dt_half_c2
         self._diagonal_only = diagonal_only
-        self._mesh = self._W3._mesh
+        self._mesh = self._W3.mesh()
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = self._mesh._dx
+        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
         self._utest = TestFunction(self._W2)

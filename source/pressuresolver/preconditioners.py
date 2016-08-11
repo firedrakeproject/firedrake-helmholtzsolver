@@ -34,7 +34,7 @@ class hMultigrid(object):
         self._phi = FunctionHierarchy(self._W3_hierarchy)
         self._fine_level = len(self._W3_hierarchy)-1
         self._coarsest_level = 0
-        self._dx = [self._W3_hierarchy[level].mesh()._dx
+        self._dx = [dx(domain=self._W3_hierarchy[level].mesh())
                     for level in range(len(self._W3_hierarchy))]
         self._operator = operator_hierarchy[self._fine_level] 
         with self._rhs[self._fine_level].dat.vec as v:
@@ -154,7 +154,7 @@ class hpMultigrid(object):
         self._W3_low = self._hmultigrid._W3_hierarchy[-1]
         self._rhs_low = Function(self._W3_low)
         self._dphi_low = Function(self._W3_low)
-        self._dx = self._W3._mesh._dx
+        self._dx = dx(domain=self._W3.mesh())
         self._phi_tmp = Function(self._W3)
         self._rhs_tmp = Function(self._W3)
         with self._rhs_tmp.dat.vec as v:

@@ -1,10 +1,10 @@
 import fractions
 import math
 import numpy as np
-from ufl import HDiv
+from ufl import HDivElement
 from firedrake import *
-from firedrake.ffc_interface import compile_form
-from firedrake.fiat_utils import *
+from firedrake.tsfc_interface import compile_form
+from tsfc.fiatinterface import create_element as fiat_from_ufl_element
 import socket
 from pyop2.profiling import timed_region
 
@@ -45,7 +45,7 @@ class BandedMatrix(object):
         self._fs_col = fs_col
         self._mesh = fs_row.mesh()
         self._ncelllayers = self._mesh.layers-1
-        self._hostmesh = self._mesh._old_mesh
+        self._hostmesh = self._mesh._base_mesh
         self._ndof_cell_row, self._ndof_bottom_facet_row = self._get_ndof_cell(self._fs_row)
         self._ndof_cell_col, self._ndof_bottom_facet_col = self._get_ndof_cell(self._fs_col)
         self._ndof_row = self._ndof_cell_row+2*self._ndof_bottom_facet_row
@@ -191,7 +191,7 @@ class BandedMatrix(object):
         '''
         ufl_ele = fs.ufl_element()
         # Unwrap non HDiv'd element if necessary
-        if isinstance(ufl_ele, HDiv):
+        if isinstance(ufl_ele, HDivElement):
             ele = ufl_ele._element
         else:
             ele = ufl_ele
@@ -218,9 +218,10 @@ class BandedMatrix(object):
 
         with timed_region('bandedmatrix compile_ufl_form'):
             compiled_form = compile_form(ufl_form, 'ufl_form')[0]
-        kernel = compiled_form[6]
-        coords = compiled_form[3]
-        coefficients = compiled_form[4]
+        kernel = compiled_form.kinfo.kernel
+        coords = ufl_form.ufl_domains()[0].coordinates
+        cmap = compiled_form.kinfo.coefficient_map
+        coefficients = ufl_form.coefficients()
         arguments = ufl_form.arguments()
         assert len(arguments) == 2, 'Not a bilinear form'
         nrow = arguments[0].cell_node_map().arity
@@ -229,7 +230,8 @@ class BandedMatrix(object):
         lma = Function(V_lma, val=op2.Dat(V_lma.node_set**(nrow*ncol)))
         args = [lma.dat(op2.INC, lma.cell_node_map()[op2.i[0]]), 
                 coords.dat(op2.READ, coords.cell_node_map(), flatten=True)]
-        for c in coefficients:
+        for n in cmap:
+            c = coefficients[n]
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
         with timed_region('bandedmatrix assemble_ufl_form'):
             op2.par_loop(kernel,lma.cell_set, *args)
@@ -398,7 +400,6 @@ class BandedMatrix(object):
             '''
         kernel_code +='''}'''
         kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True,
-                            headers=['#include "cblas.h"'],
                             include_dirs=self._include_dirs,
                             lib_dirs=self._lib_dirs,
                             libs=self._libs)
@@ -447,7 +448,6 @@ class BandedMatrix(object):
               }
             }'''
         kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True,
-                            headers=['#include "cblas.h"'],
                             include_dirs=self._include_dirs,
                             lib_dirs=self._lib_dirs,
                             libs=self._libs)

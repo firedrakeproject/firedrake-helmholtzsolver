@@ -49,9 +49,9 @@ class MixedOperator(object):
         self._p_tmp = Function(self._W3)
         self._r_u_tmp = Function(self._W2)
         self._r_p_tmp = Function(self._W3)
-        self._mesh = self._W3._mesh
+        self._mesh = self._W3.mesh()
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = self._mesh._dx
+        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
         self.form_uu = (  dot(self._utest,self._utrial) + self._omega_N2 \
@@ -175,7 +175,7 @@ class MixedOperatorOrography(object):
         self._r_b_tmp = Function(self._Wb)
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = self._mesh._dx
+        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
 
