@@ -2,6 +2,58 @@ import numpy as np
 from firedrake import *
 import xml.etree.cElementTree as ET
 from firedrake.petsc import PETSc
+from vertical_normal import VerticalNormal
+
+
+class DirectSolver(object):
+    def __init__(self, W2, W3, dt, c, N):
+        utest = TestFunction(W2)
+        utrial = TrialFunction(W2)
+        ptest = TestFunction(W3)
+        ptrial = TrialFunction(W3)
+
+        # FIXME: Is this the right operator?
+        pmass = ptest*ptrial*dx
+
+        omega_c2 = (0.5*dt*c)**2
+        omega_N2 = Constant((0.5*dt*N)**2)
+        Div = ptest*div(utrial)*dx
+        Grad = -div(utest)*ptrial*dx
+
+        zhat = VerticalNormal(W2.mesh()).zhat
+
+        umass = (dot(utest, utrial) +
+                 omega_N2*dot(utest, zhat)*dot(utrial, zhat))*dx
+
+        S = assemble(pmass).M.handle.copy()
+        U = assemble(umass).M.handle
+
+        Div = assemble(Div).M.handle
+        Grad = assemble(Grad).M.handle.copy()
+
+        Udiaginv = U.getDiagonal()
+        Udiaginv.reciprocal()
+
+        Grad.diagonalScale(Udiaginv)
+        divgrad = Div.matMult(Grad)
+
+        S.axpy(-omega_c2, divgrad)
+
+        solver = PETSc.KSP().create()
+        solver.setOperators(S, S)
+
+        solver.setOptionsPrefix("coarse_solver_")
+        solver.setFromOptions()
+        self.ksp = solver
+
+    def solve(self, b, phi):
+        with b.dat.vec_ro as B:
+            with phi.dat.vec as x:
+                self.ksp.solve(B, x)
+
+    def add_to_xml(self, parent, function):
+        pass
+
 
 class Jacobi(object):
     '''Jacobi smoother.
