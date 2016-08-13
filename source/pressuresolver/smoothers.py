@@ -45,6 +45,7 @@ class DirectSolver(object):
         solver.setOptionsPrefix("coarse_solver_")
         solver.setFromOptions()
         self.ksp = solver
+        self.ksp.setTolerances(rtol=1.E-15)
 
     def solve(self, b, phi):
         with b.dat.vec_ro as B:
