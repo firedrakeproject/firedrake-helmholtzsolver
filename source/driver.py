@@ -120,7 +120,9 @@ def initialise_parameters(filename=None):
         # postsmoothing steps
         'n_postsmooth':1,
         # number of coarse grid smoothing steps
-        'n_coarsesmooth':1})
+        'n_coarsesmooth':1,
+        # Use direct solver on coarsest grid?
+        'direct_coarse_solver':False})
 
     # Single level preconditioner parameters
     param_singlelevel = Parameters('Singlelevel',
@@ -329,10 +331,25 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                                 mu_relax=param_multigrid['mu_relax'],
                                                 n_smooth=param_multigrid['n_postsmooth'])
 
-                coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-                                           mu_relax=param_multigrid['mu_relax'],
-                                           n_smooth=param_multigrid['n_coarsesmooth'],
-                                           level=0)
+                if (param_multigrid['direct_coarse_solver']):
+                    # Build W2 function space on coarsest mesh
+                    U1_lo = FiniteElement('RT',triangle,1)
+                    U2_lo = FiniteElement('DG',triangle,0)
+                    V0_lo = FiniteElement('CG',interval,1)
+                    V1_lo = FiniteElement('DG',interval,0)
+                    W2_elt_lo = HDiv(OuterProductElement(U1_lo,V1_lo)) \
+                              + HDiv(OuterProductElement(U2_lo,V0_lo))
+                    W3_coarse = W3_hierarchy[0]
+                    coarse_mesh = W3_coarse.mesh()
+                    W2_coarse = FunctionSpace(coarse_mesh,W2_elt_lo)
+                    coarsegrid_solver = DirectSolver(W2_coarse,
+                                                     W3_coarse,
+                                                     dt, c, N)
+                else:
+                    coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                               mu_relax=param_multigrid['mu_relax'],
+                                               n_smooth=param_multigrid['n_coarsesmooth'],
+                                               level=0)
 
             hmultigrid = hMultigrid(W3_hierarchy,
                                     op_Hhat_hierarchy,

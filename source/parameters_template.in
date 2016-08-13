@@ -65,6 +65,7 @@ Multigrid:
     n_presmooth = 1                 # presmoothing steps
     n_postsmooth = 1                # postsmoothing steps
     n_coarsesmooth = 1              # number of coarse grid smoothing steps
+    direct_coarse_solver = False    # Use direct solver on coarsest grid?
 
 ################################################################################ 
 # Single level preconditioner parameters
