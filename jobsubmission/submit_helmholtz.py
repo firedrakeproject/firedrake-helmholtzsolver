@@ -57,10 +57,10 @@ def weak_scaling(rundir,higher_order,singlelevel=False):
     :arg higher_order: Use higher order discretisation?
     '''
     if (higher_order == True):
-        nlevel_list = (2,3,3,3,3,3)
-        ref_count_coarse_list = (0,0,1,2,3,4)
-        ppn_list = (1,6,24,24,24,24)
-        nodes_list = (1,1,1,4,16,64)
+        nlevel_list = (2,3,3,3,3,3,3)
+        ref_count_coarse_list = (0,0,1,2,3,4,5)
+        ppn_list = (1,6,24,24,24,24,24)
+        nodes_list = (1,1,1,4,16,64,256)
     else:
         nlevel_list = (4,4,4,4,4,4,4)
         ref_count_coarse_list = (0,1,2,3,4,5,6)
