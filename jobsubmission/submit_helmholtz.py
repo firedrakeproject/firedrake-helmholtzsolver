@@ -85,12 +85,13 @@ def weak_scaling(rundir,higher_order,singlelevel=False):
              'ppn':ppn,
              'nodes':nodes,
              'ncoarsesmooth':ncoarsesmooth,
-             'multigrid':LogicalStr(not singlelevel)}
+             'multigrid':LogicalStr(not singlelevel),
+             'direct_coarse_solver':LogicalStr(False)}
         nprocs = ppn*nodes
         label = 'helmholtz_'+str(nprocs)+'cores'
         create_submission(rundir,label,(label,),(d,))
 
-def vary_cfl(rundir,higher_order,singlelevel=False):
+def vary_cfl(rundir,higher_order,singlelevel=False,direct_coarse_solver=False):
     '''Generate files for runs with different CFL numbers
 
     :arg rundir: directory to run in
@@ -119,7 +120,8 @@ def vary_cfl(rundir,higher_order,singlelevel=False):
              'ppn':ppn,
              'nodes':nodes,
              'ncoarsesmooth':ncoarsesmooth,
-             'multigrid':LogicalStr(not singlelevel)}
+             'multigrid':LogicalStr(not singlelevel),
+             'direct_coarse_solver':LogicalStr(direct_coarse_solver)}
         label = 'helmholtz_CFL'+('%4.1f' % nu_cfl).strip()
         labels.append(label)
         dicts.append(d)
@@ -152,6 +154,10 @@ if (__name__ == '__main__'):
                       action='store_true', dest='varycfl', default=False,
                       help='generate files for runs with different CFL numbers?')
 
+    parser.add_option('-d','--directcoarsesolver',
+                      action='store_true', dest='direct_coarse_solver', default=False,
+                      help='Use direct (exact) solver for coarsest level [only applies if --varycfl is set] ?')
+
     (options,args) = parser.parse_args()
 
     if (len(args) != 1):
@@ -165,6 +171,7 @@ if (__name__ == '__main__'):
     print 'Run directory = '+rundir
     print 'order = '+options.order
     print 'singlelevel = '+str(options.singlelevel)
+    print 'direct coarse solver = '+str(options.direct_coarse_solver)
 
     # Create directory if it does not exist
     if not os.path.exists(rundir):
@@ -176,4 +183,5 @@ if (__name__ == '__main__'):
         weak_scaling(rundir,higher_order,options.singlelevel)
     if (options.varycfl):
         print 'Generating files for run with varying CFL number...'
-        vary_cfl(rundir,higher_order,options.singlelevel)
+        vary_cfl(rundir,higher_order,options.singlelevel,
+                 options.direct_coarse_solver)
