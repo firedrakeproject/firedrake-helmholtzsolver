@@ -344,8 +344,8 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                     W3_coarse = W3_hierarchy[0]
                     coarse_mesh = W3_coarse.mesh()
                     W2_coarse = FunctionSpace(coarse_mesh,W2_elt_lo)
-                    coarsegrid_solver = DirectSolver(W2_coarse,
-                                                     W3_coarse,
+                    coarsegrid_solver = DirectSolver(op_Hhat_hierarchy[0],
+                                                     W2_coarse,
                                                      dt, c, N)
                 else:
                     coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
@@ -387,8 +387,8 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                         level=0)
             with timed_region('matrixfree smoother setup'):
                 if (param_singlelevel['direct_solver']):
-                    preconditioner = DirectSolver(W2,
-                                                  W3,
+                    preconditioner = DirectSolver(op_Hhat,
+                                                  W2,
                                                   dt, c, N)
                 else:
                     preconditioner = Jacobi(op_Hhat,

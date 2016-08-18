@@ -9,8 +9,9 @@ class Smoother(object):
     
     :arg W3: pressure space
     '''
-    def __init__(self,W3):
-        self._W3 = W3
+    def __init__(self,operator):
+        self._operator = operator
+        self._W3 = self._operator._W3
         self._mesh = self._W3.mesh()
         self._b_tmp = Function(self._W3)
         self._phi_tmp = Function(self._W3)
@@ -22,13 +23,13 @@ class Smoother(object):
                                                  comm=v.comm)
 
 class DirectSolver(Smoother):
-    def __init__(self, W2, W3, dt, c, N):
-        super(DirectSolver,self).__init__(W3)
+    def __init__(self, operator, W2, dt, c, N):
+        super(DirectSolver,self).__init__(operator)
         self._dx = self._mesh._dx
         utest = TestFunction(W2)
         utrial = TrialFunction(W2)
-        ptest = TestFunction(W3)
-        ptrial = TrialFunction(W3)
+        ptest = TestFunction(self._W3)
+        ptrial = TrialFunction(self._W3)
 
         # FIXME: Is this the right operator?
         pmass = ptest*ptrial*self._dx
@@ -41,7 +42,7 @@ class DirectSolver(Smoother):
         zhat = VerticalNormal(W2.mesh()).zhat
 
         umass = (dot(utest, utrial) +
-                 omega_N2*dot(utest, zhat)*dot(utrial, zhat))*dx
+                 omega_N2*dot(utest, zhat)*dot(utrial, zhat))*self._dx
 
         S = assemble(pmass).M.handle.copy()
         U = assemble(umass).M.handle
@@ -106,8 +107,7 @@ class Jacobi(Smoother):
                  n_smooth=1,
                  level=-1,
                  *args):
-        self._operator = operator
-        super(Jacobi,self).__init__(self._operator._W3)
+        super(Jacobi,self).__init__(operator)
         self._mu_relax = mu_relax
         self._n_smooth = n_smooth
         self._dx = self._mesh._dx
