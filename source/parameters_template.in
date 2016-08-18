@@ -73,3 +73,4 @@ Multigrid:
 Singlelevel:
     mu_relax = 1.0                  # single level smoother relaxation factor
     n_smooth = 1		    # Number of smoother iterations
+    direct_solver = False           # Use direct solver (instead of smoother)?

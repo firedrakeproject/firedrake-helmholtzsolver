@@ -4,21 +4,39 @@ import xml.etree.cElementTree as ET
 from firedrake.petsc import PETSc
 from vertical_normal import VerticalNormal
 
+class Smoother(object):
+    '''Base class for smoother for pressure system
+    
+    :arg W3: pressure space
+    '''
+    def __init__(self,W3):
+        self._W3 = W3
+        self._mesh = self._W3.mesh()
+        self._b_tmp = Function(self._W3)
+        self._phi_tmp = Function(self._W3)
+        with self._b_tmp.dat.vec as v:
+            ndof = self._W3.dof_dset.size
+            self._iset = PETSc.IS().createStride(ndof,
+                                                 first=v.owner_range[0],
+                                                 step=1,
+                                                 comm=v.comm)
 
-class DirectSolver(object):
+class DirectSolver(Smoother):
     def __init__(self, W2, W3, dt, c, N):
+        super(DirectSolver,self).__init__(W3)
+        self._dx = self._mesh._dx
         utest = TestFunction(W2)
         utrial = TrialFunction(W2)
         ptest = TestFunction(W3)
         ptrial = TrialFunction(W3)
 
         # FIXME: Is this the right operator?
-        pmass = ptest*ptrial*dx
+        pmass = ptest*ptrial*self._dx
 
         omega_c2 = (0.5*dt*c)**2
         omega_N2 = Constant((0.5*dt*N)**2)
-        Div = ptest*div(utrial)*dx
-        Grad = -div(utest)*ptrial*dx
+        Div = ptest*div(utrial)*self._dx
+        Grad = -div(utest)*ptrial*self._dx
 
         zhat = VerticalNormal(W2.mesh()).zhat
 
@@ -52,14 +70,31 @@ class DirectSolver(object):
             with phi.dat.vec as x:
                 self.ksp.solve(B, x)
 
+    def apply(self,pc,x,y):
+        '''PETSc interface for preconditioner solve.
+
+        PETSc interface wrapper for the :func:`solve` method.
+
+        :arg x: PETSc vector representing the right hand side in pressure
+            space
+        :arg y: PETSc vector representing the solution pressure space.
+        '''
+        with self._b_tmp.dat.vec as v:
+            tmp = x.getSubVector(self._iset)
+            x.copy(v)
+            x.restoreSubVector(self._iset, tmp)
+        self.solve(self._b_tmp,self._phi_tmp)
+        with self._phi_tmp.dat.vec_ro as v:
+            y.array[:] = v.array[:]
+
     def add_to_xml(self, parent, function):
         pass
 
 
-class Jacobi(object):
+class Jacobi(Smoother):
     '''Jacobi smoother.
 
-    Base class for matrix-free smoother for the linear Schur complement system.
+    Jacobi smoother for the linear Schur complement system.
 
     :arg operator: Schur complement operator, of type :class:`Operator_Hhat`.
     :arg mu_relax: Under-/Over-relaxation parameter :math:`mu`
@@ -72,21 +107,12 @@ class Jacobi(object):
                  level=-1,
                  *args):
         self._operator = operator
-        self._W3 = self._operator._W3
-        self._mesh = self._W3.mesh()
+        super(Jacobi,self).__init__(self._operator._W3)
         self._mu_relax = mu_relax
         self._n_smooth = n_smooth
         self._dx = self._mesh._dx
         self._r_tmp = Function(self._W3)
-        self._b_tmp = Function(self._W3)
-        self._phi_tmp = Function(self._W3)
         self._level = level
-        with self._b_tmp.dat.vec as v:
-            ndof = self._W3.dof_dset.size
-            self._iset = PETSc.IS().createStride(ndof,
-                                                 first=v.owner_range[0],
-                                                 step=1,
-                                                 comm=v.comm)
 
     def add_to_xml(self,parent,function):
         '''Add to existing xml tree.

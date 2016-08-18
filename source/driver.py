@@ -129,7 +129,9 @@ def initialise_parameters(filename=None):
         # smoother relaxation factor
         {'mu_relax':1.0,
         # smoothing steps
-         'n_smooth':1})
+         'n_smooth':1,
+        # use exact solver (instead of smoother)?
+         'direct_solver':False})
 
     if (filename != None):
         for param in (param_general,
@@ -384,10 +386,15 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                 op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
                                         level=0)
             with timed_region('matrixfree smoother setup'):
-                preconditioner = Jacobi(op_Hhat,
-                                        param_singlelevel['mu_relax'],
-                                        param_singlelevel['n_smooth'],
-                                        level=0)
+                if (param_singlelevel['direct_solver']):
+                    preconditioner = DirectSolver(W2,
+                                                  W3,
+                                                  dt, c, N)
+                else:
+                    preconditioner = Jacobi(op_Hhat,
+                                            param_singlelevel['mu_relax'],
+                                            param_singlelevel['n_smooth'],
+                                            level=0)
 
     with timed_region('matrixfree mixed operator setup'):
         mixed_operator = MixedOperator(W2,W3,dt,c,N)
