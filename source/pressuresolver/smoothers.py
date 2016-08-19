@@ -41,11 +41,14 @@ class DirectSolver(Smoother):
 
         zhat = VerticalNormal(W2.mesh()).zhat
 
+        ubcs = [DirichletBC(W2, 0.0, "bottom"),
+                DirichletBC(W2, 0.0, "top")]
+
         umass = (dot(utest, utrial) +
                  omega_N2*dot(utest, zhat)*dot(utrial, zhat))*self._dx
 
         S = assemble(pmass).M.handle.copy()
-        U = assemble(umass).M.handle
+        U = assemble(umass, bcs=ubcs).M.handle
 
         Div = assemble(Div).M.handle
         Grad = assemble(Grad).M.handle.copy()
