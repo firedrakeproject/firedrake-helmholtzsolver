@@ -85,6 +85,7 @@ class PETScSolver(IterativeSolver):
         self._logger.write('  Pressure KSP type = '+str(self._ksp.getType()))
         self._ksp_monitor = ksp_monitor
         self._ksp.setMonitor(self._ksp_monitor)
+        self._ksp.setFromOptions()
         pc = self._ksp.getPC()
         pc.setType(pc.Type.PYTHON)
         pc.setPythonContext(self._preconditioner)
