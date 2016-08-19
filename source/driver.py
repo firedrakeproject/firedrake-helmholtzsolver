@@ -335,18 +335,18 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
 
                 if (param_multigrid['direct_coarse_solver']):
                     # Build W2 function space on coarsest mesh
-                    U1_lo = FiniteElement('RT',triangle,1)
-                    U2_lo = FiniteElement('DG',triangle,0)
-                    V0_lo = FiniteElement('CG',interval,1)
-                    V1_lo = FiniteElement('DG',interval,0)
-                    W2_elt_lo = HDiv(OuterProductElement(U1_lo,V1_lo)) \
-                              + HDiv(OuterProductElement(U2_lo,V0_lo))
-                    W3_coarse = W3_hierarchy[0]
-                    coarse_mesh = W3_coarse.mesh()
-                    W2_coarse = FunctionSpace(coarse_mesh,W2_elt_lo)
+                    coarse_mesh = W3_hierarchy[0].mesh()
+                    W2_coarse = FunctionSpace(coarse_mesh, W2.ufl_element())
+                    W3_coarse = FunctionSpace(coarse_mesh, W3.ufl_element())
+                    mixed_operator = MixedOperator(W2_coarse,W3_coarse,dt,c,N)
+                    mutilde = Mutilde(mixed_operator,lumped=True,label='coarse_mutilde')
+
+                    op_H = Operator_H(W3_coarse,W2_coarse,mutilde,omega_c)
+
                     coarsegrid_solver = DirectSolver(op_Hhat_hierarchy[0],
                                                      W2_coarse,
-                                                     dt, c, N)
+                                                     dt, c, N,
+                                                     op_H=op_H)
                 else:
                     coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
                                                mu_relax=param_multigrid['mu_relax'],
@@ -551,11 +551,10 @@ def solve_petsc(functionspaces,dt,all_param,expression):
         logger.write('Warmup...')
         stdout_save = sys.stdout
         with timed_region("warmup"), PETSc.Log().Stage("warmup"):
-            with open(os.devnull,'w') as sys.stdout:
-                r_u.assign(0.0)
-                r_p.project(expression)
-                r_b.assign(0.0)
-                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
+            r_u.assign(0.0)
+            r_p.project(expression)
+            r_b.assign(0.0)
+            u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
         sys.stdout = stdout_save
         # Reset timers
         profiling.reset_timers()

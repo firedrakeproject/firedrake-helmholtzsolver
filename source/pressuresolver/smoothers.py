@@ -23,7 +23,7 @@ class Smoother(object):
                                                  comm=v.comm)
 
 class DirectSolver(Smoother):
-    def __init__(self, operator, W2, dt, c, N):
+    def __init__(self, operator, W2, dt, c, N, op_H=None):
         super(DirectSolver,self).__init__(operator)
         self._dx = self._mesh._dx
         utest = TestFunction(W2)
@@ -59,7 +59,15 @@ class DirectSolver(Smoother):
         S.axpy(-omega_c2, divgrad)
 
         solver = PETSc.KSP().create()
-        solver.setOperators(S, S)
+        if op_H is not None:
+            A = PETSc.Mat().create(W2.comm)
+            A.setSizes(S.getSizes())
+            A.setType(A.Type.PYTHON)
+            A.setPythonContext(op_H)
+            A.setUp()
+        else:
+            A = S
+        solver.setOperators(A, S)
 
         solver.setOptionsPrefix("coarse_solver_")
         solver.setFromOptions()
