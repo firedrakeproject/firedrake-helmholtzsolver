@@ -99,15 +99,14 @@ class BandedMatrix(object):
         self._ipiv = None
         hostname = socket.gethostname()
         self._include_dirs = []
-        self._lib_dirs = []
-        self._libs = []
+        self._ldargs = []
         if ( ('Eikes-MacBook-Pro.local' in hostname) or \
              ('eduroam.bath.ac.uk' in hostname) or \
              ('Eikes-MBP' in hostname) or \
              ('dhcp' in hostname)):
             self._include_dirs = ['/usr/local/include/',]
-            self._lib_dirs = ['/usr/local/lib/',]
-            self._libs = ['lapack','lapacke','cblas','blas']
+            self._ldargs = ['-L/usr/local/lib/', "-llapack",
+                            "-llapacke", "-lcblas", "-lblas"]
         self._use_blas_for_axpy = False
         if (label==None):
             self._label = '___'
@@ -401,8 +400,7 @@ class BandedMatrix(object):
         kernel_code +='''}'''
         kernel = op2.Kernel(kernel_code % param_dict,'ax',cpp=True,
                             include_dirs=self._include_dirs,
-                            lib_dirs=self._lib_dirs,
-                            libs=self._libs)
+                            ldargs=self._ldargs)
         with timed_region('bandedmatrix ax'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -449,8 +447,7 @@ class BandedMatrix(object):
             }'''
         kernel = op2.Kernel(kernel_code % param_dict,'axpy',cpp=True,
                             include_dirs=self._include_dirs,
-                            lib_dirs=self._lib_dirs,
-                            libs=self._libs)
+                            ldargs=self._ldargs)
         with timed_region('bandedmatrix axpy'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -813,8 +810,7 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             include_dirs=self._include_dirs,
-                            lib_dirs=self._lib_dirs,
-                            libs=self._libs)
+                            ldargs=self._ldargs)
         with timed_region('bandedmatrix lu_decompose'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -842,8 +838,7 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             include_dirs=self._include_dirs,
-                            lib_dirs=self._lib_dirs,
-                            libs=self._libs)
+                            ldargs=self._ldargs)
         with timed_region('bandedmatrix lu_solve'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
@@ -1020,8 +1015,7 @@ class BandedMatrix(object):
                             cpp=True,
                             headers=['#include "lapacke.h"'],
                             include_dirs=self._include_dirs,
-                            lib_dirs=self._lib_dirs,
-                            libs=self._libs)
+                            ldargs=self._ldargs)
         with timed_region('bandedmatrix spai'):
             op2.par_loop(kernel,
                          self._hostmesh.cell_set,
