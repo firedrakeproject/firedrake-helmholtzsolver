@@ -25,24 +25,23 @@ class Smoother(object):
 class DirectSolver(Smoother):
     def __init__(self, operator, W2, dt, c, N, op_H=None):
         super(DirectSolver,self).__init__(operator)
-        self._dx = self._mesh._dx
         utest = TestFunction(W2)
         utrial = TrialFunction(W2)
         ptest = TestFunction(self._W3)
         ptrial = TrialFunction(self._W3)
 
         # FIXME: Is this the right operator?
-        pmass = ptest*ptrial*self._dx
+        pmass = ptest*ptrial*dx
 
         omega_c2 = (0.5*dt*c)**2
         omega_N2 = Constant((0.5*dt*N)**2)
-        Div = ptest*div(utrial)*self._dx
-        Grad = -div(utest)*ptrial*self._dx
+        Div = ptest*div(utrial)*dx
+        Grad = -div(utest)*ptrial*dx
 
         zhat = VerticalNormal(W2.mesh()).zhat
 
         umass = (dot(utest, utrial) +
-                 omega_N2*dot(utest, zhat)*dot(utrial, zhat))*self._dx
+                 omega_N2*dot(utest, zhat)*dot(utrial, zhat))*dx
 
         S = assemble(pmass).M.handle.copy()
         U = assemble(umass).M.handle
@@ -118,7 +117,6 @@ class Jacobi(Smoother):
         super(Jacobi,self).__init__(operator)
         self._mu_relax = mu_relax
         self._n_smooth = n_smooth
-        self._dx = dx(domain=self._mesh)
         self._r_tmp = Function(self._W3)
         self._level = level
 

@@ -30,7 +30,6 @@ class IterativeSolver(object):
         self._maxiter = maxiter
         self._tolerance = tolerance
         from firedrake import dx
-        self._dx = dx(domain=self._W3.mesh())
 
     def solve(self,b,phi):
         '''Solve linear system :math:`\hat{H}\phi = b`.

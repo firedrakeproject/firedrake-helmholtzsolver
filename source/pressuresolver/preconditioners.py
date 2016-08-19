@@ -34,8 +34,6 @@ class hMultigrid(object):
         self._phi = FunctionHierarchy(self._W3_hierarchy)
         self._fine_level = len(self._W3_hierarchy)-1
         self._coarsest_level = 0
-        self._dx = [dx(domain=self._W3_hierarchy[level].mesh())
-                    for level in range(len(self._W3_hierarchy))]
         self._operator = operator_hierarchy[self._fine_level] 
         with self._rhs[self._fine_level].dat.vec as v:
             ndof = self._W3_hierarchy[self._fine_level].dof_dset.size
@@ -154,7 +152,6 @@ class hpMultigrid(object):
         self._W3_low = self._hmultigrid._W3_hierarchy[-1]
         self._rhs_low = Function(self._W3_low)
         self._dphi_low = Function(self._W3_low)
-        self._dx = dx(domain=self._W3.mesh())
         self._phi_tmp = Function(self._W3)
         self._rhs_tmp = Function(self._W3)
         with self._rhs_tmp.dat.vec as v:
@@ -243,7 +240,7 @@ class hpMultigrid(object):
         :arg phi_high: Function in higher order space
         :arg phi_low: Resulting function in lower order space
         '''
-        par_loop(self._kernel_restrict,self._dx,
+        par_loop(self._kernel_restrict,dx,
                  {'phi_high':(phi_high,READ),
                   'phi_low':(phi_low,WRITE)})
 
@@ -255,6 +252,6 @@ class hpMultigrid(object):
         :arg phi_low: Function in lower order space
         :arg phi_high: Resulting function in higher order space
         '''
-        par_loop(self._kernel_prolongadd,self._dx,
+        par_loop(self._kernel_prolongadd,dx,
                  {'phi_low':(phi_low,READ),
                   'phi_high':(phi_high,INC)})

@@ -69,7 +69,6 @@ class MixedPreconditioner(object):
         self._preassemble = mixed_operator._preassemble
         self._mesh = self._W3.mesh()
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
         self._utest = TestFunction(self._W2)
@@ -117,7 +116,7 @@ class MixedPreconditioner(object):
                             self._mixed_operator._mat_pu.mult(x,v)
                         v *= -1.0
                 else:
-                    assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
+                    assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * dx,
                              tensor=self._rtilde_p)
                 self._rtilde_p += r_p
 
@@ -132,7 +131,7 @@ class MixedPreconditioner(object):
                             self._mixed_operator._mat_up.mult(x,v)
                             v *= -1.0                    
                 else:
-                    assemble(self._dt_half * div(self._utest) * p*self._dx,
+                    assemble(self._dt_half * div(self._utest) * p*dx,
                         tensor=self._tmp_u)                    
                 self._tmp_u += r_u
             with timed_region('matrixfree pc_hdiv'):
@@ -213,7 +212,6 @@ class MixedPreconditionerOrography(object):
         self._diagonal_only = diagonal_only
         self._mesh = self._W3.mesh()
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
         self._utest = TestFunction(self._W2)
@@ -234,7 +232,7 @@ class MixedPreconditionerOrography(object):
         self._Pb = Function(self._Wb)
         self._tolerance_u = tolerance_u
         self._mixedarray = MixedArray(self._W2,self._W3,self._Wb)
-        Mb = assemble(self._btest*TrialFunction(self._Wb)*self._dx)
+        Mb = assemble(self._btest*TrialFunction(self._Wb)*dx)
         self._linearsolver_b = LinearSolver(Mb,solver_parameters={'ksp_type':'cg',
                                                                   'ksp_rtol':tolerance_b,
                                                                   'ksp_max_it':maxiter_b,
@@ -270,26 +268,26 @@ class MixedPreconditionerOrography(object):
             # Modified RHS for velocity 
             self._linearsolver_b.solve(self._tmp_b,r_b)
             assemble(self._dt_half * dot(self._utest,self._zhat.zhat) \
-                                   * self._tmp_b * self._dx,
+                                   * self._tmp_b * dx,
                      tensor=self._rtilde_u)
             self._rtilde_u += r_u
             # Modified RHS for pressure
             with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(self._rtilde_u,self._tmp_u,tolerance=self._tolerance_u)
-            assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * self._dx,
+            assemble(- self._dt_half_c2 * self._ptest * div(self._tmp_u) * dx,
                      tensor=self._rtilde_p)
             self._rtilde_p += r_p
             # Pressure solve
             p.assign(0.0)
             self._pressure_solver.solve(self._rtilde_p,p)
             # Backsubstitution for velocity 
-            assemble(self._dt_half * div(self._utest) * p*self._dx,
+            assemble(self._dt_half * div(self._utest) * p*dx,
                      tensor=self._tmp_u)
             self._tmp_u += self._rtilde_u
             with timed_region('matrixfree pc_hdiv'):
                 self._mutilde.divide(self._tmp_u,u,tolerance=self._tolerance_u)
             # Backsubstitution for buoyancy
-            assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*self._dx,
+            assemble(- self._dt_half_N2 * self._btest*dot(self._zhat.zhat,u)*dx,
                      tensor=self._tmp_b)
             self._tmp_b += r_b
             self._linearsolver_b.solve(b,self._tmp_b)

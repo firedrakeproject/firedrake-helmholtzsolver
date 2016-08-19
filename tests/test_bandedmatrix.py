@@ -364,7 +364,6 @@ def test_helmholtz_solve_lowest_order(W3_hierarchy,
     mat_D = BandedMatrix(W3,W2_vert)
     mat_DT = BandedMatrix(W2_vert,W3)
 
-    dx = W3.mesh()._dx
     form_M = TestFunction(W3)*TrialFunction(W3)*dx
     form_D = TestFunction(W3)*div(TrialFunction(W2_vert))*dx
     form_DT = div(TestFunction(W2_vert))*TrialFunction(W3)*dx
@@ -429,7 +428,7 @@ def test_diagonal(W2_vert):
     '''
     u = TestFunction(W2_vert)
     v = TrialFunction(W2_vert) 
-    ufl_form = dot(u,v)*W2_vert.mesh()._dx
+    ufl_form = dot(u,v)*dx
     mat = BandedMatrix(W2_vert,W2_vert)
     mat.assemble_ufl_form(ufl_form)
     mat_diag = mat.diagonal()
@@ -447,7 +446,7 @@ def test_inv_diagonal(W2_vert):
     '''
     u = TestFunction(W2_vert)
     v = TrialFunction(W2_vert) 
-    ufl_form = dot(u,v)*W2_vert.mesh()._dx
+    ufl_form = dot(u,v)*dx
     mat = BandedMatrix(W2_vert,W2_vert)
     mat.assemble_ufl_form(ufl_form)
     mat_diag = mat.diagonal()
@@ -472,7 +471,7 @@ def test_boundary_conditions(W2_vert_coarse,velocity_expression):
     '''
     u = TestFunction(W2_vert_coarse)
     v = TrialFunction(W2_vert_coarse) 
-    ufl_form = dot(u,v)*W2_vert_coarse.mesh()._dx
+    ufl_form = dot(u,v)*dx
     mat = BandedMatrix(W2_vert_coarse,W2_vert_coarse)
     mat.assemble_ufl_form(ufl_form)
     bcs = [DirichletBC(W2_vert_coarse, 0.0, "bottom"),

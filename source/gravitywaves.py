@@ -97,7 +97,6 @@ class IterativeSolver(object):
         self._u = Function(self._W2)
         self._p = Function(self._W3)
         self._b = Function(self._Wb)
-        self._dx = dx(domain=self._W3.mesh())
 
 class MatrixFreeSolver(IterativeSolver):
     '''Matrix-free solver for the gravity wave system without orography
@@ -191,9 +190,9 @@ class MatrixFreeSolver(IterativeSolver):
         utest = TestFunction(self._W2)
         ptest = TestFunction(self._W3)
         # Solve UP system
-        f_u = assemble((dot(utest,r_u) \
-                       + self._dt_half*dot(utest,vert_norm.zhat*r_b))*self._dx)
-        f_p = assemble(ptest*r_p*self._dx)
+        f_u = assemble((dot(utest,r_u)
+                        + self._dt_half*dot(utest,vert_norm.zhat*r_b))*dx)
+        f_p = assemble(ptest*r_p*dx)
         # Copy data in
         with f_u.dat.vec_ro as u, \
              f_p.dat.vec_ro as p:
@@ -206,8 +205,8 @@ class MatrixFreeSolver(IterativeSolver):
              self._p.dat.vec as p:
             self._mixedarray.split(self._x,u,p)
         with timed_region('matrixfree buoyancy solve'):
-            L_b = dot(btest*vert_norm.zhat,self._u)*self._dx
-            a_b = btest*TrialFunction(self._Wb)*self._dx
+            L_b = dot(btest*vert_norm.zhat,self._u)*dx
+            a_b = btest*TrialFunction(self._Wb)*dx
             b_tmp = Function(self._Wb)
             b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
             b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',
@@ -309,9 +308,9 @@ class MatrixFreeSolverOrography(IterativeSolver):
         utest = TestFunction(self._W2)
         ptest = TestFunction(self._W3)
         # Solve UPB system
-        f_u = assemble(dot(utest,r_u)*self._dx)
-        f_p = assemble(ptest*r_p*self._dx)
-        f_b = assemble(btest*r_b*self._dx)
+        f_u = assemble(dot(utest,r_u)*dx)
+        f_p = assemble(ptest*r_p*dx)
+        f_b = assemble(btest*r_b*dx)
         # Copy data in
         with f_u.dat.vec_ro as u, \
              f_p.dat.vec_ro as p, \
@@ -372,7 +371,6 @@ class PETScSolver(object):
         self._u = Function(self._W2)
         self._p = Function(self._W3)
         self._b = Function(self._Wb)
-        self._dx = dx(domain=self._W3.mesh())
         self.vert_norm = VerticalNormal(self._W3.mesh())
 
     def add_to_xml(self,parent,function):
@@ -447,9 +445,9 @@ class PETScSolver(object):
                 + (dot(utest,utrial) + self._omega_N2 \
                     * dot(utest,self.vert_norm.zhat) \
                     * dot(utrial,self.vert_norm.zhat)) \
-               )*self._dx
+               )*dx
         L_up = ( dot(utest,r_u) + self._dt_half*dot(utest,self.vert_norm.zhat*r_b) \
-               + ptest*r_p) * self._dx
+               + ptest*r_p) * dx
         up_problem = LinearVariationalProblem(a_up, L_up, vmixed, bcs=bcs)
         up_solver = LinearVariationalSolver(up_problem, solver_parameters=sparams)
         ksp = up_solver.snes.getKSP()
@@ -489,8 +487,8 @@ class PETScSolver(object):
             self._u.assign(vmixed.sub(0))
             self._p.assign(vmixed.sub(1))
             btest = TestFunction(self._Wb)
-            L_b = dot(btest*self.vert_norm.zhat,self._u)*self._dx
-            a_b = btest*TrialFunction(self._Wb)*self._dx
+            L_b = dot(btest*self.vert_norm.zhat,self._u)*dx
+            a_b = btest*TrialFunction(self._Wb)*dx
             b_tmp = Function(self._Wb)
             b_problem = LinearVariationalProblem(a_b,L_b, b_tmp)
             b_solver = LinearVariationalSolver(b_problem,solver_parameters={'ksp_type':'cg',

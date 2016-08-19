@@ -20,7 +20,7 @@ def test_lumped_mass_diagonal(W2_coarse):
     
     u = TestFunction(W2_coarse)
     v = TrialFunction(W2_coarse)
-    ufl_form = dot(u,v)*W2_coarse._mesh._dx
+    ufl_form = dot(u,v)*dx
     full_mass_matrix = assemble(ufl_form).M.values
     lumped_mass = LumpedMass(ufl_form) 
     diff = [x-y[i] for i,(x,y) in enumerate(zip(lumped_mass._data.dat.data,full_mass_matrix))]
@@ -37,7 +37,7 @@ def test_lumped_mass_inverse(W2_coarse,velocity_expression):
     '''
     u = TestFunction(W2_coarse)
     v = TrialFunction(W2_coarse)
-    ufl_form = dot(u,v)*W2_coarse._mesh._dx
+    ufl_form = dot(u,v)*dx
 
     mass = LumpedMass(ufl_form)
     

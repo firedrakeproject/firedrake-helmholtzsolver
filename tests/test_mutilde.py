@@ -39,7 +39,7 @@ def test_mutilde_omegazero(W2,W3,mutilde,velocity_expression):
     u = Function(W2)
     u.project(velocity_expression)
     v = mutilde.apply(u)
-    w = assemble(dot(TestFunction(W2),u)*W3.mesh()._dx,bcs=mutilde._bcs)
+    w = assemble(dot(TestFunction(W2),u)*dx,bcs=mutilde._bcs)
 
     mu = 1./max(v.dat.data)
     assert np.allclose(mu*(v.dat.data,w.dat.data),0.0)

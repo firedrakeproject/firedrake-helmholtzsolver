@@ -51,15 +51,14 @@ class MixedOperator(object):
         self._r_p_tmp = Function(self._W3)
         self._mesh = self._W3.mesh()
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
         self.form_uu = (  dot(self._utest,self._utrial) + self._omega_N2 \
                            * dot(self._utest,self._zhat.zhat) \
-                           * dot(self._zhat.zhat,self._utrial) ) * self._dx
-        self.form_up = -self._dt_half*div(self._utest) * self._ptrial*self._dx
-        self.form_pp = self._ptest * self._ptrial * self._dx
-        self.form_pu = self._ptest*self._dt_half_c2 * div(self._utrial)*self._dx
+                           * dot(self._zhat.zhat,self._utrial) ) * dx
+        self.form_up = -self._dt_half*div(self._utest) * self._ptrial*dx
+        self.form_pp = self._ptest * self._ptrial * dx
+        self.form_pu = self._ptest*self._dt_half_c2 * div(self._utrial)*dx
         with timed_region('assemble mixed'):
             if (self._preassemble):
                 self._op_uu = assemble(self.form_uu,bcs=self._bcs)
@@ -98,9 +97,9 @@ class MixedOperator(object):
                            * dot(self._utest,self._zhat.zhat) \
                            * dot(self._zhat.zhat,u)
                        - self._dt_half*div(self._utest)*p
-                      ) * self._dx,
+                      ) * dx,
                      tensor=r_u)
-            assemble( self._ptest * (p + self._dt_half_c2*div(u)) * self._dx,
+            assemble( self._ptest * (p + self._dt_half_c2*div(u)) * dx,
                      tensor=r_p)
 
         # Apply BCs to R_u
@@ -175,7 +174,6 @@ class MixedOperatorOrography(object):
         self._r_b_tmp = Function(self._Wb)
         self._mesh = self._W3._mesh
         self._zhat = VerticalNormal(self._mesh)
-        self._dx = dx(domain=self._mesh)
         self._bcs = [DirichletBC(self._W2, 0.0, "bottom"),
                      DirichletBC(self._W2, 0.0, "top")]
 
@@ -198,11 +196,11 @@ class MixedOperatorOrography(object):
         assemble( (  dot(self._utest,u) 
                    - self._dt_half*div(self._utest)*p
                    - self._dt_half*dot(self._utest,self._zhat.zhat)*b
-                  ) * self._dx,
+                  ) * dx,
                  tensor=r_u)
-        assemble( self._ptest * (p + self._dt_half_c2*div(u)) * self._dx,
+        assemble( self._ptest * (p + self._dt_half_c2*div(u)) * dx,
                  tensor=r_p)
-        assemble( self._btest * (b  + self._dt_half_N2*dot(self._zhat.zhat,u)) * self._dx,
+        assemble( self._btest * (b  + self._dt_half_N2*dot(self._zhat.zhat,u)) * dx,
                  tensor =r_b)
         # Apply BCs to R_u
         self._apply_bcs(r_u)

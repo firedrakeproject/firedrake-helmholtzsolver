@@ -38,7 +38,6 @@ class Operator_H(object):
         self._mutilde = mutilde
         self._omega_c = omega_c
         self._omega_c2 = Constant(self._omega_c**2)
-        self._dx = dx(domain=self._W3.mesh())
         self._phi_test = TestFunction(self._W3)
         self._u_test = TestFunction(self._W2)
         self._u_trial = TrialFunction(self._W2)
@@ -67,12 +66,12 @@ class Operator_H(object):
 
         :arg phi: pressure field
         '''
-        BT_phi = assemble(div(self._u_test)*phi*self._dx)
+        BT_phi = assemble(div(self._u_test)*phi*dx)
         #self._apply_bcs(BT_phi)
         Mutildeinv_BT_phi = Function(self._W2)
         self._mutilde.divide(BT_phi,Mutildeinv_BT_phi)
-        B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*self._dx
-        M_phi_phi = self._phi_test*phi*self._dx
+        B_Mutildeinv_BT_phi = self._phi_test*div(Mutildeinv_BT_phi)*dx
+        M_phi_phi = self._phi_test*phi*dx
         return assemble(M_phi_phi + self._omega_c2*B_Mutildeinv_BT_phi)
 
     def mult(self,mat,x,y):
@@ -160,23 +159,22 @@ class Operator_Hhat(object):
         self._phi_tmp = Function(self._W3)
         self._res_tmp = Function(self._W3)
         self._mesh = self._W3.mesh()
-        self._dx = dx(domain=self._mesh)
         self._level=level
         # Forms for operator applications
-        self._B_v_phi_form = div(w_v)*self._phi_tmp*self._dx
+        self._B_v_phi_form = div(w_v)*self._phi_tmp*dx
         self._B_h_phi = Function(self._W2_h)
         self._B_v_phi = Function(self._W2_v)
-        self._BT_B_v_phi_form = self._psi*div(self._B_v_phi)*self._dx
-        self._M_phi_form = self._psi*self._phi_tmp*self._dx
+        self._BT_B_v_phi_form = self._psi*div(self._B_v_phi)*dx
+        self._M_phi_form = self._psi*self._phi_tmp*dx
         self._M_phi = Function(self._W3)
         self._BT_B_h_phi = Function(self._W3)
         self._BT_B_v_phi = Function(self._W3)
-        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*self._dx,
+        self._Mu_h = LumpedMass(dot(w_h,TrialFunction(self._W2_h))*dx,
                                 label='h')
         if (self._preassemble_horizontal):
             with timed_region('assemble B_h'):      
                 mat_B_h = \
-                  assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*self._dx).M.handle
+                  assemble(div(TestFunction(self._W2_h))*TrialFunction(self._W3)*dx).M.handle
             tmp_h = mat_B_h.duplicate(copy=True)
             with timed_region('diagonal_scale'):
                 with self._Mu_h._data_inv.dat.vec_ro as inv_diag:
@@ -184,19 +182,19 @@ class Operator_Hhat(object):
             with timed_region('transposeMatMult'):
                 self._mat_Hhat_h = mat_B_h.transposeMatMult(tmp_h)
         else:
-            self._B_h_phi_form = div(w_h)*self._phi_tmp*self._dx
-            self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*self._dx
+            self._B_h_phi_form = div(w_h)*self._phi_tmp*dx
+            self._BT_B_h_phi_form = self._psi*div(self._B_h_phi)*dx
 
         # Lumped mass matrices.
         Mu_v = BandedMatrix(self._W2_v,self._W2_v,label='Mu_v_level_'+str(self._level))
-        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*self._dx,
+        Mu_v.assemble_ufl_form(dot(w_v,TrialFunction(self._W2_v))*dx,
                                vertical_bcs=True)
         self._Mu_vinv = Mu_v.inv_diagonal()
         B_v = BandedMatrix(self._W2_v,self._W3,label='B_v_level_'+str(self._level))
-        B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*self._dx,
+        B_v.assemble_ufl_form(div(w_v)*TrialFunction(self._W3)*dx,
                               vertical_bcs=True)
         M_phi = BandedMatrix(self._W3,self._W3,label='M_phi_level_'+str(self._level))
-        M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*self._dx,
+        M_phi.assemble_ufl_form(TestFunction(self._W3)*TrialFunction(self._W3)*dx,
                                 vertical_bcs=True)
         self._Hhat_v = M_phi.matadd(B_v.transpose_matmul(self._Mu_vinv.matmul(B_v)),
                                     omega=self._omega)
@@ -307,7 +305,7 @@ class Operator_Hhat(object):
         w_h_trial = TrialFunction(self._W2_h)
 
         # Build LMA for B_h and for delta_h = diag_h(B_h*M_{u,h,inv}*B_h^T)
-        ufl_form = phi_test*div(w_h_trial)*self._dx
+        ufl_form = phi_test*div(w_h_trial)*dx
         compiled_form = compile_form(ufl_form, 'ufl_form')[0]
         kernel = compiled_form.kinfo.kernel
         coords = ufl_form.ufl_domains()[0].coordinates
