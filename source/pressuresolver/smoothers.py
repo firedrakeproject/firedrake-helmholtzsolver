@@ -63,7 +63,7 @@ class DirectSolver(Smoother):
 
         solver = PETSc.KSP().create()
         if op_H is not None:
-            A = PETSc.Mat().create(W2.comm)
+            A = PETSc.Mat().create(op2.MPI.comm)
             A.setSizes(S.getSizes())
             A.setType(A.Type.PYTHON)
             A.setPythonContext(op_H)
