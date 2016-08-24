@@ -13,6 +13,7 @@ class Jobscript(object):
                  queue='short',
                  subdirs=('',),
                  parameterfilenames=('parameters.in',),
+                 petscparameters='',
                  apruncmd=''):
         '''Class representing a job specificatin.
         
@@ -25,6 +26,7 @@ class Jobscript(object):
             :arg queue: Queue to run in
             :arg subdirs: Names of subdirectories to run in
             :arg parameterfilenames: Names of parameter files
+            :arg petscparameters: PETSc parameters to be added to the command line
             :arg apruncmd" aprun command
         '''
         self.apruncmd=apruncmd
@@ -37,6 +39,7 @@ class Jobscript(object):
         self.walltime_hours = walltime_hours
         self.queue = queue
         self.templatefilename = templatefilename
+        self.petscparameters = petscparameters
 
     def save_to_file(self,filename):
         '''Save jobscript to disk.
@@ -49,11 +52,12 @@ class Jobscript(object):
         for subdir, parameterfile in zip(self.subdirs,self.parameterfilenames):
             s += 'WORKSUBDIR=$WORKDIR/'+subdir+'\n'
             s += 'PARAMETERFILE='+parameterfile+'\n'
+            s += 'PETSCPARAMETERS='+self.petscparameters+'\n'
             s += 'mkdir $WORKSUBDIR\n'
             s += 'cp $0 $WORKSUBDIR/jobscript.pbs\n'
             s += 'cp $PBS_O_WORKDIR/$PARAMETERFILE $WORKSUBDIR\n'
             s += 'cd $WORKSUBDIR\n'
-            s += 'aprun -n '+str(self.ppn*self.nodes)+' -N '+str(self.ppn)+' -S '+str((self.ppn+1)/2)+' python ${HELMHOLTZSOURCEDIR}/driver.py $PARAMETERFILE 2>&1  | tee -a output.log\n\n'
+            s += 'aprun -n '+str(self.ppn*self.nodes)+' -N '+str(self.ppn)+' -S '+str((self.ppn+1)/2)+' python ${HELMHOLTZSOURCEDIR}/driver.py $PARAMETERFILE $PETSCPARAMETERS 2>&1  | tee -a output.log\n\n'
         d = {'queue':self.queue,
              'nodes':self.nodes,
              'ppn':self.ppn,

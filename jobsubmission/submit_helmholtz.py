@@ -14,7 +14,7 @@ def LogicalStr(x):
         return 'True'
     return 'False'
 
-def create_submission(rundir,jobname,labels,dicts):
+def create_submission(rundir,jobname,labels,dicts,petscparameters=''):
     '''Generate submission files (jobscript and parameter file)
     for a given parameter set.
 
@@ -22,6 +22,7 @@ def create_submission(rundir,jobname,labels,dicts):
     :arg jobname: name of job script
     :arg labels: Unique labels for runs
     :arg dicts: Dictionaries with parameters
+    :arg petscparameters: String with PETSc parameters
     '''
     d = dicts[0]
     ppn = d['ppn']
@@ -47,7 +48,8 @@ def create_submission(rundir,jobname,labels,dicts):
                     ppn=ppn,
                     queue='standard',
                     subdirs=labels,
-                    parameterfilenames=parameterfilenames)
+                    parameterfilenames=parameterfilenames,
+                    petscparameters=petscparameters)
     job.save_to_file(jobscriptfilename)
 
 def weak_scaling(rundir,higher_order,singlelevel=False):
