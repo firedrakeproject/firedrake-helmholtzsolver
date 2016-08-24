@@ -73,6 +73,21 @@ class DirectSolver(Smoother):
         solver.setOperators(A, S)
 
         solver.setOptionsPrefix("coarse_solver_")
+        # Set options to use one AMG V-cycle
+        opts = PETSc.Options()
+        opts["coarse_solver_ksp_type"] = "preonly"
+        opts["coarse_solver_pc_type"] = "hypre"
+        opts["coarse_solver_pc_hypre_type"] = "boomeramg"
+        opts["coarse_solver_pc_hypre_boomeramg_max_iter"] = 1
+        opts["coarse_solver_pc_hypre_boomeramg_agg_nl"] = 0
+        opts["coarse_solver_pc_hypre_boomeramg_coarsen_type"] = "Falgout"
+        opts["coarse_solver_pc_hypre_boomeramg_smooth_type"] = "Euclid"
+        opts["coarse_solver_pc_hypre_boomeramg_eu_bj"] = 1
+        opts["coarse_solver_pc_hypre_boomeramg_interptype"] = "classical"
+        opts["coarse_solver_pc_hypre_boomeramg_P_max"] = 0
+        opts["coarse_solver_pc_hypre_boomeramg_strong_threshold"] = 0.25
+        opts["coarse_solver_pc_hypre_boomeramg_max_level"] = 5
+        opts["coarse_solver_pc_hypre_boomeramg_no_CF"] = 0
         solver.setFromOptions()
         self.ksp = solver
         self.ksp.setTolerances(rtol=1.E-15)
