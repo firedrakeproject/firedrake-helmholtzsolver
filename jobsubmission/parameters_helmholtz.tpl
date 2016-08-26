@@ -66,7 +66,7 @@ Multigrid:
     n_presmooth = 1                 # presmoothing steps
     n_postsmooth = 1                # postsmoothing steps
     n_coarsesmooth = %(ncoarsesmooth)d  # number of coarse grid smoothing steps
-    direct_coarse_solver = %(direct_coarse_solver)s # Use direct solver on coarsest grid?
+    coarsesolver = %(coarsesolver)s # Coarse solver to use
 
 ################################################################################ 
 # Single level preconditioner parameters
@@ -74,4 +74,4 @@ Multigrid:
 Singlelevel:
     mu_relax = 0.8                  # single level smoother relaxation factor
     n_smooth = 2		    # Number of smoother iterations
-    direct_solver = %(direct_coarse_solver)s # Use direct solver (instead of smoother)?
+    preconditioner = %(coarsesolver)s # Preconditioner to use

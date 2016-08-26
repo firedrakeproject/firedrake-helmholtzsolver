@@ -52,7 +52,7 @@ def create_submission(rundir,jobname,labels,dicts,petscparameters=''):
                     petscparameters=petscparameters)
     job.save_to_file(jobscriptfilename)
 
-def weak_scaling(rundir,higher_order,singlelevel=False):
+def weak_scaling(rundir,higher_order,coarsesolver,singlelevel=False):
     '''Generate files for a weak scaling experiment.
 
     :arg rundir: directory to run in
@@ -88,12 +88,12 @@ def weak_scaling(rundir,higher_order,singlelevel=False):
              'nodes':nodes,
              'ncoarsesmooth':ncoarsesmooth,
              'multigrid':LogicalStr(not singlelevel),
-             'direct_coarse_solver':LogicalStr(False)}
+             'coarsesolver':coarsesolver}
         nprocs = ppn*nodes
         label = 'helmholtz_'+str(nprocs)+'cores'
         create_submission(rundir,label,(label,),(d,))
 
-def vary_cfl(rundir,higher_order,singlelevel=False,direct_coarse_solver=False):
+def vary_cfl(rundir,higher_order,coarsesolver,singlelevel=False):
     '''Generate files for runs with different CFL numbers
 
     :arg rundir: directory to run in
@@ -123,7 +123,7 @@ def vary_cfl(rundir,higher_order,singlelevel=False,direct_coarse_solver=False):
              'nodes':nodes,
              'ncoarsesmooth':ncoarsesmooth,
              'multigrid':LogicalStr(not singlelevel),
-             'direct_coarse_solver':LogicalStr(direct_coarse_solver)}
+             'coarsesolver':coarsesolver}
         label = 'helmholtz_CFL'+('%4.1f' % nu_cfl).strip()
         labels.append(label)
         dicts.append(d)
@@ -155,10 +155,11 @@ if (__name__ == '__main__'):
     parser.add_option('-v','--varycfl',
                       action='store_true', dest='varycfl', default=False,
                       help='generate files for runs with different CFL numbers?')
-
-    parser.add_option('-d','--directcoarsesolver',
-                      action='store_true', dest='direct_coarse_solver', default=False,
-                      help='Use direct (exact) solver for coarsest level [only applies if --varycfl is set] ?')
+    parser.add_option('-c','--coarsesolver', dest='coarsesolver',
+                      type='choice',
+                      choices=('jacobi','boomeramg','mumps'),
+                      default='jacobi',
+                      help='coarse grid solver to use [jacobi, boomeramg, mumps]. If the single level method is used, this will be the preconditioner on the finest grid.')
 
     (options,args) = parser.parse_args()
 
@@ -173,7 +174,7 @@ if (__name__ == '__main__'):
     print 'Run directory = '+rundir
     print 'order = '+options.order
     print 'singlelevel = '+str(options.singlelevel)
-    print 'direct coarse solver = '+str(options.direct_coarse_solver)
+    print 'coarse solver = '+str(options.coarsesolver)
 
     # Create directory if it does not exist
     if not os.path.exists(rundir):
@@ -182,8 +183,13 @@ if (__name__ == '__main__'):
 
     if (options.weakscaling):
         print 'Generating files for weak scaling run...'
-        weak_scaling(rundir,higher_order,options.singlelevel)
+        weak_scaling(rundir,
+                     higher_order,
+                     options.coarsesolver,
+                     options.singlelevel)                     
     if (options.varycfl):
         print 'Generating files for run with varying CFL number...'
-        vary_cfl(rundir,higher_order,options.singlelevel,
-                 options.direct_coarse_solver)
+        vary_cfl(rundir,
+                 higher_order,
+                 options.coarsesolver,
+                 options.singlelevel)
