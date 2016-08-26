@@ -121,8 +121,8 @@ def initialise_parameters(filename=None):
         'n_postsmooth':1,
         # number of coarse grid smoothing steps
         'n_coarsesmooth':1,
-        # Use direct solver on coarsest grid?
-        'direct_coarse_solver':False})
+        # Solver to be used on coarsest grid
+        'coarsesolver':'jacobi'})
 
     # Single level preconditioner parameters
     param_singlelevel = Parameters('Singlelevel',
@@ -130,8 +130,8 @@ def initialise_parameters(filename=None):
         {'mu_relax':1.0,
         # smoothing steps
          'n_smooth':1,
-        # use exact solver (instead of smoother)?
-         'direct_solver':False})
+        # preconditioner to use
+         'preconditioner':'jacobi'})
 
     if (filename != None):
         for param in (param_general,
@@ -333,7 +333,12 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                                 mu_relax=param_multigrid['mu_relax'],
                                                 n_smooth=param_multigrid['n_postsmooth'])
 
-                if (param_multigrid['direct_coarse_solver']):
+                if (param_multigrid['coarsesolver'] == 'jacobi'):
+                    coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
+                                               mu_relax=param_multigrid['mu_relax'],
+                                               n_smooth=param_multigrid['n_coarsesmooth'],
+                                               level=0)
+                else:
                     # Build W2 function space on coarsest mesh
                     coarse_mesh = W3_hierarchy[0].mesh()
                     W2_coarse = FunctionSpace(coarse_mesh, W2.ufl_element())
@@ -346,12 +351,8 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                     coarsegrid_solver = DirectSolver(op_Hhat_hierarchy[0],
                                                      W2_coarse,
                                                      dt, c, N,
+                                                     param_multigrid['coarsesolver'],
                                                      op_H=op_H)
-                else:
-                    coarsegrid_solver = Jacobi(op_Hhat_hierarchy[0],
-                                               mu_relax=param_multigrid['mu_relax'],
-                                               n_smooth=param_multigrid['n_coarsesmooth'],
-                                               level=0)
 
             hmultigrid = hMultigrid(W3_hierarchy,
                                     op_Hhat_hierarchy,
@@ -386,15 +387,16 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                 op_Hhat = Operator_Hhat(W3,W2_horiz,W2_vert,omega_c,omega_N,
                                         level=0)
             with timed_region('matrixfree smoother setup'):
-                if (param_singlelevel['direct_solver']):
-                    preconditioner = DirectSolver(op_Hhat,
-                                                  W2,
-                                                  dt, c, N)
-                else:
+                if (param_singlelevel['preconditioner']=='jacobi'):
                     preconditioner = Jacobi(op_Hhat,
                                             param_singlelevel['mu_relax'],
                                             param_singlelevel['n_smooth'],
                                             level=0)
+                else:
+                    preconditioner = DirectSolver(op_Hhat,
+                                                  W2,
+                                                  dt, c, N,
+                                                  param_singlelevel['preconditioner'],)
 
     with timed_region('matrixfree mixed operator setup'):
         mixed_operator = MixedOperator(W2,W3,dt,c,N)

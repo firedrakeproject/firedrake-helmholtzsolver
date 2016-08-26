@@ -3,6 +3,7 @@ from firedrake import *
 import xml.etree.cElementTree as ET
 from firedrake.petsc import PETSc
 from vertical_normal import VerticalNormal
+import sys
 
 class Smoother(object):
     '''Base class for smoother for pressure system
@@ -23,8 +24,14 @@ class Smoother(object):
                                                  comm=v.comm)
 
 class DirectSolver(Smoother):
-    def __init__(self, operator, W2, dt, c, N, op_H=None):
+    def __init__(self, operator, W2, dt, c, N, solver_type, op_H=None):
         super(DirectSolver,self).__init__(operator)
+        self._solver_type = solver_type
+        if not ( ( self._solver_type == "boomeramg") or \
+                 (self._solver_type == "mumps" ) ):
+            if (op2.MPI.comm.rank == 0):
+                print "ERROR: Direct solver has to be either \'boomeramg\' or \'mumps\'"
+            sys.exit()
         self._dx = self._mesh._dx
         utest = TestFunction(W2)
         utrial = TrialFunction(W2)
@@ -73,22 +80,29 @@ class DirectSolver(Smoother):
         solver.setOperators(A, S)
 
         solver.setOptionsPrefix("coarse_solver_")
-        # Set options to use one AMG V-cycle
         opts = PETSc.Options()
-        opts["coarse_solver_ksp_type"] = "preonly"
-        opts["coarse_solver_pc_type"] = "hypre"
-        opts["coarse_solver_pc_hypre_type"] = "boomeramg"
-        opts["coarse_solver_pc_hypre_boomeramg_max_iter"] = 1
-        opts["coarse_solver_pc_hypre_boomeramg_agg_nl"] = 0
-        opts["coarse_solver_pc_hypre_boomeramg_coarsen_type"] = "Falgout"
-        opts["coarse_solver_pc_hypre_boomeramg_smooth_type"] = "Euclid"
-        opts["coarse_solver_pc_hypre_boomeramg_eu_bj"] = 1
-        opts["coarse_solver_pc_hypre_boomeramg_interptype"] = "classical"
-        opts["coarse_solver_pc_hypre_boomeramg_P_max"] = 0
-        opts["coarse_solver_pc_hypre_boomeramg_strong_threshold"] = 0.25
-        opts["coarse_solver_pc_hypre_boomeramg_max_level"] = 5
-        opts["coarse_solver_pc_hypre_boomeramg_no_CF"] = 0
-        solver.setFromOptions()
+        if (self._solver_type == "boomeramg"):
+            # Set options to use one AMG V-cycle
+            opts["coarse_solver_ksp_type"] = "preonly"
+            opts["coarse_solver_pc_type"] = "hypre"
+            opts["coarse_solver_pc_hypre_type"] = "boomeramg"
+            opts["coarse_solver_pc_hypre_boomeramg_max_iter"] = 1
+            opts["coarse_solver_pc_hypre_boomeramg_agg_nl"] = 0
+            opts["coarse_solver_pc_hypre_boomeramg_coarsen_type"] = "Falgout"
+            opts["coarse_solver_pc_hypre_boomeramg_smooth_type"] = "Euclid"
+            opts["coarse_solver_pc_hypre_boomeramg_eu_bj"] = 1
+            opts["coarse_solver_pc_hypre_boomeramg_interptype"] = "classical"
+            opts["coarse_solver_pc_hypre_boomeramg_P_max"] = 0
+            opts["coarse_solver_pc_hypre_boomeramg_strong_threshold"] = 0.25
+            opts["coarse_solver_pc_hypre_boomeramg_max_level"] = 5
+            opts["coarse_solver_pc_hypre_boomeramg_no_CF"] = 0
+            solver.setFromOptions()
+        elif (self._solver_type=="mumps"):
+            opts["coarse_solver_ksp_type"] = "preonly"
+            opts["coarse_solver_pc_type"] = "cholesky"
+            solver.setFromOptions()
+            pc = solver.getPC()
+            pc.setFactorSolverPackage("mumps")
         self.ksp = solver
         self.ksp.setTolerances(rtol=1.E-15)
 

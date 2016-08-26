@@ -65,7 +65,9 @@ Multigrid:
     n_presmooth = 1                 # presmoothing steps
     n_postsmooth = 1                # postsmoothing steps
     n_coarsesmooth = 1              # number of coarse grid smoothing steps
-    direct_coarse_solver = False    # Use direct solver on coarsest grid?
+    caorsesolver = jacobi           # Preconditioner to use. Can be either
+                                    # 'jacobi', 'boomeramg' or 'mumps'
+
 
 ################################################################################ 
 # Single level preconditioner parameters
@@ -73,4 +75,5 @@ Multigrid:
 Singlelevel:
     mu_relax = 1.0                  # single level smoother relaxation factor
     n_smooth = 1		    # Number of smoother iterations
-    direct_solver = False           # Use direct solver (instead of smoother)?
+    preconditioner = jacobi         # Preconditioner to use. Can be either
+                                    # 'jacobi', 'boomeramg' or 'mumps'
