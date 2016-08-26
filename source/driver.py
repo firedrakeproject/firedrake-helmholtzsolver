@@ -552,11 +552,12 @@ def solve_petsc(functionspaces,dt,all_param,expression):
     if (param_general['warmup_run']):
         logger.write('Warmup...')
         stdout_save = sys.stdout
-        with timed_region("warmup"), PETSc.Log().Stage("warmup"):
-            r_u.assign(0.0)
-            r_p.project(expression)
-            r_b.assign(0.0)
-            u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
+        with open(os.devnull,'w') as sys.stdout:
+            with timed_region("warmup"), PETSc.Log().Stage("warmup"):
+                r_u.assign(0.0)
+                r_p.project(expression)
+                r_b.assign(0.0)
+                u,p,b = gravitywave_solver_petsc.solve(r_u,r_p,r_b)
         sys.stdout = stdout_save
         # Reset timers
         profiling.reset_timers()
