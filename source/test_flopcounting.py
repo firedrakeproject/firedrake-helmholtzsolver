@@ -1,5 +1,6 @@
 from firedrake import *
 from flop_counter import *
+from pyop2 import performance_summary
 
 # Construct mesh and function space
 mesh = UnitSquareMesh(8,8)
@@ -16,7 +17,7 @@ u = Function(V)
 u_test = TestFunction(V)
 
 ufl_form_helmholtz = (dot(grad(u_test), grad(u)) + u_test*u) * dx
-flop_counter = FlopCounter1Form(ufl_form_helmholtz)
+flop_counter = FlopCounter1Form(ufl_form_helmholtz,'helmholtz_2d')
 print "=== 2d Helmholtz ==="
 print "number of FLOPs = ", flop_counter.flops
 print
@@ -35,7 +36,7 @@ v_test = TestFunction(V2)
 # UFL form
 ufl_form_2dgrad = div(v_test)*p*dx
 
-flop_counter = FlopCounter1Form(ufl_form_2dgrad)
+flop_counter = FlopCounter1Form(ufl_form_2dgrad,'grad_2d')
 print "=== 2d gradient ==="
 print "number of FLOPs = ", flop_counter.flops
 print
@@ -67,7 +68,8 @@ v_test = TestFunction(W2)
 # UFL form
 ufl_form_3dgrad = div(v_test)*p*dx
 
-flop_counter = FlopCounter1Form(ufl_form_3dgrad)
+flop_counter = FlopCounter1Form(ufl_form_3dgrad,'grad_3d')
 print "=== (2+1)d gradient ==="
 print "number of FLOPs = ", flop_counter.flops
 print
+performance_summary()

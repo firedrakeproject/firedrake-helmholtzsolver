@@ -8,13 +8,14 @@ import tempfile
 
 class FlopCounter1Form(object):
     '''FLOP counter for 1-forms of the form <u_{test},....,u>'''
-    def __init__(self,ufl_form):
+    def __init__(self,ufl_form,label):
         # Ensure this really is a 1-form
         rank = len(ufl_form.arguments())
         assert(rank==1)
         self._ufl_form = ufl_form
         # Extract function space
         self._fs_to = self._ufl_form.arguments()[0].function_space()
+        self._label=label
 
     def _get_ndofcell_to(self):
         '''Count the number of dofs per cell'''
@@ -64,7 +65,7 @@ class FlopCounter1Form(object):
             args.append(c.dat(op2.READ, c.cell_node_map(), flatten=True))
 
         # Build ParLoop object and extract number of FLOPs
-        par_loop = op2.par_loop(kernel,u.cell_set, *args,measure_flops=True)
+        par_loop = op2.par_loop(kernel,u.cell_set, *args,measure_flops=True,name=self._label)
         nflop = par_loop.total_flops
         # Delete temporary directory with firedrake_geomtry.h
         os.remove(tmp_dir+'/firedrake_geometry_LOGGED.h')
