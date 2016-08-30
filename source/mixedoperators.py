@@ -1,5 +1,5 @@
 from firedrake import *
-
+from flop_counter import *
 from pressuresolver.vertical_normal import *
 from mixedarray import *
 from pyop2.profiling import timed_function, timed_region
@@ -93,15 +93,18 @@ class MixedOperator(object):
                     self._mat_pu.mult(x_u,v_p)
                     self._mat_pp.multAdd(x_p,v_p,v_p)
         else:
-            assemble( (  dot(self._utest,u) \
-                       + self._omega_N2 \
-                           * dot(self._utest,self._zhat.zhat) \
-                           * dot(self._zhat.zhat,u)
-                       - self._dt_half*div(self._utest)*p
-                      ) * self._dx,
-                     tensor=r_u)
-            assemble( self._ptest * (p + self._dt_half_c2*div(u)) * self._dx,
-                     tensor=r_p)
+            ufl_form_u =  (  dot(self._utest,u) \
+                                 + self._omega_N2 \
+                                 * dot(self._utest,self._zhat.zhat) \
+                                 * dot(self._zhat.zhat,u)
+                             - self._dt_half*div(self._utest)*p
+                             ) * self._dx
+            ufl_form_p = self._ptest * (p + self._dt_half_c2*div(u)) * self._dx
+            flop_counter_u = FlopCounter1Form(ufl_form_u,'mixedoperator_u')
+            flop_counter_p = FlopCounter1Form(ufl_form_p,'mixedoperator_p')
+            nflops = flop_counter_p.flops + flop_counter_u.flops
+            assemble( ufl_form_u, tensor=r_u)
+            assemble( ufl_form_p, tensor=r_p)
 
         # Apply BCs to R_u
         self._apply_bcs(r_u)
