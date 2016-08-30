@@ -43,11 +43,11 @@ class FlopCounter1Form(object):
         contents = firedrake_geometry_file.read()
         firedrake_geometry_file.close()
         tmp_dir = tempfile.mkdtemp()
-        firedrake_geometry_file_logged = open(tmp_dir+'/firedrake_geometry.h','w')
+        firedrake_geometry_file_logged = open(tmp_dir+'/firedrake_geometry_LOGGED.h','w')
         print >> firedrake_geometry_file_logged, contents.replace('double','LoggedDouble')
         firedrake_geometry_file_logged.close()
         # Add temporary directory to kernel include directories
-        kernel._include_dirs=[tmp_dir]
+        kernel._include_dirs.append(tmp_dir)
         coords = compiled_form[3]
         coefficients = compiled_form[4]
         # Function
@@ -67,6 +67,6 @@ class FlopCounter1Form(object):
         par_loop = op2.par_loop(kernel,u.cell_set, *args,measure_flops=True)
         nflop = par_loop.total_flops
         # Delete temporary directory with firedrake_geomtry.h
-        os.remove(tmp_dir+'/firedrake_geometry.h')
+        os.remove(tmp_dir+'/firedrake_geometry_LOGGED.h')
         os.rmdir(tmp_dir)
         return nflop
