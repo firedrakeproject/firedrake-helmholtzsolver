@@ -30,7 +30,6 @@ class FlopCounter1Form(object):
         for entity_maps in element.entity_dofs().values():
             for entity in entity_maps.values():
                 ndof_cell += len(entity)
-        print 'NDOF_CELL =', ndof_cell
         return ndof_cell
 
     @property
