@@ -72,7 +72,7 @@ class MixedOperator(object):
                 self._mat_pp = self._op_pp.M.handle
 
     @timed_function("matrixfree mixed_operator") 
-    def apply(self,u,p,r_u,r_p):
+    def apply(self,u,p,r_u,r_p,count_flops=False):
         '''Apply the operator to a mixed field.
         
             Calculate
@@ -100,11 +100,13 @@ class MixedOperator(object):
                              - self._dt_half*div(self._utest)*p
                              ) * self._dx
             ufl_form_p = self._ptest * (p + self._dt_half_c2*div(u)) * self._dx
-            flop_counter_u = FlopCounter1Form(ufl_form_u,'mixedoperator_u')
-            flop_counter_p = FlopCounter1Form(ufl_form_p,'mixedoperator_p')
-            nflops = flop_counter_p.flops + flop_counter_u.flops
             assemble( ufl_form_u, tensor=r_u)
             assemble( ufl_form_p, tensor=r_p)
+            if (count_flops):
+                flop_counter_u = FlopCounter1Form(ufl_form_u,'mixedoperator_u')
+                flop_counter_p = FlopCounter1Form(ufl_form_p,'mixedoperator_p')
+                nflops = flop_counter_p.flops + flop_counter_u.flops
+                return nflops
 
         # Apply BCs to R_u
         self._apply_bcs(r_u)

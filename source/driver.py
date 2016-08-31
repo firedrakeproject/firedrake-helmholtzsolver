@@ -494,6 +494,11 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
                 u,p,b = gravitywave_solver_matrixfree.solve(r_u,r_p,r_b)
     with timed_region("matrixfree apply matrixfree mixed operator"):
         mixed_operator_matrixfree.apply(u,p,r_u,r_p)
+    nflop_per_cell = mixed_operator_matrixfree.apply(u,p,r_u,r_p,
+                                                      count_flops=True)
+    logger.write('mixed operator apply, FLOPs per cell = '+str(nflop_per_cell))
+    
+
 
     op_Hhat_v = gravitywave_solver_matrixfree._pressure_solver._preconditioner._operator._Hhat_v
     n_col = op_Hhat_v._n_col
