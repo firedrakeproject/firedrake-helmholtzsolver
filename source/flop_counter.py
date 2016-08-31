@@ -35,7 +35,7 @@ class FlopCounter1Form(object):
 
     @property
     def flops(self):
-        '''Count the number of FLOPs'''
+        '''Count the number of FLOPs per cell'''
         compiled_form = compile_form(self._ufl_form, 'ufl_form')[0]
         kernel = compiled_form[6]
         # Construct a new firedrake_geometry.h file in which
