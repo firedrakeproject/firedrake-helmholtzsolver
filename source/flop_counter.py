@@ -68,7 +68,7 @@ class FlopCounter1Form(object):
 
         # Build ParLoop object and extract number of FLOPs
         par_loop = op2.par_loop(kernel,u.cell_set, *args,measure_flops=True,name=self._label)
-        nflop = par_loop.total_flops
+        nflop = par_loop.flops_per_cell
         # Delete temporary directory with firedrake_geomtry.h
         if op2.MPI.comm.rank == 0:
             os.remove(tmp_dir+'/firedrake_geometry_LOGGED.h')
