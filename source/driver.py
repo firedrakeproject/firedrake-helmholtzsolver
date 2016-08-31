@@ -430,6 +430,10 @@ def matrixfree_solver_setup(functionspaces,dt,all_param):
                                                tolerance=param_mixed['tolerance'],
                                                maxiter=param_mixed['maxiter'],
                                                pressure_solver=pressure_solver)
+    logger.write('matrix-explicit mixed operator apply, nnz per row')
+    nnz_labels = ('uu','up','pu','pp')
+    for i,nnz in enumerate(mixed_operator.get_nnz()):
+        logger.write('  A_'+nnz_labels[i]+' = '+('%8.4f' % nnz))
     return gravitywave_solver_matrixfree
 
 def solve_matrixfree(functionspaces,dt,all_param,expression):
@@ -496,9 +500,7 @@ def solve_matrixfree(functionspaces,dt,all_param,expression):
         mixed_operator_matrixfree.apply(u,p,r_u,r_p)
     nflop_per_cell = mixed_operator_matrixfree.apply(u,p,r_u,r_p,
                                                       count_flops=True)
-    logger.write('mixed operator apply, FLOPs per cell = '+str(nflop_per_cell))
-    
-
+    logger.write('matrix-free mixed operator apply, FLOPs per cell = '+str(nflop_per_cell))
 
     op_Hhat_v = gravitywave_solver_matrixfree._pressure_solver._preconditioner._operator._Hhat_v
     n_col = op_Hhat_v._n_col

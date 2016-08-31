@@ -71,6 +71,18 @@ class MixedOperator(object):
                 self._mat_pu = self._op_pu.M.handle
                 self._mat_pp = self._op_pp.M.handle
 
+    def get_nnz(self):
+        '''Return the number of non-zeros per row for the following operators
+        (in this order): A_{uu}, A_{up}, A_{pu}, A_{pp}
+        '''
+        r = []
+        for mat in (self._mat_uu, self._mat_up, self._mat_pu, self._mat_pp):
+            nrow, ncol = mat.getSize()
+            nnz = mat.getInfo()['nz_allocated']
+            nnz_per_row = nnz/nrow
+            r.append(nnz_per_row)
+        return r
+
     @timed_function("matrixfree mixed_operator") 
     def apply(self,u,p,r_u,r_p,count_flops=False):
         '''Apply the operator to a mixed field.
